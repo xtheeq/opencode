@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "OpenCode",
+    "slug": "opencode",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "opencode",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "ai.opencode.mobile"
+    },
+    "android": {
+      "package": "ai.opencode.mobile"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
