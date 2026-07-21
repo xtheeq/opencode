@@ -1,10 +1,13 @@
 import { Slot } from "expo-router";
+import { ThemeProvider } from "@/theme";
 import { ConnectionProvider } from "@/services/connection";
 
 export default function RootLayout() {
   return (
-    <ConnectionProvider>
-      <Slot />
-    </ConnectionProvider>
+    <ThemeProvider>
+      <ConnectionProvider>
+        <Slot />
+      </ConnectionProvider>
+    </ThemeProvider>
   );
 }

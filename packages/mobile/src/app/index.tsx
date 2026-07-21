@@ -1,18 +1,17 @@
-import { ActivityIndicator, Image, StyleSheet, Text, useColorScheme, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { useConnection } from "@/services/connection";
+import { useTheme, typography } from "@/theme";
 
 export default function HomeScreen() {
-  const isDark = useColorScheme() === "dark";
+  const { colors } = useTheme();
   const { status } = useConnection();
-  const fg = isDark ? "#fff" : "#000";
-  const bg = isDark ? "#000" : "#fff";
   return (
-    <View style={[styles.container, { backgroundColor: bg }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image source={require("@/assets/icon.png")} style={styles.icon} />
-      <Text style={[styles.text, { color: fg }]}>opencode</Text>
+      <Text style={[styles.text, { color: colors.text }]}>opencode</Text>
       <View style={styles.statusRow}>
-        {status === "checking" && <ActivityIndicator size="small" color={fg} />}
-        <Text style={[styles.statusText, { color: status === "connected" ? "#34c759" : "#ff3b30" }]}>
+        {status === "checking" && <ActivityIndicator size="small" color={colors.text} />}
+        <Text style={[styles.statusText, { color: status === "connected" ? colors.success : colors.error }]}>
           {status === "checking" ? "Connecting..." : status === "connected" ? "Connected" : "Disconnected"}
         </Text>
       </View>
@@ -32,8 +31,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   text: {
-    fontSize: 24,
-    fontWeight: "600",
+    ...typography.heading,
   },
   statusRow: {
     flexDirection: "row",
