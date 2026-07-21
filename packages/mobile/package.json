@@ -11,6 +11,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@opencode-ai/client": "workspace:*",
     "expo": "~57.0.7",
     "expo-constants": "~57.0.6",
     "expo-linking": "~57.0.3",

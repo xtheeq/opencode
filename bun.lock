@@ -582,6 +582,7 @@
       "name": "@opencode-ai/mobile",
       "version": "0.1.0",
       "dependencies": {
+        "@opencode-ai/client": "workspace:*",
         "expo": "~57.0.7",
         "expo-constants": "~57.0.6",
         "expo-linking": "~57.0.3",
