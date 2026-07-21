@@ -1,14 +1,14 @@
 export interface ThemeColors {
-  background: string
-  surface: string
-  text: string
-  textSecondary: string
-  border: string
-  primary: string
-  success: string
-  warning: string
-  error: string
-  running: string
+  background: string;
+  surface: string;
+  text: string;
+  textSecondary: string;
+  border: string;
+  primary: string;
+  success: string;
+  warning: string;
+  error: string;
+  running: string;
 }
 
 export const lightColors: ThemeColors = {
@@ -22,7 +22,7 @@ export const lightColors: ThemeColors = {
   warning: "#FF9500",
   error: "#FF3B30",
   running: "#007AFF",
-}
+};
 
 export const darkColors: ThemeColors = {
   background: "#000000",
@@ -35,7 +35,7 @@ export const darkColors: ThemeColors = {
   warning: "#FF9F0A",
   error: "#FF453A",
   running: "#0A84FF",
-}
+};
 
 export const spacing = {
   xs: 4,
@@ -43,7 +43,7 @@ export const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
-} as const
+} as const;
 
 export const typography = {
   heading: {
@@ -61,4 +61,4 @@ export const typography = {
     fontWeight: "400" as const,
     lineHeight: 20,
   },
-} as const
+} as const;

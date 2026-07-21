@@ -10,9 +10,20 @@ export default function HomeScreen() {
       <Image source={require("@/assets/icon.png")} style={styles.icon} />
       <Text style={[styles.text, { color: colors.text }]}>opencode</Text>
       <View style={styles.statusRow}>
-        {status === "checking" && <ActivityIndicator size="small" color={colors.text} />}
-        <Text style={[styles.statusText, { color: status === "connected" ? colors.success : colors.error }]}>
-          {status === "checking" ? "Connecting..." : status === "connected" ? "Connected" : "Disconnected"}
+        {status === "checking" && (
+          <ActivityIndicator size="small" color={colors.text} />
+        )}
+        <Text
+          style={[
+            styles.statusText,
+            { color: status === "connected" ? colors.success : colors.error },
+          ]}
+        >
+          {status === "checking"
+            ? "Connecting..."
+            : status === "connected"
+              ? "Connected"
+              : "Disconnected"}
         </Text>
       </View>
     </View>
