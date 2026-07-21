@@ -5,6 +5,7 @@ export interface ThemeColors {
   textSecondary: string;
   border: string;
   primary: string;
+  onPrimary: string;
   success: string;
   warning: string;
   error: string;
@@ -18,6 +19,7 @@ export const lightColors: ThemeColors = {
   textSecondary: "#3C3C43",
   border: "#C6C6C8",
   primary: "#007AFF",
+  onPrimary: "#FFFFFF",
   success: "#34C759",
   warning: "#FF9500",
   error: "#FF3B30",
@@ -31,6 +33,7 @@ export const darkColors: ThemeColors = {
   textSecondary: "#8E8E93",
   border: "#38383A",
   primary: "#0A84FF",
+  onPrimary: "#FFFFFF",
   success: "#30D158",
   warning: "#FF9F0A",
   error: "#FF453A",
@@ -45,7 +48,18 @@ export const spacing = {
   xl: 32,
 } as const;
 
+export const borderRadius = {
+  sm: 4,
+  md: 8,
+  lg: 12,
+} as const;
+
 export const typography = {
+  title: {
+    fontSize: 32,
+    fontWeight: "700" as const,
+    lineHeight: 40,
+  },
   heading: {
     fontSize: 24,
     fontWeight: "600" as const,

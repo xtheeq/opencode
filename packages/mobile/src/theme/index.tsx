@@ -9,7 +9,7 @@ import {
 } from "./tokens";
 
 export type { ThemeColors } from "./tokens";
-export { spacing, typography } from "./tokens";
+export { borderRadius, spacing, typography } from "./tokens";
 
 export interface Theme {
   colors: ThemeColors;

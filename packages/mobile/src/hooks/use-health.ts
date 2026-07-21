@@ -1,15 +1,20 @@
 import { useEffect, useState } from "react";
-import { client } from "@/services/api";
+import { getClient } from "@/services/api";
 
-export type HealthStatus = "checking" | "connected" | "error";
+export type HealthStatus = "idle" | "checking" | "connected" | "error";
 
-export function useHealth() {
-  const [status, setStatus] = useState<HealthStatus>("checking");
+export function useHealth(url: string) {
+  const [status, setStatus] = useState<HealthStatus>(url ? "checking" : "idle");
 
   useEffect(() => {
+    if (!url) {
+      setStatus("idle");
+      return;
+    }
     let cancelled = false;
-    client.health
-      .get()
+    setStatus("checking");
+    getClient()
+      .health.get()
       .then(() => {
         if (!cancelled) setStatus("connected");
       })
@@ -19,7 +24,7 @@ export function useHealth() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [url]);
 
   return status;
 }

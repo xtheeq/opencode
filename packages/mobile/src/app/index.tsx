@@ -1,14 +1,21 @@
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import { useConnection } from "@/services/connection";
-import { useTheme, typography } from "@/theme";
+import { spacing, typography, useTheme } from "@/theme";
+import { ConnectForm } from "@/components/connect-form";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { status } = useConnection();
+  const { status, url } = useConnection();
+
+  if (status === "idle") return <ConnectForm />;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image source={require("@/assets/icon.png")} style={styles.icon} />
       <Text style={[styles.text, { color: colors.text }]}>opencode</Text>
+      <Text style={[styles.urlText, { color: colors.textSecondary }]}>
+        {url}
+      </Text>
       <View style={styles.statusRow}>
         {status === "checking" && (
           <ActivityIndicator size="small" color={colors.text} />
@@ -23,7 +30,7 @@ export default function HomeScreen() {
             ? "Connecting..."
             : status === "connected"
               ? "Connected"
-              : "Disconnected"}
+              : "Connection failed"}
         </Text>
       </View>
     </View>
@@ -39,7 +46,7 @@ const styles = StyleSheet.create({
   icon: {
     width: 128,
     height: 128,
-    marginBottom: 24,
+    marginBottom: spacing.lg,
   },
   text: {
     ...typography.heading,
@@ -47,10 +54,14 @@ const styles = StyleSheet.create({
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 16,
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  urlText: {
+    ...typography.caption,
+    marginTop: spacing.xs,
   },
   statusText: {
-    fontSize: 14,
+    ...typography.caption,
   },
 });

@@ -1,16 +1,32 @@
-import { createContext, type ReactNode, useContext } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
+import { createClient } from "@/services/api";
 import { useHealth, type HealthStatus } from "@/hooks/use-health";
 
 interface ConnectionValue {
   status: HealthStatus;
+  url: string;
+  connect: (url: string) => void;
 }
 
 const ConnectionContext = createContext<ConnectionValue | null>(null);
 
 export function ConnectionProvider({ children }: { children: ReactNode }) {
-  const status = useHealth();
+  const [url, setUrl] = useState("");
+  const status = useHealth(url);
+
+  const connect = useCallback((serverUrl: string) => {
+    createClient(serverUrl);
+    setUrl(serverUrl);
+  }, []);
+
   return (
-    <ConnectionContext.Provider value={{ status }}>
+    <ConnectionContext.Provider value={{ status, url, connect }}>
       {children}
     </ConnectionContext.Provider>
   );
