@@ -1,6 +1,7 @@
-import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { useConnection } from "@/services/connection";
-import { spacing, typography, useTheme } from "@/theme";
+import { spacing, useTheme } from "@/theme";
+import { Text } from "@/components/primitives";
 import { ConnectForm } from "@/components/connect-form";
 
 export default function HomeScreen() {
@@ -12,8 +13,8 @@ export default function HomeScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image source={require("@/assets/icon.png")} style={styles.icon} />
-      <Text style={[styles.text, { color: colors.text }]}>opencode</Text>
-      <Text style={[styles.urlText, { color: colors.textSecondary }]}>
+      <Text variant="heading">opencode</Text>
+      <Text variant="caption" color="textSecondary" style={styles.urlText}>
         {url}
       </Text>
       <View style={styles.statusRow}>
@@ -21,10 +22,8 @@ export default function HomeScreen() {
           <ActivityIndicator size="small" color={colors.text} />
         )}
         <Text
-          style={[
-            styles.statusText,
-            { color: status === "connected" ? colors.success : colors.error },
-          ]}
+          variant="caption"
+          color={status === "connected" ? "success" : "error"}
         >
           {status === "checking"
             ? "Connecting..."
@@ -48,9 +47,6 @@ const styles = StyleSheet.create({
     height: 128,
     marginBottom: spacing.lg,
   },
-  text: {
-    ...typography.heading,
-  },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -58,10 +54,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   urlText: {
-    ...typography.caption,
     marginTop: spacing.xs,
-  },
-  statusText: {
-    ...typography.caption,
   },
 });
