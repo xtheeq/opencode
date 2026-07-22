@@ -122,6 +122,28 @@ export const Info = Schema.Struct({
       }),
     }),
   ).annotate({ description: "Session transcript presentation settings" }),
+  mini: Schema.optional(
+    Schema.Struct({
+      thinking: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
+        description: "Show or hide model reasoning",
+      }),
+      shell_output: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
+        description: "Show or hide raw shell tool output",
+      }),
+      turn_summary: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
+        description: "Show or hide the agent, model, and duration summary in scrollback",
+      }),
+      footer: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
+        description: "Show or hide persistent activity, model, usage, and context details in the footer",
+      }),
+      splash: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
+        description: "Show or hide the entry and exit splash banners",
+      }),
+      mono: Schema.optional(Schema.Boolean).annotate({
+        description: "Use monochrome ASCII output",
+      }),
+    }),
+  ).annotate({ description: "Mini transcript presentation settings" }),
   hints: Schema.optional(
     Schema.Struct({
       onboarding: Schema.optional(Schema.Boolean).annotate({ description: "Show getting-started guidance" }),

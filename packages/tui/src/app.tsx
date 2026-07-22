@@ -32,10 +32,12 @@ import {
 } from "solid-js"
 import {
   TuiLifecycleProvider,
+  TuiAppProvider,
   TuiPathsProvider,
   TuiStartupProvider,
   TuiTerminalEnvironmentProvider,
   useTuiStartup,
+  type TuiApp,
 } from "./context/runtime"
 import { DialogProvider, useDialog } from "./ui/dialog"
 import { DialogIntegration } from "./component/dialog-integration"
@@ -139,6 +141,7 @@ const appBindingCommands = [
 ] as const
 
 export type TuiInput = {
+  app: TuiApp
   server: {
     endpoint: Endpoint
     service?: {
@@ -224,7 +227,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
         }
         if (process.env.OPENCODE_DRIVE) {
           const { Drive } = yield* Effect.promise(() => import("@opencode-ai/simulation/frontend"))
-          return yield* Drive.create(options)
+          return yield* Drive.create(options, input.app.version)
         }
         return yield* Effect.acquireRelease(
           Effect.tryPromise({
@@ -273,9 +276,10 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                 }}
               >
                 <EpilogueProvider set={(value) => (exit.epilogue = value)}>
-                  <ErrorBoundary
-                    fallback={(error, reset) => <ErrorComponent error={error} reset={reset} mode={mode} />}
-                  >
+                  <TuiAppProvider value={input.app}>
+                    <ErrorBoundary
+                      fallback={(error, reset) => <ErrorComponent error={error} reset={reset} mode={mode} />}
+                    >
                     <TuiPathsProvider
                       value={{
                         cwd: process.cwd(),
@@ -381,7 +385,8 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                         </TuiTerminalEnvironmentProvider>
                       </TuiLifecycleProvider>
                     </TuiPathsProvider>
-                  </ErrorBoundary>
+                    </ErrorBoundary>
+                  </TuiAppProvider>
                 </EpilogueProvider>
               </ExitProvider>
             </LogProvider>
@@ -520,6 +525,7 @@ function App(props: { pair?: DialogPairCredentials; started: number }) {
   })
 
   const args = useArgs()
+  const startupPrompt = args.prompt ? { text: args.prompt, files: [], agents: [], pasted: [] } : undefined
   onMount(() => {
     batch(() => {
       if (args.agent) local.agent.set(args.agent)
@@ -537,6 +543,7 @@ function App(props: { pair?: DialogPairCredentials; started: number }) {
         route.navigate({
           type: "session",
           sessionID: args.sessionID,
+          prompt: startupPrompt,
         })
       }
     })
@@ -559,12 +566,12 @@ function App(props: { pair?: DialogPairCredentials; started: number }) {
         const match = response.data[0]?.id
         if (!match) return
         if (!args.fork) {
-          route.navigate({ type: "session", sessionID: match })
+          route.navigate({ type: "session", sessionID: match, prompt: startupPrompt })
           return
         }
         void client.api.session
           .fork({ sessionID: match })
-          .then((result) => route.navigate({ type: "session", sessionID: result.id }))
+          .then((result) => route.navigate({ type: "session", sessionID: result.id, prompt: startupPrompt }))
           .catch(toast.error)
       })
       .catch(toast.error)
@@ -577,7 +584,7 @@ function App(props: { pair?: DialogPairCredentials; started: number }) {
     forked = true
     void client.api.session
       .fork({ sessionID: args.sessionID })
-      .then((result) => route.navigate({ type: "session", sessionID: result.id }))
+      .then((result) => route.navigate({ type: "session", sessionID: result.id, prompt: startupPrompt }))
       .catch(toast.error)
   })
 

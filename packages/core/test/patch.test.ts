@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Patch } from "@opencode-ai/core/patch"
+import { Patch } from "@opencode-ai/util/patch"
 import { Result } from "effect"
 
 const parse = (input: string) => Result.getOrThrow(Patch.parse(input))
@@ -24,9 +24,7 @@ describe("Patch", () => {
 
   test("parses a file move", () => {
     expect(
-      parse(
-        "*** Begin Patch\n*** Update File: old.txt\n*** Move to: new.txt\n@@\n-old\n+new\n*** End Patch",
-      ),
+      parse("*** Begin Patch\n*** Update File: old.txt\n*** Move to: new.txt\n@@\n-old\n+new\n*** End Patch"),
     ).toEqual([
       {
         type: "update",
@@ -38,12 +36,22 @@ describe("Patch", () => {
   })
 
   test("identifies the missing patch boundary", () => {
-    expect(() => parse("This is not a valid patch")).toThrow(
-      "The first line of the patch must be '*** Begin Patch'",
-    )
+    expect(() => parse("This is not a valid patch")).toThrow("The first line of the patch must be '*** Begin Patch'")
     expect(() => parse("*** Begin Patch\n*** Add File: add.txt\n+added")).toThrow(
       "The last line of the patch must be '*** End Patch'",
     )
+    expect(() => parse("extra\n*** Begin Patch\n*** End Patch")).toThrow(
+      "The first line of the patch must be '*** Begin Patch'",
+    )
+    expect(() => parse("*** Begin Patch\n*** Add File: add.txt\n+added\n*** End Patch\nextra")).toThrow(
+      "The last line of the patch must be '*** End Patch'",
+    )
+  })
+
+  test("allows whitespace after the end marker", () => {
+    expect(parse("*** Begin Patch\n*** Add File: add.txt\n+added\n*** End Patch\n \t\n")).toEqual([
+      { type: "add", path: "add.txt", contents: "added" },
+    ])
   })
 
   test("strips a heredoc wrapper", () => {
@@ -148,12 +156,8 @@ describe("Patch", () => {
   })
 
   test("updates empty files and adds a trailing newline", () => {
-    expect(Patch.derive("empty.txt", [{ oldLines: [], newLines: ["First line"] }], "").content).toBe(
-      "First line\n",
-    )
-    expect(Patch.derive("no-newline.txt", [{ oldLines: ["old"], newLines: ["new"] }], "old").content).toBe(
-      "new\n",
-    )
+    expect(Patch.derive("empty.txt", [{ oldLines: [], newLines: ["First line"] }], "").content).toBe("First line\n")
+    expect(Patch.derive("no-newline.txt", [{ oldLines: ["old"], newLines: ["new"] }], "old").content).toBe("new\n")
   })
 
   test("disambiguates updates with change context", () => {
@@ -167,16 +171,49 @@ describe("Patch", () => {
   })
 
   test("matches leading, trailing, and Unicode punctuation differences", () => {
-    expect(Patch.derive("leading.txt", [{ oldLines: ["line"], newLines: ["next"] }], "  line\n").content).toBe(
-      "next\n",
-    )
+    expect(Patch.derive("leading.txt", [{ oldLines: ["line"], newLines: ["next"] }], "  line\n").content).toBe("next\n")
     expect(Patch.derive("trailing.txt", [{ oldLines: ["line"], newLines: ["next"] }], "line  \n").content).toBe(
       "next\n",
     )
     expect(
-      Patch.derive('unicode.txt', [{ oldLines: ['He said "hello"'], newLines: ['He said "hi"'] }], 'He said “hello”\n')
+      Patch.derive("unicode.txt", [{ oldLines: ['He said "hello"'], newLines: ['He said "hi"'] }], "He said “hello”\n")
         .content,
     ).toBe('He said "hi"\n')
+  })
+
+  test("matches Unicode minus signs and spaces", () => {
+    expect(
+      Patch.derive("minus.txt", [{ oldLines: ["value - 1"], newLines: ["value - 2"] }], "value − 1\n")
+        .content,
+    ).toBe("value - 2\n")
+    const spaces = ["\u00A0", "\u2002", "\u2003", "\u2004", "\u2005", "\u2006", "\u2007", "\u2008", "\u2009", "\u200A", "\u202F", "\u205F", "\u3000"]
+    spaces.forEach(
+      (space) => {
+        expect(
+          Patch.derive(
+            "spaces.txt",
+            [{ oldLines: ["hello world"], newLines: ["hello there"] }],
+            `hello${space}world\n`,
+          ).content,
+        ).toBe("hello there\n")
+      },
+    )
+  })
+
+  test("does not normalize ellipses", () => {
+    expect(() =>
+      Patch.derive("ellipsis.txt", [{ oldLines: ["wait..."], newLines: ["done"] }], "wait…\n"),
+    ).toThrow("Failed to find expected lines")
+  })
+
+  test("prefers a later exact match over an earlier normalized match", () => {
+    expect(
+      Patch.derive(
+        "quotes.txt",
+        [{ oldLines: ['He said "hello"'], newLines: ['He said "goodbye"'] }],
+        'He said “hello”\nmiddle\nHe said "hello"\n',
+      ).content,
+    ).toBe('He said “hello”\nmiddle\nHe said "goodbye"\n')
   })
 
   test("matches EOF-anchored chunks from the end", () => {

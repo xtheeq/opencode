@@ -32,8 +32,10 @@ export const Commands = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCO
       Flag.withDescription("Session ID to continue"),
       Flag.optional,
     ),
+    prompt: Flag.string("prompt").pipe(Flag.withDescription("Prompt to use"), Flag.optional),
   },
   commands: [
+    Spec.make("acp", { description: "Start an Agent Client Protocol server" }),
     Spec.make("api", {
       description: "Make a request to the running server",
       params: {

@@ -22,7 +22,7 @@ import { Service } from "./index"
 import { createLLMEventPublisher } from "./publish-llm-event"
 import { Snapshot } from "../../snapshot"
 import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import { llmClient } from "@opencode-ai/util/effect/app-node-platform"
+import { llmClient } from "../../effect/app-node-platform"
 import { StepFailedError } from "../error"
 import { toSessionError } from "../to-session-error"
 import { SessionRunnerRetry } from "./retry"
@@ -163,16 +163,7 @@ const layer = Layer.effect(
                     agent: agent.id,
                     messageID: assistantMessageID,
                     call: event,
-                    progress: (update) =>
-                      serialized(
-                        events.publish(SessionEvent.Tool.Progress, {
-                          sessionID: session.id,
-                          assistantMessageID,
-                          callID: event.id,
-                          structured: { ...update.structured },
-                          content: [...update.content],
-                        }),
-                      ),
+                    progress: (update) => serialized(publisher.progress(event.id, update)),
                   }),
                 ).pipe(
                   Effect.flatMap((settlement) =>
