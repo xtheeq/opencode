@@ -8,6 +8,7 @@ export function ConnectForm() {
   const { colors } = useTheme();
   const { connect, status } = useConnection();
   const [inputUrl, setInputUrl] = useState("http://");
+  const [password, setPassword] = useState("");
 
   const disabled = status === "checking" || !inputUrl.trim();
 
@@ -27,11 +28,19 @@ export function ConnectForm() {
         autoCorrect={false}
         keyboardType="url"
       />
+      <TextInput
+        placeholder="Password (optional)"
+        value={password}
+        onChangeText={setPassword}
+        secureTextEntry
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
       <Button
         title="Connect"
         loading={status === "checking"}
         disabled={disabled}
-        onPress={() => connect(inputUrl)}
+        onPress={() => connect(inputUrl, password || undefined)}
       />
     </View>
   );

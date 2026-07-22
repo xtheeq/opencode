@@ -1,12 +1,20 @@
 import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
 import { useConnection } from "@/services/connection";
 import { spacing, useTheme } from "@/theme";
-import { Text } from "@/components/primitives";
+import { Button, Text } from "@/components/primitives";
 import { ConnectForm } from "@/components/connect-form";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
-  const { status, url } = useConnection();
+  const { status, url, disconnect } = useConnection();
+
+  if (status === "loading") {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.text} />
+      </View>
+    );
+  }
 
   if (status === "idle") return <ConnectForm />;
 
@@ -14,9 +22,11 @@ export default function HomeScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image source={require("@/assets/icon.png")} style={styles.icon} />
       <Text variant="heading">opencode</Text>
-      <Text variant="caption" color="textSecondary" style={styles.urlText}>
-        {url}
-      </Text>
+      {url && (
+        <Text variant="caption" color="textSecondary" style={styles.urlText}>
+          {url}
+        </Text>
+      )}
       <View style={styles.statusRow}>
         {status === "checking" && (
           <ActivityIndicator size="small" color={colors.text} />
@@ -32,6 +42,13 @@ export default function HomeScreen() {
               : "Connection failed"}
         </Text>
       </View>
+      {status === "error" && (
+        <Button
+          title="Change Server"
+          style={styles.changeButton}
+          onPress={disconnect}
+        />
+      )}
     </View>
   );
 }
@@ -55,5 +72,8 @@ const styles = StyleSheet.create({
   },
   urlText: {
     marginTop: spacing.xs,
+  },
+  changeButton: {
+    marginTop: spacing.lg,
   },
 });
