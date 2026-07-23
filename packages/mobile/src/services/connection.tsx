@@ -64,7 +64,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const derivedStatus: HealthStatus = !initialized ? "loading" : status;
 
   return (
-    <ConnectionContext.Provider value={{ status: derivedStatus, url, connect, disconnect }}>
+    <ConnectionContext.Provider
+      value={{ status: derivedStatus, url, connect, disconnect }}
+    >
       {children}
     </ConnectionContext.Provider>
   );

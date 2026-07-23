@@ -18,40 +18,51 @@ function formatCost(cost: number) {
   return `$${cost.toFixed(6)}`;
 }
 
-export function SessionCard({ session, onPress }: { session: SessionInfo; onPress?: () => void }) {
+export function SessionCard({
+  session,
+  onPress,
+}: {
+  session: SessionInfo;
+  onPress?: () => void;
+}) {
   const { colors } = useTheme();
 
   const formattedCost = formatCost(session.cost);
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surface, borderColor: colors.border },
+        ]}
+      >
         <View style={styles.header}>
-        <Text variant="body" numberOfLines={1} style={styles.title}>
-          {session.title || "Untitled"}
-        </Text>
-        <Text variant="caption" color="textSecondary">
-          {formatTime(session.time.created)}
-        </Text>
+          <Text variant="body" numberOfLines={1} style={styles.title}>
+            {session.title || "Untitled"}
+          </Text>
+          <Text variant="caption" color="textSecondary">
+            {formatTime(session.time.created)}
+          </Text>
+        </View>
+        <View style={styles.meta}>
+          {session.agent && (
+            <Text variant="caption" color="textSecondary">
+              {session.agent}
+            </Text>
+          )}
+          {session.model && (
+            <Text variant="caption" color="textSecondary">
+              {session.model.id}
+            </Text>
+          )}
+          {formattedCost && (
+            <Text variant="caption" color="textSecondary">
+              {formattedCost}
+            </Text>
+          )}
+        </View>
       </View>
-      <View style={styles.meta}>
-        {session.agent && (
-          <Text variant="caption" color="textSecondary">
-            {session.agent}
-          </Text>
-        )}
-        {session.model && (
-          <Text variant="caption" color="textSecondary">
-            {session.model.id}
-          </Text>
-        )}
-        {formattedCost && (
-          <Text variant="caption" color="textSecondary">
-            {formattedCost}
-          </Text>
-        )}
-      </View>
-    </View>
     </TouchableOpacity>
   );
 }

@@ -1,7 +1,10 @@
-import type { SessionMessageSystem, SessionMessageSynthetic } from "@opencode-ai/client/promise"
-import { Text } from "@/components/primitives"
+import type {
+  SessionMessageSystem,
+  SessionMessageSynthetic,
+} from "@opencode-ai/client/promise";
+import { Text } from "@/components/primitives";
 
-type Systemish = SessionMessageSystem | SessionMessageSynthetic
+type Systemish = SessionMessageSystem | SessionMessageSynthetic;
 
 export function SystemMessage({ message }: { message: Systemish }) {
   return (
@@ -10,5 +13,5 @@ export function SystemMessage({ message }: { message: Systemish }) {
         ? `${message.description}\n${message.text}`
         : message.text}
     </Text>
-  )
+  );
 }

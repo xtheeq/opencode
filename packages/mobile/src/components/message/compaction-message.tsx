@@ -1,7 +1,11 @@
-import type { SessionMessageCompaction } from "@opencode-ai/client/promise"
-import { Text } from "@/components/primitives"
+import type { SessionMessageCompaction } from "@opencode-ai/client/promise";
+import { Text } from "@/components/primitives";
 
-export function CompactionMessage({ message }: { message: SessionMessageCompaction }) {
+export function CompactionMessage({
+  message,
+}: {
+  message: SessionMessageCompaction;
+}) {
   switch (message.status) {
     case "running":
       return (
@@ -9,17 +13,21 @@ export function CompactionMessage({ message }: { message: SessionMessageCompacti
           <Text variant="caption">{message.summary}</Text>
           <Text variant="caption">{message.recent}</Text>
         </>
-      )
+      );
     case "completed":
       return (
         <>
           <Text variant="caption">{message.summary}</Text>
           <Text variant="caption">{message.recent}</Text>
         </>
-      )
+      );
     case "failed":
-      return <Text variant="caption">{message.error.type}: {message.error.message}</Text>
+      return (
+        <Text variant="caption">
+          {message.error.type}: {message.error.message}
+        </Text>
+      );
   }
-  const exhaustive: never = message
-  return exhaustive
+  const exhaustive: never = message;
+  return exhaustive;
 }

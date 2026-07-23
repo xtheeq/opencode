@@ -1,1 +1,1 @@
-export { MessageBubble } from "./message-bubble"
+export { MessageBubble } from "./message-bubble";

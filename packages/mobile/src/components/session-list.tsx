@@ -9,7 +9,16 @@ import { useSessions } from "@/hooks/use-sessions";
 export function SessionList() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch, isRefetching } = useSessions();
+  const {
+    data,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+    isError,
+    refetch,
+    isRefetching,
+  } = useSessions();
 
   if (isLoading) {
     return (
@@ -41,18 +50,33 @@ export function SessionList() {
     <FlatList
       data={sessions}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <SessionCard session={item} onPress={() => router.push(`/session/${item.id}`)} />}
+      renderItem={({ item }) => (
+        <SessionCard
+          session={item}
+          onPress={() => router.push(`/session/${item.id}`)}
+        />
+      )}
       style={{ backgroundColor: colors.background }}
-      onEndReached={() => { if (hasNextPage) fetchNextPage(); }}
+      onEndReached={() => {
+        if (hasNextPage) fetchNextPage();
+      }}
       onEndReachedThreshold={0.5}
       refreshing={isRefetching}
       onRefresh={refetch}
-      contentContainerStyle={[styles.list, { backgroundColor: colors.background, paddingBottom: insets.bottom + spacing.sm }]}
-      ListFooterComponent={isFetchingNextPage ? (
-        <View style={styles.footer}>
-          <ActivityIndicator size="small" color={colors.text} />
-        </View>
-      ) : null}
+      contentContainerStyle={[
+        styles.list,
+        {
+          backgroundColor: colors.background,
+          paddingBottom: insets.bottom + spacing.sm,
+        },
+      ]}
+      ListFooterComponent={
+        isFetchingNextPage ? (
+          <View style={styles.footer}>
+            <ActivityIndicator size="small" color={colors.text} />
+          </View>
+        ) : null
+      }
     />
   );
 }
