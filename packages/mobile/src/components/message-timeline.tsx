@@ -1,15 +1,11 @@
 import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
-import { router } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
-import { SessionCard } from "@/components/session-card";
-import { useSessions } from "@/hooks/use-sessions";
+import { useMessages } from "@/hooks/use-messages";
 
-export function SessionList() {
+export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch, isRefetching } = useSessions();
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch, isRefetching } = useMessages(sessionID);
 
   if (isLoading) {
     return (
@@ -22,32 +18,37 @@ export function SessionList() {
   if (isError) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text color="error">Failed to load sessions</Text>
+        <Text color="error">Failed to load messages</Text>
       </View>
     );
   }
 
-  const sessions = data?.pages.flatMap((page) => page.data) ?? [];
+  const messages = data?.pages.flatMap((page) => page.data) ?? [];
 
-  if (sessions.length === 0) {
+  if (messages.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text color="textSecondary">No sessions yet</Text>
+        <Text color="textSecondary">No messages yet</Text>
       </View>
     );
   }
 
   return (
     <FlatList
-      data={sessions}
+      data={messages}
       keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <SessionCard session={item} onPress={() => router.push(`/session/${item.id}`)} />}
+      renderItem={({ item }) => (
+        <View style={styles.placeholder}>
+          <Text variant="caption" color="textSecondary">{item.type}</Text>
+        </View>
+      )}
       style={{ backgroundColor: colors.background }}
+      inverted
       onEndReached={() => { if (hasNextPage) fetchNextPage(); }}
       onEndReachedThreshold={0.5}
       refreshing={isRefetching}
       onRefresh={refetch}
-      contentContainerStyle={[styles.list, { backgroundColor: colors.background, paddingBottom: insets.bottom + spacing.sm }]}
+      contentContainerStyle={{ paddingVertical: spacing.sm }}
       ListFooterComponent={isFetchingNextPage ? (
         <View style={styles.footer}>
           <ActivityIndicator size="small" color={colors.text} />
@@ -63,8 +64,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  list: {
-    paddingVertical: spacing.sm,
+  placeholder: {
+    padding: spacing.md,
   },
   footer: {
     padding: spacing.md,

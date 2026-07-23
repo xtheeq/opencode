@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import type { SessionInfo } from "@opencode-ai/client/promise";
@@ -18,14 +18,15 @@ function formatCost(cost: number) {
   return `$${cost.toFixed(6)}`;
 }
 
-export function SessionCard({ session }: { session: SessionInfo }) {
+export function SessionCard({ session, onPress }: { session: SessionInfo; onPress?: () => void }) {
   const { colors } = useTheme();
 
   const formattedCost = formatCost(session.cost);
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={styles.header}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <View style={styles.header}>
         <Text variant="body" numberOfLines={1} style={styles.title}>
           {session.title || "Untitled"}
         </Text>
@@ -51,6 +52,7 @@ export function SessionCard({ session }: { session: SessionInfo }) {
         )}
       </View>
     </View>
+    </TouchableOpacity>
   );
 }
 
