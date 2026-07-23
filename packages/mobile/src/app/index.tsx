@@ -1,4 +1,5 @@
 import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
+import { router } from "expo-router";
 import { useConnection } from "@/services/connection";
 import { spacing, useTheme } from "@/theme";
 import { Button, Text } from "@/components/primitives";
@@ -42,10 +43,17 @@ export default function HomeScreen() {
               : "Connection failed"}
         </Text>
       </View>
+      {status === "connected" && (
+        <Button
+          title="View Sessions"
+          style={styles.navButton}
+          onPress={() => router.push("/sessions")}
+        />
+      )}
       {status === "error" && (
         <Button
           title="Change Server"
-          style={styles.changeButton}
+          style={styles.navButton}
           onPress={disconnect}
         />
       )}
@@ -73,7 +81,7 @@ const styles = StyleSheet.create({
   urlText: {
     marginTop: spacing.xs,
   },
-  changeButton: {
+  navButton: {
     marginTop: spacing.lg,
   },
 });
