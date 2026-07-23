@@ -3,10 +3,12 @@ import { spacing, useTheme } from "@/theme"
 import { Text } from "@/components/primitives"
 import { MessageBubble } from "@/components/message"
 import { useMessages } from "@/hooks/use-messages"
+import { useSessionStream } from "@/hooks/use-session-stream"
 
 export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme()
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch, isRefetching } = useMessages(sessionID)
+  useSessionStream(sessionID)
 
   if (isLoading) {
     return (
