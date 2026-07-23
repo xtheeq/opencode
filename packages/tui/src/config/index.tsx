@@ -142,6 +142,12 @@ export const Info = Schema.Struct({
       mono: Schema.optional(Schema.Boolean).annotate({
         description: "Use monochrome ASCII output",
       }),
+      replay: Schema.optional(Schema.Boolean).annotate({
+        description: "Restore session history on resume and terminal resize",
+      }),
+      replay_limit: Schema.optional(Schema.Int.check(Schema.isGreaterThan(0))).annotate({
+        description: "Maximum number of newest messages restored during replay",
+      }),
     }),
   ).annotate({ description: "Mini transcript presentation settings" }),
   hints: Schema.optional(
@@ -151,7 +157,7 @@ export const Info = Schema.Struct({
   ).annotate({ description: "In-product guidance settings" }),
   debug: Schema.optional(
     Schema.Struct({
-      devtools: Schema.optional(Schema.Boolean).annotate({ description: "Show the DevTools sidebar" }),
+      devtools: Schema.optional(Schema.Boolean).annotate({ description: "Show the DevTools debug bar" }),
       timing: Schema.optional(Schema.Boolean).annotate({ description: "Show time-to-first-draw diagnostics" }),
     }),
   ).annotate({ description: "Debugging settings" }),

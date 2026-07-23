@@ -4,10 +4,8 @@ import {
   DEFAULT_THEMES,
   addTheme,
   allThemes,
-  generateSyntax,
   hasTheme,
   isTheme,
-  resolveTheme,
   selectedForeground,
   setCustomThemes,
   setSystemTheme,
@@ -16,6 +14,7 @@ import {
   type Theme,
   type ThemeJson,
 } from "../theme"
+import { generateSyntax } from "../theme/v2/syntax"
 import { generateSystem, terminalMode } from "../theme/system"
 import { discoverThemes, themeDirectories } from "../theme/discovery"
 import { createComponentTheme, type ComponentTheme } from "../theme/v2/component"
@@ -71,7 +70,6 @@ type State = {
 
 type ContextName = "elevated" | "overlay"
 type ThemeService = {
-  theme: Theme
   themeV2: ComponentTheme
   contextual(context: ContextName): ThemeService
   readonly selected: string
@@ -162,7 +160,6 @@ const themeContext = createSimpleContext({
     let systemThemeMode: "dark" | "light" | undefined
     let hasResolvedSystemTheme = false
     function resolveSystemTheme(mode: "dark" | "light" = store.mode) {
-      const started = performance.now()
       return renderer
         .getPalette({ size: 16 })
         .then((colors: TerminalColors) => {
@@ -186,7 +183,6 @@ const themeContext = createSimpleContext({
           setSystemTheme(undefined)
           if (store.active === "system") setStore("active", "opencode")
         })
-        .finally(() => themePerformance.set("Resolve system palette", duration(performance.now() - started)))
     }
 
     let systemRefreshRunning = false
@@ -272,27 +268,19 @@ const themeContext = createSimpleContext({
       themeRefreshTimeouts.length = 0
     })
 
+    const initStarted = performance.now()
     const source = createMemo(() => store.themes[store.active] ?? store.themes.opencode)
     const sourceName = createMemo(() => (store.themes[store.active] ? store.active : "opencode"))
-    const file = createMemo(() => {
-      const started = performance.now()
-      const result = migrateV1(source())
-      themePerformance.set("Convert V1 to V2", duration(performance.now() - started))
-      return result
-    })
+    const file = createMemo(() => migrateV1(source()))
     const modes = createMemo(() => themeModes(file()))
     const mode = () => {
       const supported = modes()
       if (supported.includes(store.mode)) return store.mode
       return supported[0] ?? store.mode
     }
-    const values = createMemo(() => resolveTheme(source(), mode()))
-    const valuesV2 = createMemo(() => {
-      const resolveStarted = performance.now()
-      const result = resolveThemeFile(file(), mode(), sourceName())
-      themePerformance.set("Resolve final theme", duration(performance.now() - resolveStarted))
-      return result
-    })
+    const valuesV2 = createMemo(() => resolveThemeFile(file(), mode(), sourceName()))
+    valuesV2()
+    themePerformance.set("Init", `${(performance.now() - initStarted).toFixed(2)} ms`)
     const themeV2 = createComponentTheme(valuesV2, mode)
     const contextsV2 = {
       elevated: createComponentTheme(() => {
@@ -307,21 +295,13 @@ const themeContext = createSimpleContext({
       }, mode),
     }
 
-    createEffect(() => renderer.setBackgroundColor(values().background))
+    createEffect(() => renderer.setBackgroundColor(valuesV2().background.default))
 
-    const syntax = createSyntaxStyleMemo(() => generateSyntax(values()))
-
-    const theme = new Proxy(values(), {
-      get(_target, prop) {
-        // @ts-expect-error Properties are forwarded to the current reactive value.
-        return values()[prop]
-      },
-    })
+    const syntax = createSyntaxStyleMemo(() => generateSyntax(valuesV2(), mode()))
     function contextual(context: ContextName) {
       return contextualServices[context]
     }
     const service: ThemeService = {
-      theme,
       themeV2,
       contextual,
       get selected() {
@@ -374,11 +354,6 @@ export function ThemeContextProvider(props: ParentProps<{ context: ContextName }
     </themeContext.context.Provider>
   )
 }
-
-function duration(milliseconds: number) {
-  return `${milliseconds.toFixed(2)} ms`
-}
-
 export function createSyntaxStyleMemo(factory: () => SyntaxStyle) {
   const renderer = useRenderer()
   const retained = new Set<SyntaxStyle>()
