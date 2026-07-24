@@ -17,37 +17,53 @@ function toolLabel(part: SessionMessageAssistantTool) {
 
 function ToolContent({ part }: { part: SessionMessageAssistantTool }) {
   const { state } = part;
-  if (state.status === "streaming") return null;
-  if (state.content.length === 0 && Object.keys(state.structured).length === 0)
-    return null;
-  return (
-    <>
-      {state.content.map((item, i) => {
-        switch (item.type) {
-          case "text":
-            return (
+  switch (state.status) {
+    case "streaming":
+      return null;
+    case "running":
+      if (Object.keys(state.metadata).length === 0) return null;
+      return <Text variant="caption">{JSON.stringify(state.metadata)}</Text>;
+    case "completed":
+      return (
+        <>
+          {state.content.map((item, i) =>
+            item.type === "text" ? (
               <Text key={i} variant="caption">
                 {item.text}
               </Text>
-            );
-          case "file":
-            return (
+            ) : (
               <Text key={i} variant="caption">
                 {item.name ?? item.mime}: {item.uri}
               </Text>
-            );
-        }
-        const exhaustive: never = item;
-        return exhaustive;
-      })}
-      {Object.keys(state.structured).length > 0 && (
-        <Text variant="caption">{JSON.stringify(state.structured)}</Text>
-      )}
-      {"result" in state && state.result !== undefined && (
-        <Text variant="caption">Result: {JSON.stringify(state.result)}</Text>
-      )}
-    </>
-  );
+            ),
+          )}
+          {state.metadata && Object.keys(state.metadata).length > 0 && (
+            <Text variant="caption">{JSON.stringify(state.metadata)}</Text>
+          )}
+        </>
+      );
+    case "error":
+      return (
+        <>
+          {state.content?.map((item, i) =>
+            item.type === "text" ? (
+              <Text key={i} variant="caption">
+                {item.text}
+              </Text>
+            ) : (
+              <Text key={i} variant="caption">
+                {item.name ?? item.mime}: {item.uri}
+              </Text>
+            ),
+          )}
+          {state.metadata && Object.keys(state.metadata).length > 0 && (
+            <Text variant="caption">{JSON.stringify(state.metadata)}</Text>
+          )}
+        </>
+      );
+  }
+  const exhaustive: never = state;
+  return exhaustive;
 }
 
 export function ToolPart({ part }: { part: SessionMessageAssistantTool }) {

@@ -3,9 +3,9 @@ import type {
   SessionMessageAssistant,
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
-  SessionMessageUser,
   JsonValue,
   LLMToolContent,
+  SessionStructuredError,
 } from "@opencode-ai/client/promise";
 import type { InfiniteData } from "@tanstack/react-query";
 
@@ -263,8 +263,7 @@ export function applyToolCalled(
       state: {
         status: "running",
         input,
-        structured: {},
-        content: [],
+        metadata: {},
       },
     };
     return content;
@@ -275,21 +274,18 @@ export function applyToolProgress(
   prev: MessageData,
   assistantMessageID: string,
   callID: string,
-  structured: { [x: string]: JsonValue },
-  progressContent: LLMToolContent[],
+  metadata: { [x: string]: JsonValue },
 ) {
   return updateContent(prev, assistantMessageID, (content) => {
     const i = findToolIndex(content, callID);
     if (i === -1) return content;
     const part = content[i] as SessionMessageAssistantTool;
-    if (part.state.status === "streaming") return content;
+    if (part.state.status !== "running") return content;
     content[i] = {
       ...part,
       state: {
         ...part.state,
-        status: "running",
-        structured,
-        content: progressContent,
+        metadata: { ...part.state.metadata, ...metadata },
       },
     };
     return content;
@@ -300,38 +296,31 @@ export function applyToolSuccess(
   prev: MessageData,
   assistantMessageID: string,
   callID: string,
-  structured: { [x: string]: JsonValue },
-  toolContent: LLMToolContent[],
-  result: JsonValue | undefined,
+  content: [LLMToolContent, ...LLMToolContent[]],
+  metadata?: { [x: string]: JsonValue },
 ) {
-  return updateContent(prev, assistantMessageID, (content) => {
-    const i = findToolIndex(content, callID);
-    if (i === -1) return content;
-    const part = content[i] as SessionMessageAssistantTool;
-    if (part.state.status === "streaming") {
-      content[i] = {
-        ...part,
-        state: {
-          status: "completed",
-          input: { raw: part.state.input },
-          structured,
-          content: toolContent,
-          result,
-        },
-      };
-    } else {
-      content[i] = {
-        ...part,
-        state: {
-          ...part.state,
-          status: "completed",
-          structured,
-          content: toolContent,
-          result,
-        },
-      };
-    }
-    return content;
+  return updateContent(prev, assistantMessageID, (contentBlocks) => {
+    const i = findToolIndex(contentBlocks, callID);
+    if (i === -1) return contentBlocks;
+    const part = contentBlocks[i] as SessionMessageAssistantTool;
+    const input =
+      part.state.status === "streaming"
+        ? { raw: part.state.input }
+        : part.state.input;
+    const meta = {
+      ...(part.state.status !== "streaming" ? part.state.metadata : {}),
+      ...metadata,
+    };
+    contentBlocks[i] = {
+      ...part,
+      state: {
+        status: "completed",
+        input,
+        content,
+        metadata: meta,
+      },
+    };
+    return contentBlocks;
   });
 }
 
@@ -339,35 +328,31 @@ export function applyToolFailed(
   prev: MessageData,
   assistantMessageID: string,
   callID: string,
-  errorType: string,
-  errorMessage: string,
-  toolContent: LLMToolContent[] | undefined,
-  result: JsonValue | undefined,
+  error: SessionStructuredError,
+  content?: [LLMToolContent, ...LLMToolContent[]],
+  metadata?: { [x: string]: JsonValue },
 ) {
-  return updateContent(prev, assistantMessageID, (content) => {
-    const i = findToolIndex(content, callID);
-    if (i === -1) return content;
-    const part = content[i] as SessionMessageAssistantTool;
-    const error = { type: errorType, message: errorMessage };
-    if (part.state.status === "streaming") {
-      content[i] = {
-        ...part,
-        state: {
-          status: "error",
-          input: { raw: part.state.input },
-          structured: {},
-          content: toolContent ?? [],
-          error,
-          result,
-        },
-      };
-    } else {
-      content[i] = {
-        ...part,
-        state: { ...part.state, status: "error", error, result },
-      };
-    }
-    return content;
+  return updateContent(prev, assistantMessageID, (contentBlocks) => {
+    const i = findToolIndex(contentBlocks, callID);
+    if (i === -1) return contentBlocks;
+    const part = contentBlocks[i] as SessionMessageAssistantTool;
+    const input =
+      part.state.status === "streaming"
+        ? { raw: part.state.input }
+        : part.state.input;
+    const oldMeta =
+      part.state.status !== "streaming" ? part.state.metadata : {};
+    contentBlocks[i] = {
+      ...part,
+      state: {
+        status: "error",
+        input,
+        error,
+        ...(content ? { content } : {}),
+        metadata: { ...oldMeta, ...metadata },
+      },
+    };
+    return contentBlocks;
   });
 }
 

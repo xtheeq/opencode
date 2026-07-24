@@ -179,27 +179,24 @@ function applyEvent(
         prev,
         event.data.assistantMessageID,
         event.data.callID,
-        event.data.structured,
-        event.data.content,
+        event.data.metadata,
       );
     case "session.tool.success":
       return applyToolSuccess(
         prev,
         event.data.assistantMessageID,
         event.data.callID,
-        event.data.structured,
         event.data.content,
-        event.data.result,
+        event.data.metadata,
       );
     case "session.tool.failed":
       return applyToolFailed(
         prev,
         event.data.assistantMessageID,
         event.data.callID,
-        event.data.error.type,
-        event.data.error.message,
+        event.data.error,
         event.data.content,
-        event.data.result,
+        event.data.metadata,
       );
     case "session.step.ended":
       return applyStepEnded(
