@@ -8,7 +8,7 @@ import {
   inputTypeScript,
   outputTypeScript,
 } from "./tool-schema.js"
-import { isDefinition as isToolDefinition, type Definition } from "./tool.js"
+import { isTool, type Tool } from "./tool.js"
 import type { Tools } from "./tools.js"
 import {
   CodeModeDate,
@@ -21,6 +21,7 @@ import {
 } from "./values.js"
 
 const estimateTokens = (input: string) => Math.max(0, Math.round(input.length / 4))
+const compareText = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0)
 
 export type Services<T> = ServicesOf<T, []>
 
@@ -28,7 +29,7 @@ type ServicesOf<T, Depth extends ReadonlyArray<unknown>> = Depth["length"] exten
   ? never
   : T extends {
         readonly _tag: "CodeModeTool"
-        readonly run: (input: unknown) => Effect.Effect<unknown, unknown, infer R>
+        readonly execute: (input: unknown) => Effect.Effect<unknown, unknown, infer R>
       }
     ? R
     : T extends object
@@ -117,8 +118,6 @@ export class ToolRuntimeError extends Error {
     this.name = "ToolRuntimeError"
   }
 }
-
-const isDefinition = <R>(value: Definition<R> | Tools<R>): value is Definition<R> => isToolDefinition<R>(value)
 
 const runHost = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, ToolError, R> =>
   effect.pipe(
@@ -286,9 +285,9 @@ export const copyOut = (value: unknown, mode: CopyOutMode): unknown => {
   return value
 }
 
-// Dots in tool names are namespace separators; the last definition for a canonical path wins.
+// Dots in tool names are namespace separators; the last tool for a canonical path wins.
 type ToolNode<R> = {
-  definition?: Definition<R>
+  tool?: Tool<R>
   readonly children: Map<string, ToolNode<R>>
 }
 
@@ -303,7 +302,7 @@ const toolTrie = <R>(tools: Tools<R>): ToolNode<R> => {
         current.children.set(segment, child)
         current = child
       }
-      if (isDefinition(value)) current.definition = value
+      if (isTool<R>(value)) current.tool = value
       else insert(current, value)
     }
   }
@@ -314,26 +313,29 @@ const toolTrie = <R>(tools: Tools<R>): ToolNode<R> => {
 const canonicalSegments = (path: ReadonlyArray<string>): ReadonlyArray<string> =>
   path.flatMap((segment) => segment.split("."))
 
-const definitions = <R>(
+const flattenTools = <R>(
   node: ToolNode<R>,
   path: ReadonlyArray<string> = [],
-): Array<{ path: string; definition: Definition<R> }> => [
-  ...(node.definition === undefined ? [] : [{ path: path.join("."), definition: node.definition }]),
-  ...Array.from(node.children, ([name, child]) => definitions(child, [...path, name])).flat(),
+): Array<{ path: string; tool: Tool<R> }> => [
+  ...(node.tool === undefined ? [] : [{ path: path.join("."), tool: node.tool }]),
+  ...Array.from(node.children, ([name, child]) => flattenTools(child, [...path, name])).flat(),
 ]
 
-const describeDefinition = <R>(path: string, definition: Definition<R>): ToolDescription => ({
+const describeTool = <R>(path: string, tool: Tool<R>): ToolDescription => ({
   path,
-  description: definition.description,
-  signature: `${toolExpression(path)}(input: ${inputTypeScript(definition, true)}): Promise<${outputTypeScript(definition, true)}>`,
+  description: tool.description,
+  signature: `${toolExpression(path)}(input: ${inputTypeScript(tool, true)}): Promise<${outputTypeScript(tool, true)}>`,
 })
 
-const visibleDefinitions = <R>(tools: Tools<R>) =>
-  definitions(toolTrie(tools)).map(({ path, definition }) => ({
-    path,
-    definition,
-    description: describeDefinition(path, definition),
-  }))
+// Discovery bytes are durable instructions, so order only after canonical-path collisions settle.
+const visibleTools = <R>(tools: Tools<R>) =>
+  flattenTools(toolTrie(tools))
+    .sort((left, right) => compareText(left.path, right.path))
+    .map(({ path, tool }) => ({
+      path,
+      tool,
+      description: describeTool(path, tool),
+    }))
 
 export type DiscoveryPlan = {
   readonly catalog: ReadonlyArray<ToolDescription>
@@ -361,12 +363,12 @@ const termForms = (term: string): Array<string> => {
   return forms
 }
 
-const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Definition => ({
+const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Tool => ({
   _tag: "CodeModeTool",
   description: "Search available tools",
   input: SearchInput,
   output: SearchOutput,
-  run: (input) =>
+  execute: (input) =>
     Effect.sync(() => {
       const request = input as typeof SearchInput.Type
       const query = request.query ?? ""
@@ -405,7 +407,7 @@ const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Definition => 
               .filter(({ score }) => terms.length === 0 || score > 0)
               .sort(
                 (left, right) =>
-                  right.score - left.score || left.entry.description.path.localeCompare(right.entry.description.path),
+                  right.score - left.score || compareText(left.entry.description.path, right.entry.description.path),
               )
               .map(({ entry }) => entry)
       const items = ranked.slice(offset, offset + (request.limit ?? defaultSearchLimit)).map(({ description }) => ({
@@ -422,8 +424,8 @@ const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Definition => 
 })
 
 const searchSignature = (() => {
-  const definition = makeSearchTool([])
-  return `search(input: ${inputTypeScript(definition, true)}): ${outputTypeScript(definition, true)}`
+  const tool = makeSearchTool([])
+  return `search(input: ${inputTypeScript(tool, true)}): ${outputTypeScript(tool, true)}`
 })()
 
 const catalogLine = (tool: ToolDescription) => {
@@ -432,13 +434,13 @@ const catalogLine = (tool: ToolDescription) => {
   return description === "" ? `  - ${tool.signature}` : `  - ${tool.signature} // ${description}`
 }
 
-const toSearchEntry = <R>(path: string, definition: Definition<R>, description: ToolDescription): SearchEntry => ({
+const toSearchEntry = <R>(path: string, tool: Tool<R>, description: ToolDescription): SearchEntry => ({
   description,
   namespace: path.split(".", 1)[0]!,
   searchText: [
     path,
-    definition.description,
-    ...inputProperties(definition).flatMap(({ name, description: property }) =>
+    tool.description,
+    ...inputProperties(tool).flatMap(({ name, description: property }) =>
       property === undefined ? [name] : [name, property],
     ),
   ]
@@ -447,14 +449,14 @@ const toSearchEntry = <R>(path: string, definition: Definition<R>, description: 
 })
 
 export const searchIndex = <R>(tools: Tools<R>): ReadonlyArray<SearchEntry> =>
-  visibleDefinitions(tools).map(({ path, definition, description }) => toSearchEntry(path, definition, description))
+  visibleTools(tools).map(({ path, tool, description }) => toSearchEntry(path, tool, description))
 
 // Budget signatures round-robin so every namespace remains visible.
 export const prepare = <R>(tools: Tools<R>, catalogBudget = defaultCatalogBudget): DiscoveryPlan => {
   if (!Number.isSafeInteger(catalogBudget) || catalogBudget < 0) {
     throw new RangeError("discovery.catalogBudget must be a non-negative safe integer")
   }
-  const visible = visibleDefinitions(tools)
+  const visible = visibleTools(tools)
   const described = visible.map(({ description }) => description)
 
   const namespaces = new Map<string, Array<ToolDescription>>()
@@ -464,14 +466,14 @@ export const prepare = <R>(tools: Tools<R>, catalogBudget = defaultCatalogBudget
     group.push(tool)
     namespaces.set(namespace, group)
   }
-  const ordered = [...namespaces].sort(([left], [right]) => left.localeCompare(right))
+  const ordered = [...namespaces].sort(([left], [right]) => compareText(left, right))
 
   const selections = ordered.map(([namespace, group]) => ({
     namespace,
     picked: new Set<ToolDescription>(),
     queue: [...group].sort(
       (left, right) =>
-        estimateTokens(catalogLine(left)) - estimateTokens(catalogLine(right)) || left.path.localeCompare(right.path),
+        estimateTokens(catalogLine(left)) - estimateTokens(catalogLine(right)) || compareText(left.path, right.path),
     ),
   }))
   let used = 0
@@ -589,7 +591,7 @@ export const prepare = <R>(tools: Tools<R>, catalogBudget = defaultCatalogBudget
   return {
     catalog: described,
     instructions: lines.join("\n"),
-    searchIndex: visible.map(({ path, definition, description }) => toSearchEntry(path, definition, description)),
+    searchIndex: visible.map(({ path, tool, description }) => toSearchEntry(path, tool, description)),
   }
 }
 
@@ -605,7 +607,7 @@ const namespaceKeys = <R>(root: ToolNode<R>, path: ReadonlyArray<string>): Reado
   return Array.from(node.children.keys())
 }
 
-const resolve = <R>(root: ToolNode<R>, path: ReadonlyArray<string>): Definition<R> => {
+const resolve = <R>(root: ToolNode<R>, path: ReadonlyArray<string>): Tool<R> => {
   const segments = canonicalSegments(path)
   const node = lookup(root, segments)
   if (node === undefined) {
@@ -613,16 +615,16 @@ const resolve = <R>(root: ToolNode<R>, path: ReadonlyArray<string>): Definition<
       "Use search({ query }) to find available described tools.",
     ])
   }
-  if (node.definition === undefined) {
+  if (node.tool === undefined) {
     throw new ToolRuntimeError("UnknownTool", `Tool '${segments.join(".")}' is not callable.`)
   }
-  return node.definition
+  return node.tool
 }
 
 export type ToolRuntime<R = never> = {
   readonly root: ToolReference
   readonly calls: Array<ToolCall>
-  readonly invoke: (path: ReadonlyArray<string>, args: Array<unknown>) => Effect.Effect<unknown, unknown, R>
+  readonly execute: (path: ReadonlyArray<string>, args: Array<unknown>) => Effect.Effect<unknown, unknown, R>
   readonly search: (args: Array<unknown>) => Effect.Effect<unknown, unknown, R>
   readonly keys: (path: ReadonlyArray<string>) => ReadonlyArray<string>
 }
@@ -676,7 +678,7 @@ export const make = <R>(
       return calls.length - 1
     }).pipe(Effect.tap((index) => hooks?.onToolCallStart?.({ index, name, input }) ?? Effect.void))
 
-  const invokeDefinition = (name: string, tool: Definition<R>, externalArgs: Array<unknown>) =>
+  const executeTool = (name: string, tool: Tool<R>, externalArgs: Array<unknown>) =>
     Effect.gen(function* () {
       if (externalArgs.length !== 1)
         throw new ToolRuntimeError("InvalidToolInput", `Tool '${name}' expects exactly one input object.`)
@@ -688,7 +690,7 @@ export const make = <R>(
       const index = yield* recordAndObserve(name, input)
       return yield* observeEnd(
         Effect.gen(function* () {
-          const raw = yield* runHost(Effect.suspend(() => tool.run(input)))
+          const raw = yield* runHost(Effect.suspend(() => tool.execute(input)))
           const result = yield* Effect.try({
             try: () => decodeToolOutput(tool, raw),
             catch: () => new ToolRuntimeError("InvalidToolOutput", `Invalid output from tool '${name}'.`),
@@ -705,18 +707,18 @@ export const make = <R>(
     keys: (path) => namespaceKeys(root, path),
     search: (args) =>
       Effect.suspend(() =>
-        invokeDefinition(
+        executeTool(
           "search",
           searchTool,
           args.map((arg) => copyOut(copyIn(arg, "Arguments for tool 'search'"), "json")),
         ),
       ),
-    invoke: (path, args) =>
+    execute: (path, args) =>
       Effect.gen(function* () {
         const name = canonicalSegments(path).join(".")
         const externalArgs = args.map((arg) => copyOut(copyIn(arg, `Arguments for tool '${name}'`), "json"))
         const tool = resolve(root, path)
-        return yield* invokeDefinition(name, tool, externalArgs)
+        return yield* executeTool(name, tool, externalArgs)
       }),
   }
 }

@@ -7,7 +7,7 @@ const echo = (description: string, result: string) =>
     description,
     input: Schema.Struct({}),
     output: Schema.String,
-    run: () => Effect.succeed(result),
+    execute: () => Effect.succeed(result),
   })
 
 const value = async (runtime: CodeMode.Runtime, code: string) => {
@@ -88,7 +88,7 @@ describe("callable namespaces", () => {
     expect(diagnostic.message).toContain("Unknown tool 'issues.missing'")
   })
 
-  test("a namespace without its own definition stays non-callable", async () => {
+  test("a namespace without its own tool stays non-callable", async () => {
     const nested = CodeMode.make({ tools: { "issues.list": echo("List issues", "list") } })
     const diagnostic = await failure(nested, `return await tools.issues({})`)
     expect(diagnostic.kind).toBe("UnknownTool")
@@ -106,7 +106,7 @@ describe("blocked member names on tool paths", () => {
   })
 
   test("tools may use blocked member names because path segments never touch real properties", async () => {
-    expect(runtime.catalog().map((tool) => tool.path)).toEqual(["prototype", "issues.constructor", "nested.__proto__"])
+    expect(runtime.catalog().map((tool) => tool.path)).toEqual(["issues.constructor", "nested.__proto__", "prototype"])
     expect(await value(runtime, `return await tools.prototype({})`)).toBe("proto")
     expect(await value(runtime, `return await tools.issues.constructor({})`)).toBe("ctor")
     expect(await value(runtime, `return await tools["issues.constructor"]({})`)).toBe("ctor")
@@ -114,9 +114,9 @@ describe("blocked member names on tool paths", () => {
     expect(await value(runtime, `return Object.keys(tools.issues)`)).toEqual(["constructor"])
   })
 
-  test("a literal __proto__ key cannot poison a namespace into a fake definition", async () => {
+  test("a literal __proto__ key cannot poison a namespace into a fake tool", async () => {
     const poisoned = CodeMode.make({
-      tools: { ns: { "__proto__": echo("Hidden", "hidden"), real: echo("Real tool", "real") } },
+      tools: { ns: { __proto__: echo("Hidden", "hidden"), real: echo("Real tool", "real") } },
     })
     expect(poisoned.catalog().map((tool) => tool.path)).toEqual(["ns.real"])
     expect(await value(poisoned, `return await tools.ns.real({})`)).toBe("real")
@@ -138,7 +138,7 @@ describe("empty segments", () => {
 })
 
 describe("canonical path collisions", () => {
-  test("the last definition supplied for a canonical path wins", async () => {
+  test("the last tool supplied for a canonical path wins", async () => {
     const runtime = CodeMode.make({
       tools: { "issues.list": echo("First", "first"), issues: { list: echo("Second", "second") } },
     })
@@ -155,8 +155,7 @@ describe("canonical path collisions", () => {
         "issues.close": echo("Close issue", "closed"),
       },
     })
-    // Catalog order follows first appearance of each canonical path.
-    expect(runtime.catalog().map((tool) => tool.path)).toEqual(["issues.list", "issues.get", "issues.close"])
+    expect(runtime.catalog().map((tool) => tool.path)).toEqual(["issues.close", "issues.get", "issues.list"])
     expect(await value(runtime, `return await tools.issues.list({})`)).toBe("second")
     expect(await value(runtime, `return await tools.issues.get({})`)).toBe("got")
     expect(await value(runtime, `return await tools.issues.close({})`)).toBe("closed")
