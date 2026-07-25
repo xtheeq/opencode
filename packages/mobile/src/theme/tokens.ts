@@ -1,3 +1,5 @@
+import type { TextStyle } from "react-native";
+
 export interface ThemeColors {
   background: string;
   surface: string;
@@ -9,36 +11,7 @@ export interface ThemeColors {
   success: string;
   warning: string;
   error: string;
-  running: string;
 }
-
-export const lightColors: ThemeColors = {
-  background: "#FFFFFF",
-  surface: "#F2F2F7",
-  text: "#000000",
-  textSecondary: "#3C3C43",
-  border: "#C6C6C8",
-  primary: "#007AFF",
-  onPrimary: "#FFFFFF",
-  success: "#34C759",
-  warning: "#FF9500",
-  error: "#FF3B30",
-  running: "#007AFF",
-};
-
-export const darkColors: ThemeColors = {
-  background: "#000000",
-  surface: "#1C1C1E",
-  text: "#FFFFFF",
-  textSecondary: "#8E8E93",
-  border: "#38383A",
-  primary: "#0A84FF",
-  onPrimary: "#FFFFFF",
-  success: "#30D158",
-  warning: "#FF9F0A",
-  error: "#FF453A",
-  running: "#0A84FF",
-};
 
 export const spacing = {
   xs: 4,
@@ -57,22 +30,22 @@ export const borderRadius = {
 export const typography = {
   title: {
     fontSize: 32,
-    fontWeight: "700" as const,
+    fontWeight: "700",
     lineHeight: 40,
-  },
+  } satisfies TextStyle,
   heading: {
     fontSize: 24,
-    fontWeight: "600" as const,
+    fontWeight: "600",
     lineHeight: 32,
-  },
+  } satisfies TextStyle,
   body: {
     fontSize: 16,
-    fontWeight: "400" as const,
+    fontWeight: "400",
     lineHeight: 24,
-  },
+  } satisfies TextStyle,
   caption: {
     fontSize: 14,
-    fontWeight: "400" as const,
+    fontWeight: "400",
     lineHeight: 20,
-  },
+  } satisfies TextStyle,
 } as const;

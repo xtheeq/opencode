@@ -1,12 +1,7 @@
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useColorScheme } from "react-native";
-import {
-  darkColors,
-  lightColors,
-  spacing,
-  typography,
-  type ThemeColors,
-} from "./tokens";
+import { spacing, typography, type ThemeColors } from "./tokens";
+import { darkColors, lightColors } from "./palettes";
 
 export type { ThemeColors } from "./tokens";
 export { borderRadius, spacing, typography } from "./tokens";
