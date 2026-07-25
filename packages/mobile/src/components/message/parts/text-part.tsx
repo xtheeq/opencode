@@ -1,6 +1,9 @@
 import type { SessionMessageAssistantText } from "@opencode-ai/client/promise";
-import { Text } from "@/components/primitives";
+import { typography } from "@/theme";
+import { MarkdownPart } from "@/components/markdown";
 
 export function TextPart({ part }: { part: SessionMessageAssistantText }) {
-  return <Text>{part.text}</Text>;
+  return (
+    <MarkdownPart text={part.text} baseFontSize={typography.body.fontSize} />
+  );
 }
