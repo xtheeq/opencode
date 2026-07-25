@@ -9,7 +9,11 @@ type SwitchMessage = SessionMessageAgentSelected | SessionMessageModelSelected;
 export function SwitchMessage({ message }: { message: SwitchMessage }) {
   switch (message.type) {
     case "agent-switched":
-      return <Text variant="caption">Switched agent to {message.agent}</Text>;
+      return (
+        <Text variant="caption" color="textSecondary">
+          Switched agent to {message.agent}
+        </Text>
+      );
     case "model-switched": {
       const modelLabel = message.model.variant
         ? `${message.model.id} (${message.model.variant})`
@@ -24,7 +28,11 @@ export function SwitchMessage({ message }: { message: SwitchMessage }) {
         ? `Switched model from ${fromLabel} to ${modelLabel}`
         : `Switched model to ${modelLabel}`;
 
-      return <Text variant="caption">{label}</Text>;
+      return (
+        <Text variant="caption" color="textSecondary">
+          {label}
+        </Text>
+      );
     }
   }
   const exhaustive: never = message;

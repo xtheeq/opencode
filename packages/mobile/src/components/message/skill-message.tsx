@@ -3,10 +3,8 @@ import { Text } from "@/components/primitives";
 
 export function SkillMessage({ message }: { message: SessionMessageSkill }) {
   return (
-    <>
-      <Text variant="caption">
-        {message.name}: {message.text}
-      </Text>
-    </>
+    <Text variant="caption" color="textSecondary">
+      {message.name}: {message.text}
+    </Text>
   );
 }

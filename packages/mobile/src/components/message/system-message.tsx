@@ -8,7 +8,7 @@ type Systemish = SessionMessageSystem | SessionMessageSynthetic;
 
 export function SystemMessage({ message }: { message: Systemish }) {
   return (
-    <Text variant="caption">
+    <Text variant="caption" color="textSecondary">
       {message.type === "synthetic" && message.description
         ? `${message.description}\n${message.text}`
         : message.text}
