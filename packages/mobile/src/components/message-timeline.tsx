@@ -50,7 +50,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
       data={messages}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => <MessageBubble message={item} />}
-      style={{ backgroundColor: colors.background }}
+      style={{ backgroundColor: colors.background, flex: 1 }}
       inverted
       onEndReached={() => {
         if (hasNextPage) fetchNextPage();
