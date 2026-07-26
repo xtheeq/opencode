@@ -1,18 +1,18 @@
-import { View, StyleSheet, ActivityIndicator } from "react-native"
-import type { SessionMessageCompaction } from "@opencode-ai/client/promise"
-import { Text } from "@/components/primitives"
-import { spacing, useTheme } from "@/theme"
+import { View, StyleSheet, ActivityIndicator } from "react-native";
+import type { SessionMessageCompaction } from "@opencode-ai/client/promise";
+import { Text } from "@/components/primitives";
+import { spacing, useTheme } from "@/theme";
 
 export function CompactionMessage({
   message,
 }: {
-  message: SessionMessageCompaction
+  message: SessionMessageCompaction;
 }) {
-  const { colors } = useTheme()
+  const { colors } = useTheme();
 
   switch (message.status) {
     case "running": {
-      const label = message.summary ?? "Compacting..."
+      const label = message.summary ?? "Compacting...";
       return (
         <View style={styles.row}>
           <ActivityIndicator size="small" color={colors.textSecondary} />
@@ -20,7 +20,7 @@ export function CompactionMessage({
             {label}
           </Text>
         </View>
-      )
+      );
     }
     case "completed":
       return (
@@ -34,16 +34,16 @@ export function CompactionMessage({
             </Text>
           )}
         </>
-      )
+      );
     case "failed":
       return (
         <Text variant="caption" color="error">
           {message.error.type}: {message.error.message}
         </Text>
-      )
+      );
   }
-  const exhaustive: never = message
-  return exhaustive
+  const exhaustive: never = message;
+  return exhaustive;
 }
 
 const styles = StyleSheet.create({
@@ -58,4 +58,4 @@ const styles = StyleSheet.create({
   summary: {
     textAlign: "center",
   },
-})
+});
