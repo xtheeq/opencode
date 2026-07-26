@@ -48,43 +48,42 @@ export function PromptInput({
 
   const canSend = text.trim().length > 0 && !sending;
 
+  const isActive = canSend || sending;
+  const buttonBg = isActive ? colors.primary : colors.border;
+  const iconColor = isActive ? colors.onPrimary : colors.textSecondary;
+
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: colors.surface, borderTopColor: colors.border },
-      ]}
-    >
-      <View style={styles.row}>
-        <View
-          style={[styles.inputWrapper, { backgroundColor: colors.background }]}
-        >
-          <TextInput
-            style={[styles.input, typography.body, { color: colors.text }]}
-            placeholder={placeholder}
-            placeholderTextColor={colors.textSecondary}
-            value={text}
-            onChangeText={(v) => {
-              if (!sending) setText(v);
-            }}
-            multiline
-            editable={!sending}
-          />
-        </View>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View
+        style={[
+          styles.inputWrapper,
+          {
+            backgroundColor: colors.surface,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <TextInput
+          style={[styles.input, typography.body, { color: colors.text }]}
+          placeholder={placeholder}
+          placeholderTextColor={colors.textSecondary}
+          value={text}
+          onChangeText={(v) => {
+            if (!sending) setText(v);
+          }}
+          multiline
+          editable={!sending}
+          textAlignVertical="center"
+        />
         <TouchableOpacity
-          style={[
-            styles.sendButton,
-            { backgroundColor: canSend ? colors.primary : colors.border },
-          ]}
+          style={[styles.sendButton, { backgroundColor: buttonBg }]}
           onPress={handleSubmit}
           disabled={!canSend}
         >
           {sending ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
-            <Text style={[styles.sendIcon, { color: colors.onPrimary }]}>
-              ↑
-            </Text>
+            <Text style={[styles.sendIcon, { color: iconColor }]}>↑</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -94,31 +93,31 @@ export function PromptInput({
 
 const styles = StyleSheet.create({
   container: {
-    borderTopWidth: 1,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
-  row: {
+  inputWrapper: {
     flexDirection: "row",
     alignItems: "flex-end",
-    gap: spacing.sm,
-  },
-  inputWrapper: {
-    flex: 1,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.xxl,
+    borderWidth: 1,
+    padding: spacing.xs,
   },
   input: {
-    paddingVertical: spacing.md,
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingLeft: spacing.md,
+    paddingRight: spacing.sm,
     maxHeight: typography.body.lineHeight * 5,
   },
   sendButton: {
-    padding: spacing.md,
-    borderRadius: borderRadius.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.pill,
     justifyContent: "center",
     alignItems: "center",
   },
   sendIcon: {
-    ...typography.heading,
+    ...typography.body,
   },
 });

@@ -25,6 +25,9 @@ export const borderRadius = {
   sm: 4,
   md: 8,
   lg: 12,
+  xl: 16,
+  xxl: 24,
+  pill: 9999,
 } as const;
 
 export const typography = {
