@@ -12,9 +12,11 @@ import { getClient } from "@/services/api";
 
 export function PromptInput({
   sessionID,
+  onSubmit,
   placeholder = "Message...",
 }: {
-  sessionID: string;
+  sessionID?: string;
+  onSubmit?: (text: string) => Promise<void>;
   placeholder?: string;
 }) {
   const { colors } = useTheme();
@@ -28,17 +30,21 @@ export function PromptInput({
     const captured = trimmed;
     setText("");
     try {
-      await getClient().session.prompt({
-        sessionID,
-        text: captured,
-        delivery: "steer",
-      });
+      if (onSubmit) {
+        await onSubmit(captured);
+      } else if (sessionID) {
+        await getClient().session.prompt({
+          sessionID,
+          text: captured,
+          delivery: "steer",
+        });
+      }
     } catch {
       setText(captured);
     } finally {
       setSending(false);
     }
-  }, [text, sending, sessionID]);
+  }, [text, sending, sessionID, onSubmit]);
 
   const canSend = text.trim().length > 0 && !sending;
 

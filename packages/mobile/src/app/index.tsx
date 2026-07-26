@@ -1,13 +1,34 @@
-import { ActivityIndicator, Image, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { useConnection } from "@/services/connection";
 import { spacing, useTheme } from "@/theme";
 import { Button, Text } from "@/components/primitives";
 import { ConnectForm } from "@/components/connect-form";
+import { PromptInput } from "@/components/prompt-input";
+import { KeyboardView } from "@/components/keyboard-view";
+import { useCreateSession } from "@/hooks/use-create-session";
+import { getClient } from "@/services/api";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const { status, url, disconnect } = useConnection();
+  const { createSession } = useCreateSession();
+
+  async function handleInitialSend(text: string) {
+    const session = await createSession();
+    await getClient().session.prompt({
+      sessionID: session.id,
+      text,
+      delivery: "steer",
+    });
+    router.push(`/session/${session.id}`);
+  }
 
   if (status === "loading") {
     return (
@@ -18,6 +39,34 @@ export default function HomeScreen() {
   }
 
   if (status === "idle") return <ConnectForm />;
+
+  if (status === "connected") {
+    return (
+      <KeyboardView>
+        <View
+          style={[
+            styles.connectedContainer,
+            { backgroundColor: colors.background },
+          ]}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={() => router.push("/sessions")}>
+              <Text variant="caption" color="textSecondary">
+                History
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ flex: 1 }} />
+
+          <PromptInput
+            onSubmit={handleInitialSend}
+            placeholder="Start a new session..."
+          />
+        </View>
+      </KeyboardView>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -34,29 +83,16 @@ export default function HomeScreen() {
         )}
         <Text
           variant="caption"
-          color={status === "connected" ? "success" : "error"}
+          color={status === "checking" ? "textSecondary" : "error"}
         >
-          {status === "checking"
-            ? "Connecting..."
-            : status === "connected"
-              ? "Connected"
-              : "Connection failed"}
+          {status === "checking" ? "Connecting..." : "Connection failed"}
         </Text>
       </View>
-      {status === "connected" && (
-        <Button
-          title="View Sessions"
-          style={styles.navButton}
-          onPress={() => router.push("/sessions")}
-        />
-      )}
-      {status === "error" && (
-        <Button
-          title="Change Server"
-          style={styles.navButton}
-          onPress={disconnect}
-        />
-      )}
+      <Button
+        title="Change Server"
+        style={styles.navButton}
+        onPress={disconnect}
+      />
     </View>
   );
 }
@@ -67,6 +103,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  connectedContainer: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+
   icon: {
     width: 128,
     height: 128,
