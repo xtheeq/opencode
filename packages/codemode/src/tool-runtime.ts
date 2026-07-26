@@ -1,4 +1,4 @@
-import { Cause, Effect, Schema } from "effect"
+import { Cause, Effect, Exit, Schema } from "effect"
 import { ToolError, toolError } from "./tool-error.js"
 import {
   decodeInput as decodeToolInput,
@@ -20,7 +20,6 @@ import {
   CodeModeURLSearchParams,
 } from "./values.js"
 
-const estimateTokens = (input: string) => Math.max(0, Math.round(input.length / 4))
 const compareText = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0)
 
 export type Services<T> = ServicesOf<T, []>
@@ -53,7 +52,7 @@ export type ToolCallEnded = {
   readonly name: string
   readonly input: unknown
   readonly durationMs: number
-  readonly outcome: "success" | "failure"
+  readonly outcome: "success" | "failure" | "interrupted"
   readonly message?: string
 }
 
@@ -70,7 +69,6 @@ export type ToolDescription = {
 
 export type SafeObject = Record<string, unknown>
 
-const defaultCatalogBudget = 2_000
 const defaultSearchLimit = 10
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -90,7 +88,7 @@ const SearchOutput = Schema.Struct({
   remaining: NonNegativeInt,
   next: Schema.NullOr(Schema.Struct({ offset: NonNegativeInt })),
 })
-const toolExpression = (path: string) =>
+export const toolExpression = (path: string) =>
   "tools" +
   path
     .split(".")
@@ -339,13 +337,11 @@ const visibleTools = <R>(tools: Tools<R>) =>
 
 export type DiscoveryPlan = {
   readonly catalog: ReadonlyArray<ToolDescription>
-  readonly instructions: string
   readonly searchIndex: ReadonlyArray<SearchEntry>
 }
 
 export type SearchEntry = {
   readonly description: ToolDescription
-  readonly namespace: string
   readonly searchText: string
 }
 
@@ -376,7 +372,11 @@ const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Tool => ({
       const scoped =
         request.namespace === undefined
           ? searchIndex
-          : searchIndex.filter((entry) => entry.namespace === request.namespace)
+          : searchIndex.filter(
+              (entry) =>
+                entry.description.path === request.namespace ||
+                entry.description.path.startsWith(`${request.namespace}.`),
+            )
       const trimmed = query.trim()
       const pathQuery = trimmed.startsWith("tools.") ? trimmed.slice("tools.".length) : trimmed
       const exact =
@@ -423,20 +423,14 @@ const makeSearchTool = (searchIndex: ReadonlyArray<SearchEntry>): Tool => ({
     }),
 })
 
-const searchSignature = (() => {
+/** Exact callable signature of the built-in `search` function, for host-owned instructions. */
+export const searchSignature = (() => {
   const tool = makeSearchTool([])
   return `search(input: ${inputTypeScript(tool, true)}): ${outputTypeScript(tool, true)}`
 })()
 
-const catalogLine = (tool: ToolDescription) => {
-  const line = tool.description.split("\n", 1)[0]!.trim()
-  const description = line.length > 120 ? line.slice(0, 119) + "..." : line
-  return description === "" ? `  - ${tool.signature}` : `  - ${tool.signature} // ${description}`
-}
-
 const toSearchEntry = <R>(path: string, tool: Tool<R>, description: ToolDescription): SearchEntry => ({
   description,
-  namespace: path.split(".", 1)[0]!,
   searchText: [
     path,
     tool.description,
@@ -451,146 +445,10 @@ const toSearchEntry = <R>(path: string, tool: Tool<R>, description: ToolDescript
 export const searchIndex = <R>(tools: Tools<R>): ReadonlyArray<SearchEntry> =>
   visibleTools(tools).map(({ path, tool, description }) => toSearchEntry(path, tool, description))
 
-// Budget signatures round-robin so every namespace remains visible.
-export const prepare = <R>(tools: Tools<R>, catalogBudget = defaultCatalogBudget): DiscoveryPlan => {
-  if (!Number.isSafeInteger(catalogBudget) || catalogBudget < 0) {
-    throw new RangeError("discovery.catalogBudget must be a non-negative safe integer")
-  }
+export const prepare = <R>(tools: Tools<R>): DiscoveryPlan => {
   const visible = visibleTools(tools)
-  const described = visible.map(({ description }) => description)
-
-  const namespaces = new Map<string, Array<ToolDescription>>()
-  for (const tool of described) {
-    const [namespace = tool.path] = tool.path.split(".")
-    const group = namespaces.get(namespace) ?? []
-    group.push(tool)
-    namespaces.set(namespace, group)
-  }
-  const ordered = [...namespaces].sort(([left], [right]) => compareText(left, right))
-
-  const selections = ordered.map(([namespace, group]) => ({
-    namespace,
-    picked: new Set<ToolDescription>(),
-    queue: [...group].sort(
-      (left, right) =>
-        estimateTokens(catalogLine(left)) - estimateTokens(catalogLine(right)) || compareText(left.path, right.path),
-    ),
-  }))
-  let used = 0
-  let active = selections.filter((selection) => selection.queue.length > 0)
-  while (active.length > 0) {
-    const stillActive: typeof active = []
-    for (const selection of active) {
-      const tool = selection.queue[0]!
-      const cost = estimateTokens(catalogLine(tool))
-      if (used + cost > catalogBudget) continue
-      selection.queue.shift()
-      selection.picked.add(tool)
-      used += cost
-      if (selection.queue.length > 0) stillActive.push(selection)
-    }
-    active = stillActive
-  }
-  const shown = new Map<string, ReadonlySet<ToolDescription>>(
-    selections.map(({ namespace, picked }) => [namespace, picked]),
-  )
-  const totalShown = selections.reduce((total, { picked }) => total + picked.size, 0)
-  const complete = totalShown === described.length
-
-  const empty = described.length === 0
-
-  const intro = [
-    empty
-      ? "This is a restricted JavaScript language for calling tools, not a general-purpose runtime."
-      : complete
-        ? "This is a restricted JavaScript language for calling tools, not a general-purpose runtime. Inside the confined interpreter, `tools` contains the tools listed below; surrounding agent tools are not available."
-        : "This is a restricted JavaScript language for calling tools, not a general-purpose runtime. Inside the confined interpreter, `tools` contains the tools listed or searchable below; surrounding agent tools are not available.",
-    ...(empty
-      ? []
-      : ["Do not infer or normalize tool names; use only exact signatures shown below or returned by search."]),
-  ]
-
-  const workflow = empty
-    ? []
-    : [
-        "",
-        "## Workflow",
-        "",
-        ...(complete
-          ? [
-              "1. Pick a tool from the list under `## Available tools` - each line is the exact call signature; use it as-is rather than guessing segments.",
-              "2. Call it using the exact signature shown: `const result = await tools.<namespace>.<tool>(input)`; bracket notation and quotes are part of the path.",
-              "3. Return only the fields you need from structured results; narrow unknown results before reading fields, and avoid returning large raw payloads.",
-            ]
-          : [
-              '1. If needed, discover tools with the built-in search function: `return search({ query: "<intent + key nouns>" })`.',
-              "2. In the next execution, copy a returned path exactly, call it, and return only the needed fields.",
-            ]),
-      ]
-
-  const rules = empty
-    ? []
-    : [
-        "",
-        "## Rules",
-        "",
-        complete
-          ? "- Only tools listed here are available; surrounding agent tools are not implicitly exposed."
-          : "- Only tools listed here or returned by the built-in `search` function are available; surrounding agent tools are not implicitly exposed.",
-        "- Filter, aggregate, and transform collections in code - never return them raw or call a tool per item across messages.",
-        "- A result typed `Promise<unknown>` may be structured data or text. Before reading fields, check that it is a non-null object and not an array; otherwise handle the returned text or primitive directly.",
-        '- Run independent calls in parallel: `await Promise.all(items.map((item) => tools.<namespace>.<tool>(item)))`, or use `tools.<namespace>["tool-name"](item)` when the listed signature uses bracket notation.',
-        "- Execution ends when the program returns; pending promises are interrupted, so await every call whose completion matters.",
-        "- `Object.keys(tools)` lists namespaces; `Object.keys(tools.<namespace>)` lists its tools; `for...in` works on both.",
-        ...(complete
-          ? []
-          : [
-              '- Browse one namespace: `search({ query: "", namespace: "<name>" })`.',
-              "- If search returns `next`, repeat the same search with `offset: next.offset`.",
-            ]),
-      ]
-
-  const language = [
-    "",
-    "## Language",
-    "",
-    "Use common JavaScript data operations, functions, control flow, selected standard-library methods, and awaited tool calls. Built-ins include Date, RegExp, Map, Set, URL, URLSearchParams, and URI encoding helpers.",
-    "Modules/imports, classes, timers, fetch, eval, prototype access, and unlisted methods are unavailable. Use tools for external operations. Use await with try/catch.",
-    "Prefer explicit `return`; otherwise only the final top-level expression becomes the result.",
-    "Dates and URLs serialize to strings at data boundaries; Map/Set/RegExp/URLSearchParams serialize to `{}`.",
-  ]
-
-  const toolSection: Array<string> = [""]
-  if (empty) {
-    toolSection.push("## Available tools", "", "No tools are currently available.")
-  } else {
-    toolSection.push(
-      complete
-        ? "## Available tools (COMPLETE list - every tool is shown below with its full call signature)"
-        : `## Available tools (PARTIAL - ${totalShown} of ${described.length} shown; find the rest with search(...))`,
-      "",
-    )
-    for (const [namespace, group] of ordered) {
-      const picked = shown.get(namespace)!
-      const count = `${group.length} tool${group.length === 1 ? "" : "s"}`
-      const label =
-        picked.size === group.length
-          ? count
-          : picked.size === 0
-            ? `${count}, none shown`
-            : `${count}, ${picked.size} shown`
-      toolSection.push(`- ${namespace} (${label})`)
-      for (const tool of group) if (picked.has(tool)) toolSection.push(catalogLine(tool))
-    }
-    if (!complete) {
-      toolSection.push("", "Search returns complete callable signatures:", `- ${searchSignature}`)
-    }
-  }
-
-  const lines = [...intro, ...workflow, ...rules, ...language, ...toolSection]
   return {
-    catalog: described,
-    instructions: lines.join("\n"),
+    catalog: visible.map(({ description }) => description),
     searchIndex: visible.map(({ path, tool, description }) => toSearchEntry(path, tool, description)),
   }
 }
@@ -612,7 +470,7 @@ const resolve = <R>(root: ToolNode<R>, path: ReadonlyArray<string>): Tool<R> => 
   const node = lookup(root, segments)
   if (node === undefined) {
     throw new ToolRuntimeError("UnknownTool", `Unknown tool '${segments.join(".")}'.`, [
-      "Use search({ query }) to find available described tools.",
+      "The tool may have been removed or renamed. Use search to find available tools.",
     ])
   }
   if (node.tool === undefined) {
@@ -639,22 +497,19 @@ export const make = <R>(
   const root = toolTrie(tools)
   const searchTool = makeSearchTool(searchIndex)
 
-  // End hooks observe settled success or failure; interruption emits neither outcome.
   const observeEnd = <A, E>(effect: Effect.Effect<A, E, R>, call: ToolCallStarted): Effect.Effect<A, E, R> => {
     const onEnd = hooks?.onToolCallEnd
     if (onEnd === undefined) return effect
     const startedAt = Date.now()
     return effect.pipe(
-      Effect.tap(() => onEnd({ ...call, durationMs: Date.now() - startedAt, outcome: "success" })),
-      Effect.tapError((error) => {
+      Effect.onExit((exit) => {
+        const durationMs = Date.now() - startedAt
+        if (Exit.isSuccess(exit)) return onEnd({ ...call, durationMs, outcome: "success" })
+        if (Cause.hasInterruptsOnly(exit.cause)) return onEnd({ ...call, durationMs, outcome: "interrupted" })
+        const error = Cause.squash(exit.cause)
         const message =
           error instanceof ToolError || error instanceof ToolRuntimeError ? error.message : "Tool execution failed"
-        return onEnd({
-          ...call,
-          durationMs: Date.now() - startedAt,
-          outcome: "failure",
-          message,
-        })
+        return onEnd({ ...call, durationMs, outcome: "failure", message })
       }),
     )
   }
@@ -672,12 +527,6 @@ export const make = <R>(
     calls.push(call)
   }
 
-  const recordAndObserve = (name: string, input: unknown) =>
-    Effect.sync(() => {
-      recordCall({ name })
-      return calls.length - 1
-    }).pipe(Effect.tap((index) => hooks?.onToolCallStart?.({ index, name, input }) ?? Effect.void))
-
   const executeTool = (name: string, tool: Tool<R>, externalArgs: Array<unknown>) =>
     Effect.gen(function* () {
       if (externalArgs.length !== 1)
@@ -685,11 +534,20 @@ export const make = <R>(
       const input = yield* Effect.try({
         try: () => decodeToolInput(tool, externalArgs[0]),
         catch: (cause) =>
-          new ToolRuntimeError("InvalidToolInput", `Invalid input for tool '${name}': ${String(cause)}`),
+          new ToolRuntimeError(
+            "InvalidToolInput",
+            `Invalid input for tool '${name}': ${String(cause)}`,
+            name === "search" ? [] : ["The signature may have changed. Use search to get the current signature."],
+          ),
       })
-      const index = yield* recordAndObserve(name, input)
+      const index = yield* Effect.sync(() => {
+        recordCall({ name })
+        return calls.length - 1
+      })
+      const call = { index, name, input }
       return yield* observeEnd(
         Effect.gen(function* () {
+          if (hooks?.onToolCallStart !== undefined) yield* hooks.onToolCallStart(call)
           const raw = yield* runHost(Effect.suspend(() => tool.execute(input)))
           const result = yield* Effect.try({
             try: () => decodeToolOutput(tool, raw),
@@ -697,7 +555,7 @@ export const make = <R>(
           })
           return yield* decodeOutput(result, name)
         }),
-        { index, name, input },
+        call,
       )
     })
 

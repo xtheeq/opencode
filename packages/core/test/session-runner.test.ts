@@ -844,12 +844,19 @@ describe("SessionRunnerLLM", () => {
           output: Schema.String,
           execute: () => Effect.sync(() => executed.push(name)).pipe(Effect.as({ output: name })),
         })
+      const catalog = (name: string) => [
+        {
+          path: `catalog.${name.toLowerCase()}`,
+          description: `Code Mode catalog ${name}`,
+          signature: `tools.catalog.${name.toLowerCase()}(input: {}): Promise<string>`,
+        },
+      ]
       const session = yield* setup
       codeModeMaterializations = [
-        { instructions: "Code Mode catalog A", tool: execute("A") },
-        { instructions: "Code Mode catalog B", tool: execute("B") },
-        { instructions: "Code Mode catalog C", tool: execute("C") },
-        { instructions: "Code Mode catalog D", tool: execute("D") },
+        { catalog: catalog("A"), tool: execute("A") },
+        { catalog: catalog("B"), tool: execute("B") },
+        { catalog: catalog("C"), tool: execute("C") },
+        { catalog: catalog("D"), tool: execute("D") },
       ]
       yield* admit(session, "Use Code Mode")
       responses = [reply.tool("call-execute", "execute", {}), reply.stop()]
@@ -868,6 +875,46 @@ describe("SessionRunnerLLM", () => {
           (message) =>
             message.role === "system" &&
             message.content.some((part) => part.type === "text" && part.text.includes("Code Mode catalog B")),
+        ),
+      ).toBe(true)
+    }),
+  )
+
+  it.effect("advertises execute and durable guidance for an empty Code Mode catalog", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      const empty = {
+        catalog: [],
+        tool: Tool.make({
+          description: "Execute Code Mode",
+          input: Schema.Struct({ code: Schema.String }),
+          output: Schema.String,
+          execute: () => Effect.succeed({ output: "unused" }),
+        }),
+      }
+      codeModeMaterializations = [empty, empty, {}]
+      yield* admit(session, "Continue without Code Mode tools")
+      response = reply.stop()
+
+      yield* session.resume(sessionID)
+      yield* admit(session, "Still no Code Mode tools")
+      yield* session.resume(sessionID)
+      yield* admit(session, "Code Mode denied")
+      yield* session.resume(sessionID)
+
+      expect(requests).toHaveLength(3)
+      expect(requests[0]?.tools.map((tool) => tool.name)).toEqual(["defect", "echo", "storefail", "execute"])
+      expect(requests[0]?.system.some((part) => part.text.includes("Do not call `execute`"))).toBe(true)
+      expect(requests[1]?.tools.map((tool) => tool.name)).toEqual(["defect", "echo", "storefail", "execute"])
+      expect(requests[1]?.messages.filter((message) => message.role === "system")).toEqual([])
+      expect(requests[2]?.tools.map((tool) => tool.name)).toEqual(["defect", "echo", "storefail"])
+      expect(
+        requests[2]?.messages.some(
+          (message) =>
+            message.role === "system" &&
+            message.content.some(
+              (part) => part.type === "text" && part.text.includes("Code Mode tools are no longer available"),
+            ),
         ),
       ).toBe(true)
     }),
@@ -1036,9 +1083,7 @@ describe("SessionRunnerLLM", () => {
               input: Schema.Struct({}),
               output: Schema.Struct({ value: Schema.String }),
               execute: () =>
-                Effect.sync(() => executions.push("advertised")).pipe(
-                  Effect.as({ output: { value: "advertised" } }),
-                ),
+                Effect.sync(() => executions.push("advertised")).pipe(Effect.as({ output: { value: "advertised" } })),
             }),
           },
           { codemode: false },
@@ -1067,9 +1112,7 @@ describe("SessionRunnerLLM", () => {
             input: Schema.Struct({}),
             output: Schema.Struct({ value: Schema.String }),
             execute: () =>
-              Effect.sync(() => executions.push("replacement")).pipe(
-                Effect.as({ output: { value: "replacement" } }),
-              ),
+              Effect.sync(() => executions.push("replacement")).pipe(Effect.as({ output: { value: "replacement" } })),
           }),
         },
         { codemode: false },
@@ -2629,6 +2672,47 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("restores durable text provider metadata in the next request", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      yield* admit(session, "Check first")
+
+      response = [
+        LLMEvent.stepStart({ index: 0 }),
+        LLMEvent.textStart({ id: "commentary", providerMetadata: { openai: { phase: "commentary" } } }),
+        LLMEvent.textDelta({ id: "commentary", text: "Checking." }),
+        LLMEvent.textEnd({
+          id: "commentary",
+          providerMetadata: { openai: { phase: "commentary" }, anthropic: { ignored: true } },
+        }),
+        LLMEvent.stepFinish({ index: 0, reason: { normalized: "stop" } }),
+        LLMEvent.finish({ reason: { normalized: "stop" } }),
+      ]
+      yield* session.resume(sessionID)
+      yield* replaySessionProjection(sessionID)
+
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user", text: "Check first" },
+        {
+          type: "assistant",
+          content: [{ type: "text", text: "Checking.", state: { phase: "commentary" } }],
+        },
+      ])
+
+      yield* admit(session, "Continue")
+      response = []
+      yield* session.resume(sessionID)
+
+      expect(requests[1]?.messages[1]?.content).toEqual([
+        {
+          type: "text",
+          text: "Checking.",
+          providerMetadata: { openai: { phase: "commentary" } },
+        },
+      ])
+    }),
+  )
+
   it.effect("replays durable provider-executed tool results inline in the next request", () =>
     Effect.gen(function* () {
       const session = yield* setup
@@ -3099,7 +3183,7 @@ describe("SessionRunnerLLM", () => {
       streamFailure = undefined
       streamGate = undefined
       streamStarted = undefined
-      yield* Effect.yieldNow
+      yield* session.wait(sessionID)
 
       expect(requests).toHaveLength(2)
       expect(userTexts(requests[1]!)).toEqual(["Start working", "Recover with this"])
@@ -3111,7 +3195,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const events = yield* EventV2.Service
       yield* admit(session, "Recover interrupted tool")
-      yield* SessionPending.promoteSteers((yield* Database.Service).db, events, sessionID)
+      yield* SessionPending.promote((yield* Database.Service).db, events, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* events.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3168,7 +3252,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const events = yield* EventV2.Service
       yield* admit(session, "Recover interrupted hosted tool")
-      yield* SessionPending.promoteSteers((yield* Database.Service).db, events, sessionID)
+      yield* SessionPending.promote((yield* Database.Service).db, events, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* events.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3219,7 +3303,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const events = yield* EventV2.Service
       yield* admit(session, "Recover interrupted tool input")
-      yield* SessionPending.promoteSteers((yield* Database.Service).db, events, sessionID)
+      yield* SessionPending.promote((yield* Database.Service).db, events, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* events.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3566,7 +3650,7 @@ describe("SessionRunnerLLM", () => {
             {
               type: "tool",
               id: "call-declined",
-              state: { status: "error", error: { message: "Tool execution interrupted" } },
+              state: { status: "error", error: { type: "aborted", message: "The user declined this tool call" } },
             },
           ],
         },
@@ -3718,7 +3802,7 @@ describe("SessionRunnerLLM", () => {
             {
               type: "tool",
               id: "call-question",
-              state: { status: "error", error: { type: "aborted", message: "Tool execution interrupted" } },
+              state: { status: "error", error: { type: "aborted", message: "The user dismissed this question" } },
             },
           ],
         },
@@ -4220,7 +4304,7 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
-  it.effect("retries a physical attempt without consuming the logical agent step", () =>
+  it.effect("retries a model call without consuming the logical agent step", () =>
     Effect.gen(function* () {
       const session = yield* setup
       const agents = yield* AgentV2.Service

@@ -20,11 +20,32 @@ type Input = {
   readonly model: ModelV2.Ref
   readonly providerMetadataKey: string
   readonly snapshot?: Snapshot.ID
-  readonly assistantMessageID?: SessionMessage.ID
+  readonly assistantMessageID: SessionMessage.ID
 }
 
-const record = (value: unknown): Record<string, unknown> =>
+const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : { value }
+
+/** Immutable fold of the durable facts a step's writer has recorded so far. */
+export interface StepRecord {
+  /** The model produced visible output this attempt, which bars transparent retries and overflow recovery. */
+  readonly outputStarted: boolean
+  readonly providerFailed: boolean
+  /** The step's recorded assistant failure, if any. */
+  readonly failure?: SessionError.Error
+  /** Present once the provider finished the step normally. */
+  readonly finish?: {
+    readonly finish: Extract<LLMEvent, { type: "step-finish" }>["reason"]["normalized"]
+    readonly tokens: ReturnType<typeof SessionUsage.tokens>
+  }
+  readonly calls: ReadonlyArray<{
+    readonly id: string
+    readonly name: string
+    readonly called: boolean
+    readonly settled: boolean
+    readonly providerExecuted: boolean
+  }>
+}
 
 /** Derives canonical model content from a provider-hosted tool result. */
 const hostedContent = (result: ToolResultValue): Tool.NonEmptyContent => {
@@ -35,7 +56,17 @@ const hostedContent = (result: ToolResultValue): Tool.NonEmptyContent => {
   return [{ type: "text", text: Tool.stringify(result.value) }]
 }
 
-/** Persist one step without executing tools or starting a continuation step. */
+/**
+ * Persist one step without executing tools or starting a continuation step.
+ *
+ * Concurrency invariant: the provider loop and each owned tool fiber call these methods
+ * concurrently without a lock. Two rules keep that safe, and every method must preserve
+ * them. (1) Commit state marks synchronously before the first await: never a yield
+ * between a check (`tool.settled`, `stepStarted`, ...) and its mark, so check-and-mark
+ * stays atomic under cooperative scheduling. (2) Never require a cross-source event
+ * order: each publishing fiber is sequential, so per-source order holds by construction,
+ * and consumers fold by callID/ordinal rather than global position.
+ */
 export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish">, input: Input) => {
   const tools = new Map<
     string,
@@ -50,22 +81,16 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
   >()
   const failureSnapshot = (tool: { readonly progress?: ToolRegistry.Progress }) =>
     tool.progress === undefined ? {} : { metadata: tool.progress }
-  let assistantMessageID = input.assistantMessageID
+  const assistantMessageID = input.assistantMessageID
   let stepStarted = false
   let stepFailed = false
   let providerFailed = false
-  let retryEvidence = false
+  let outputStarted = false
   let stepFailure: SessionError.Error | undefined
-  let stepSettlement:
-    | {
-        readonly finish: Extract<LLMEvent, { type: "step-finish" }>["reason"]["normalized"]
-        readonly tokens: ReturnType<typeof SessionUsage.tokens>
-      }
-    | undefined
+  let stepSettlement: StepRecord["finish"]
 
   const startAssistant = Effect.fnUntraced(function* () {
-    if (stepStarted && assistantMessageID !== undefined) return assistantMessageID
-    assistantMessageID ??= SessionMessage.ID.create()
+    if (stepStarted) return assistantMessageID
     stepStarted = true
     yield* events.publish(SessionEvent.Step.Started, {
       sessionID: input.sessionID,
@@ -77,9 +102,7 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
     return assistantMessageID
   })
   const currentAssistantMessageID = () =>
-    assistantMessageID === undefined
-      ? Effect.die(new Error("Tool event before assistant step start"))
-      : Effect.succeed(assistantMessageID)
+    stepStarted ? Effect.succeed(assistantMessageID) : Effect.die(new Error("Tool event before assistant step start"))
   const providerState = (metadata: ProviderMetadata | undefined) => metadata?.[input.providerMetadataKey]
   const fragments = (
     name: string,
@@ -126,13 +149,14 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
 
   const text = fragments(
     "text",
-    (_textID, value, ordinal) =>
+    (_textID, value, ordinal, state) =>
       Effect.gen(function* () {
         yield* events.publish(SessionEvent.Text.Ended, {
           sessionID: input.sessionID,
           assistantMessageID: yield* currentAssistantMessageID(),
           ordinal,
           text: value,
+          state,
         })
       }),
     true,
@@ -235,21 +259,27 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
     yield* flushFragments()
   })
 
+  const failTool = Effect.fnUntraced(function* (callID: string, error: SessionError.Error) {
+    const tool = tools.get(callID)
+    if (!tool || tool.settled) return false
+    tool.settled = true
+    yield* events.publish(SessionEvent.Tool.Failed, {
+      sessionID: input.sessionID,
+      assistantMessageID: tool.assistantMessageID,
+      callID,
+      error,
+      ...failureSnapshot(tool),
+      executed: tool.providerExecuted,
+    })
+    return true
+  })
+
   const failTools = Effect.fnUntraced(function* (error: SessionError.Error, mode: "all" | "hosted" | "uncalled") {
     let failed = false
     for (const [callID, tool] of tools) {
       if (tool.settled || (mode === "hosted" && !tool.providerExecuted) || (mode === "uncalled" && tool.called))
         continue
-      tool.settled = true
-      failed = true
-      yield* events.publish(SessionEvent.Tool.Failed, {
-        sessionID: input.sessionID,
-        assistantMessageID: tool.assistantMessageID,
-        callID,
-        error,
-        ...failureSnapshot(tool),
-        executed: tool.providerExecuted,
-      })
+      failed = (yield* failTool(callID, error)) || failed
     }
     return failed
   })
@@ -280,9 +310,9 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
 
   const failUnsettledTools = Effect.fn("SessionRunner.failUnsettledTools")(function* (
     error: SessionError.Error,
-    hostedOnly = false,
+    scope: "hosted" | "all" = "all",
   ) {
-    return yield* failTools(error, hostedOnly ? "hosted" : "all")
+    return yield* failTools(error, scope)
   })
 
   const assistantMessageIDForTool = (callID: string) => {
@@ -296,8 +326,8 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
         yield* startAssistant()
         return
       case "text-start":
-        retryEvidence = true
-        const startedTextOrdinal = yield* text.start(event.id)
+        outputStarted = true
+        const startedTextOrdinal = yield* text.start(event.id, providerState(event.providerMetadata))
         yield* events.publish(SessionEvent.Text.Started, {
           sessionID: input.sessionID,
           assistantMessageID: yield* startAssistant(),
@@ -305,7 +335,7 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
         })
         return
       case "text-delta":
-        const deltaTextOrdinal = yield* text.append(event.id, event.text)
+        const deltaTextOrdinal = yield* text.append(event.id, event.text, providerState(event.providerMetadata))
         yield* events.publish(SessionEvent.Text.Delta, {
           sessionID: input.sessionID,
           assistantMessageID: yield* currentAssistantMessageID(),
@@ -314,10 +344,10 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
         })
         return
       case "text-end":
-        yield* text.end(event.id)
+        yield* text.end(event.id, providerState(event.providerMetadata))
         return
       case "reasoning-start":
-        retryEvidence = true
+        outputStarted = true
         const startedReasoningOrdinal = yield* reasoning.start(event.id, providerState(event.providerMetadata))
         yield* events.publish(SessionEvent.Reasoning.Started, {
           sessionID: input.sessionID,
@@ -343,7 +373,7 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
         yield* reasoning.end(event.id, providerState(event.providerMetadata))
         return
       case "tool-input-start":
-        retryEvidence = true
+        outputStarted = true
         yield* startToolInput(event)
         return
       case "tool-input-delta": {
@@ -365,11 +395,11 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
         yield* endToolInput(event)
         return
       case "tool-input-error":
-        retryEvidence = true
+        outputStarted = true
         yield* failMalformedToolInput(event)
         return
       case "tool-call": {
-        retryEvidence = true
+        outputStarted = true
         if (!tools.has(event.id)) yield* startToolInput(event)
         const tool = tools.get(event.id)!
         if (toolInput.has(event.id)) yield* endToolInput(event)
@@ -382,7 +412,7 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
           sessionID: input.sessionID,
           assistantMessageID: tool.assistantMessageID,
           callID: event.id,
-          input: record(event.input),
+          input: asRecord(event.input),
           executed: tool.providerExecuted,
           state: providerState(event.providerMetadata),
         })
@@ -528,12 +558,24 @@ export const createLLMEventPublisher = (events: Pick<EventV2.Interface, "publish
     toolExecution,
     flush,
     failAssistant,
+    failTool,
     publishStepFailure,
     failUnsettledTools,
     hasProviderError: () => providerFailed,
-    hasRetryEvidence: () => retryEvidence,
-    stepFailure: () => stepFailure,
-    stepSettlement: () => stepSettlement,
+    /** Immutable snapshot of everything recorded for this step so far. */
+    record: (): StepRecord => ({
+      outputStarted,
+      providerFailed,
+      failure: stepFailure,
+      finish: stepSettlement,
+      calls: Array.from(tools, ([id, tool]) => ({
+        id,
+        name: tool.name,
+        called: tool.called,
+        settled: tool.settled,
+        providerExecuted: tool.providerExecuted,
+      })),
+    }),
     startAssistant,
     assistantMessageID: assistantMessageIDForTool,
   }

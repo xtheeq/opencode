@@ -98,8 +98,6 @@ export type SessionMessageShell = {
   output?: { output: string; cursor: number; size: number; truncated: boolean }
 }
 
-export type SessionMessageAssistantText = { type: "text"; text: string }
-
 export type SessionMessageProviderState = { [x: string]: JsonValue }
 
 export type SessionMessageToolStateStreaming = { status: "streaming"; input: string }
@@ -157,8 +155,6 @@ export type ShellInfo = {
   time: { started: number; completed?: number }
 }
 
-export type SessionMessageProviderState3 = { [x: string]: any }
-
 export type SessionMessageProviderState4 = { [x: string]: any }
 
 export type SessionMessageProviderState5 = { [x: string]: any }
@@ -166,6 +162,10 @@ export type SessionMessageProviderState5 = { [x: string]: any }
 export type SessionMessageProviderState6 = { [x: string]: any }
 
 export type SessionMessageProviderState7 = { [x: string]: any }
+
+export type SessionMessageProviderState8 = { [x: string]: any }
+
+export type SessionMessageProviderState9 = { [x: string]: any }
 
 export type EventLogSynced = { type: "log.synced"; aggregateID: string; seq?: number }
 
@@ -539,6 +539,10 @@ export type VcsFileStatus = {
   status: "added" | "deleted" | "modified"
 }
 
+export type WebSearchProvider = { id: string; name: string }
+
+export type WebSearchResult = { url: string; title?: string; content?: string; time: { published?: number } }
+
 export type SessionMessageModelSelected = {
   id: string
   metadata?: { [x: string]: JsonValue }
@@ -731,16 +735,6 @@ export type SessionTextStarted = {
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
   data: { sessionID: string; assistantMessageID: string; ordinal: number }
-}
-
-export type SessionTextEnded = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "session.text.ended"
-  durable: { aggregateID: string; seq: number; version: 1 }
-  location?: LocationRef
-  data: { sessionID: string; assistantMessageID: string; ordinal: number; text: string }
 }
 
 export type SessionToolInputStarted = {
@@ -1068,6 +1062,15 @@ export type FormCancelled = {
   data: { id: string; sessionID: string }
 }
 
+export type WebsearchUpdated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "websearch.updated"
+  location?: LocationRef
+  data: {}
+}
+
 export type SessionIdle = {
   id: string
   created: number
@@ -1249,6 +1252,8 @@ export type SessionPendingSynthetic = {
   delivery: "steer" | "queue"
 }
 
+export type SessionMessageAssistantText = { type: "text"; text: string; state?: SessionMessageProviderState }
+
 export type SessionMessageAssistantReasoning = {
   type: "reasoning"
   text: string
@@ -1359,6 +1364,22 @@ export type ShellCreated = {
   data: { info: ShellInfo }
 }
 
+export type SessionTextEnded = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.text.ended"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    assistantMessageID: string
+    ordinal: number
+    text: string
+    state?: SessionMessageProviderState4
+  }
+}
+
 export type SessionReasoningStarted = {
   id: string
   created: number
@@ -1366,7 +1387,7 @@ export type SessionReasoningStarted = {
   type: "session.reasoning.started"
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
-  data: { sessionID: string; assistantMessageID: string; ordinal: number; state?: SessionMessageProviderState3 }
+  data: { sessionID: string; assistantMessageID: string; ordinal: number; state?: SessionMessageProviderState5 }
 }
 
 export type SessionReasoningEnded = {
@@ -1381,7 +1402,7 @@ export type SessionReasoningEnded = {
     assistantMessageID: string
     ordinal: number
     text: string
-    state?: SessionMessageProviderState4
+    state?: SessionMessageProviderState6
   }
 }
 
@@ -1398,7 +1419,7 @@ export type SessionToolCalled = {
     callID: string
     input: { [x: string]: any }
     executed: boolean
-    state?: SessionMessageProviderState5
+    state?: SessionMessageProviderState7
   }
 }
 
@@ -1853,7 +1874,7 @@ export type SessionToolSuccess = {
     content: [LLMToolContent, ...Array<LLMToolContent>]
     metadata?: { [x: string]: JsonValue }
     executed: boolean
-    resultState?: SessionMessageProviderState6
+    resultState?: SessionMessageProviderState8
   }
 }
 
@@ -1872,7 +1893,7 @@ export type SessionToolFailed = {
     content?: [LLMToolContent, ...Array<LLMToolContent>]
     metadata?: { [x: string]: JsonValue }
     executed: boolean
-    resultState?: SessionMessageProviderState7
+    resultState?: SessionMessageProviderState9
   }
 }
 
@@ -2347,6 +2368,7 @@ export type V2Event =
   | FormCreated
   | FormReplied
   | FormCancelled
+  | WebsearchUpdated
   | SessionStatus2
   | SessionIdle
   | TuiPromptAppend
@@ -4950,3 +4972,27 @@ export type DebugLocationEvictInput = {
 }
 
 export type DebugLocationEvictOutput = void
+
+export type WebsearchProvidersInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type WebsearchProvidersOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string } }
+  data: Array<WebSearchProvider>
+}
+
+export type WebsearchQueryInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly query: { readonly query: string; readonly providerID?: string }["query"]
+  readonly providerID?: { readonly query: string; readonly providerID?: string }["providerID"]
+}
+
+export type WebsearchQueryOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string } }
+  data: { providerID: string; results: Array<WebSearchResult> }
+}

@@ -17,8 +17,8 @@ export const description = `Use this tool when you need to ask the user question
 4. Offer choices to the user about what direction to take.
 
 Usage notes:
-- When \`custom\` is enabled (default), a "Type your own answer" option is added automatically; don't include "Other" or catch-all options
-- Answers are returned as arrays of labels; set \`multiple: true\` to allow selecting more than one
+- A "Type your own answer" option is added automatically; don't include a separate option for free form answers
+- Set \`multiple: true\` to allow selecting more than one option
 - If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label`
 
 export const Input = Schema.Struct({
@@ -91,6 +91,9 @@ export const Plugin = {
                       .pipe(Effect.orDie),
                   ),
                   Effect.flatMap((state) => {
+                    // Deliberate defect tunnel (see PermissionV2.assert): a dismissal must dodge
+                    // leaf `mapError` blankets so it never becomes model-facing tool output; it
+                    // resurfaces as a typed failure at SessionModelRequest.executeTool.
                     if (state.status === "cancelled") return Effect.die(new CancelledError())
                     const output = {
                       answers: input.questions.map((_, index): QuestionV2.Answer => {
