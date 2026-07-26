@@ -1,4 +1,5 @@
-import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
+import { LegendList } from "@legendapp/list/react-native";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { MessageBubble } from "@/components/message";
@@ -35,7 +36,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     );
   }
 
-  const messages = data?.pages.flatMap((page) => page.data) ?? [];
+  const messages = data?.pages.flatMap((page) => page.data).reverse() ?? [];
 
   if (messages.length === 0) {
     return (
@@ -46,20 +47,22 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
   }
 
   return (
-    <FlatList
+    <LegendList
       data={messages}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => <MessageBubble message={item} />}
+      recycleItems
       style={{ backgroundColor: colors.background, flex: 1 }}
-      inverted
-      onEndReached={() => {
+      initialScrollAtEnd
+      maintainScrollAtEnd
+      maintainVisibleContentPosition
+      onStartReached={() => {
         if (hasNextPage) fetchNextPage();
       }}
-      onEndReachedThreshold={0.5}
       refreshing={isRefetching}
       onRefresh={refetch}
       contentContainerStyle={{ paddingVertical: spacing.sm }}
-      ListFooterComponent={
+      ListHeaderComponent={
         isFetchingNextPage ? (
           <View style={styles.footer}>
             <ActivityIndicator size="small" color={colors.text} />

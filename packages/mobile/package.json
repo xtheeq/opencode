@@ -11,6 +11,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@legendapp/list": "3.3.3",
     "@opencode-ai/client": "workspace:*",
     "@tanstack/react-query": "~5.101.2",
     "expo": "~57.0.7",
