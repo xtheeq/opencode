@@ -158,7 +158,6 @@ export function markdownTheme(
       fontStyle: "italic",
     },
     strikethrough: { color: colors.textSecondary },
-    underline: { color: colors.primary },
     thematicBreak: {
       color: colors.border,
       height: HAIRLINE,
@@ -217,6 +216,5 @@ export function markdownTheme(
       color: colors.text,
       backgroundColor: colors.surface,
     },
-    linkVariants: {},
   };
 }

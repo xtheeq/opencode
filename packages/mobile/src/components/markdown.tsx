@@ -8,6 +8,13 @@ const SELECTION_MENU_CONFIG = {
   copyImageUrl: { enabled: false },
 };
 
+const MD4C_FLAGS = {
+  highlight: true,
+  superscript: true,
+  subscript: false,
+  underline: false,
+};
+
 export function MarkdownPart({
   text,
   baseFontSize,
@@ -25,7 +32,11 @@ export function MarkdownPart({
       streamingAnimation
       selectable
       selectionHandleColor={colors.primary}
+      selectionColor={colors.primary + "33"}
+      maxFontSizeMultiplier={1.5}
+      spoilerOverlay="solid"
       selectionMenuConfig={SELECTION_MENU_CONFIG}
+      md4cFlags={MD4C_FLAGS}
       onLinkPress={({ url }) => {
         Linking.canOpenURL(url)
           .then((ok) => {
