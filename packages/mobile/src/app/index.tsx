@@ -8,6 +8,7 @@ import {
 import { router } from "expo-router";
 import { useConnection } from "@/services/connection";
 import { spacing, useTheme } from "@/theme";
+import HistoryIcon from "lucide-react-native/icons/history";
 import { Button, Text } from "@/components/primitives";
 import { ConnectForm } from "@/components/connect-form";
 import { PromptInput } from "@/components/prompt-input";
@@ -51,9 +52,7 @@ export default function HomeScreen() {
         >
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.push("/sessions")}>
-              <Text variant="caption" color="textSecondary">
-                History
-              </Text>
+              <HistoryIcon size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 

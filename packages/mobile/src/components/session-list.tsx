@@ -1,3 +1,4 @@
+import Plus from "lucide-react-native/icons/plus";
 import {
   ActivityIndicator,
   FlatList,
@@ -75,7 +76,10 @@ export function SessionList() {
           {isCreating ? (
             <ActivityIndicator size="small" color={colors.text} />
           ) : (
-            <Text variant="body">+ New session</Text>
+            <View style={styles.newSessionRow}>
+              <Plus size={18} color={colors.text} />
+              <Text variant="body">New session</Text>
+            </View>
           )}
         </TouchableOpacity>
       }
@@ -111,6 +115,11 @@ const styles = StyleSheet.create({
     marginHorizontal: spacing.md,
     marginTop: spacing.sm,
     alignItems: "center",
+  },
+  newSessionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   centered: {
     flex: 1,

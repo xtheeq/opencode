@@ -6,7 +6,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from "react-native";
-import { Text } from "@/components/primitives";
+import ArrowUp from "lucide-react-native/icons/arrow-up";
 import { spacing, borderRadius, typography, useTheme } from "@/theme";
 import { getClient } from "@/services/api";
 
@@ -83,7 +83,7 @@ export function PromptInput({
           {sending ? (
             <ActivityIndicator size="small" color={colors.onPrimary} />
           ) : (
-            <Text style={[styles.sendIcon, { color: iconColor }]}>↑</Text>
+            <ArrowUp size={18} color={iconColor} />
           )}
         </TouchableOpacity>
       </View>
@@ -111,13 +111,9 @@ const styles = StyleSheet.create({
     maxHeight: typography.body.lineHeight * 5,
   },
   sendButton: {
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    padding: spacing.sm,
     borderRadius: borderRadius.pill,
     justifyContent: "center",
     alignItems: "center",
-  },
-  sendIcon: {
-    ...typography.body,
   },
 });

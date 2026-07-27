@@ -1,3 +1,5 @@
+import ChevronDown from "lucide-react-native/icons/chevron-down";
+import ChevronRight from "lucide-react-native/icons/chevron-right";
 import { useState } from "react";
 import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
 import type { SessionMessageAssistant } from "@opencode-ai/client/promise";
@@ -66,10 +68,17 @@ export function ReasoningGroupRow({
           style={styles.header}
         >
           {completed ? (
-            <Text variant="caption" color="textSecondary">
-              {expanded ? "▼" : "▶"} Thought{title ? `: ${title}` : ""}
-              {duration ? ` · ${duration}` : ""}
-            </Text>
+            <View style={styles.headerRow}>
+              {expanded ? (
+                <ChevronDown size={12} color={colors.textSecondary} />
+              ) : (
+                <ChevronRight size={12} color={colors.textSecondary} />
+              )}
+              <Text variant="caption" color="textSecondary" style={styles.headerText}>
+                Thought{title ? `: ${title}` : ""}
+                {duration ? ` · ${duration}` : ""}
+              </Text>
+            </View>
           ) : (
             <View style={styles.headerRow}>
               <ActivityIndicator size="small" color={colors.textSecondary} />
