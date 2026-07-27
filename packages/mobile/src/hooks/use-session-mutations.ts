@@ -1,5 +1,12 @@
-import { useMutation, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import type { SessionInfo, SessionListOutput } from "@opencode-ai/client/promise";
+import {
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from "@tanstack/react-query";
+import type {
+  SessionInfo,
+  SessionListOutput,
+} from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
 
 export function useSessionMutations() {
@@ -11,16 +18,19 @@ export function useSessionMutations() {
     onSuccess: (_data, input) => {
       queryClient.removeQueries({ queryKey: ["messages", input.sessionID] });
       queryClient.removeQueries({ queryKey: ["session", input.sessionID] });
-      queryClient.setQueryData<InfiniteData<SessionListOutput>>(["sessions"], (prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          pages: prev.pages.map((p) => ({
-            ...p,
-            data: p.data.filter((s) => s.id !== input.sessionID),
-          })),
-        };
-      });
+      queryClient.setQueryData<InfiniteData<SessionListOutput>>(
+        ["sessions"],
+        (prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pages: prev.pages.map((p) => ({
+              ...p,
+              data: p.data.filter((s) => s.id !== input.sessionID),
+            })),
+          };
+        },
+      );
     },
   });
 
@@ -34,8 +44,9 @@ export function useSessionMutations() {
     mutationFn: (input: { sessionID: string; title: string }) =>
       getClient().session.rename(input),
     onSuccess: (_data, input) => {
-      queryClient.setQueryData<SessionInfo>(["session", input.sessionID], (prev) =>
-        prev ? { ...prev, title: input.title } : prev,
+      queryClient.setQueryData<SessionInfo>(
+        ["session", input.sessionID],
+        (prev) => (prev ? { ...prev, title: input.title } : prev),
       );
       queryClient.invalidateQueries({ queryKey: ["sessions"] });
     },

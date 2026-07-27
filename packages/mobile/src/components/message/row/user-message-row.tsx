@@ -3,11 +3,7 @@ import { BubbleContainer } from "../bubble-container";
 import { UserMessage } from "../user-message";
 import { spacing, borderRadius as br, useTheme } from "@/theme";
 
-export function UserMessageRow({
-  message,
-}: {
-  message: SessionMessageUser;
-}) {
+export function UserMessageRow({ message }: { message: SessionMessageUser }) {
   const { colors } = useTheme();
   return (
     <BubbleContainer

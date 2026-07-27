@@ -11,14 +11,21 @@ function getString(value: unknown): string | undefined {
 }
 
 function displayPath(path: string): string {
-  return path.startsWith("/") ? path.split("/").filter(Boolean).pop() ?? path : path;
+  return path.startsWith("/")
+    ? (path.split("/").filter(Boolean).pop() ?? path)
+    : path;
 }
 
-function getFullPath(state: SessionMessageAssistantTool["state"]): string | undefined {
+function getFullPath(
+  state: SessionMessageAssistantTool["state"],
+): string | undefined {
   if (state.status === "streaming") {
     try {
       const parsed = JSON.parse(state.input);
-      return getString((parsed as Record<string, unknown>).path) ?? getString((parsed as Record<string, unknown>).filePath);
+      return (
+        getString((parsed as Record<string, unknown>).path) ??
+        getString((parsed as Record<string, unknown>).filePath)
+      );
     } catch {
       return getString(state.input);
     }
@@ -64,7 +71,11 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
           <View style={styles.iconWrap}>
             <CornerDownRight size={12} color={colors.textSecondary} />
           </View>
-          <Text variant="caption" color="textSecondary" style={styles.loadedText}>
+          <Text
+            variant="caption"
+            color="textSecondary"
+            style={styles.loadedText}
+          >
             Loaded {displayPath(filepath)}
           </Text>
         </View>

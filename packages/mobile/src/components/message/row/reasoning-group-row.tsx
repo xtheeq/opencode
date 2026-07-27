@@ -1,7 +1,12 @@
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import { useState } from "react";
-import { View, TouchableOpacity, ActivityIndicator, StyleSheet } from "react-native";
+import {
+  View,
+  TouchableOpacity,
+  ActivityIndicator,
+  StyleSheet,
+} from "react-native";
 import type { SessionMessageAssistant } from "@opencode-ai/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { Text } from "@/components/primitives";
@@ -74,7 +79,11 @@ export function ReasoningGroupRow({
               ) : (
                 <ChevronRight size={12} color={colors.textSecondary} />
               )}
-              <Text variant="caption" color="textSecondary" style={styles.headerText}>
+              <Text
+                variant="caption"
+                color="textSecondary"
+                style={styles.headerText}
+              >
                 Thought{title ? `: ${title}` : ""}
                 {duration ? ` · ${duration}` : ""}
               </Text>
@@ -82,7 +91,11 @@ export function ReasoningGroupRow({
           ) : (
             <View style={styles.headerRow}>
               <ActivityIndicator size="small" color={colors.textSecondary} />
-              <Text variant="caption" color="textSecondary" style={styles.headerText}>
+              <Text
+                variant="caption"
+                color="textSecondary"
+                style={styles.headerText}
+              >
                 Thinking{title ? `: ${title}` : ""}...
               </Text>
             </View>
@@ -90,12 +103,12 @@ export function ReasoningGroupRow({
         </TouchableOpacity>
         {expanded && (
           <View
-            style={[
-              styles.content,
-              { borderLeftColor: colors.textSecondary },
-            ]}
+            style={[styles.content, { borderLeftColor: colors.textSecondary }]}
           >
-            <MarkdownPart text={text} baseFontSize={typography.caption.fontSize} />
+            <MarkdownPart
+              text={text}
+              baseFontSize={typography.caption.fontSize}
+            />
           </View>
         )}
       </View>

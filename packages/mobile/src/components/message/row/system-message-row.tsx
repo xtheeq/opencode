@@ -4,11 +4,7 @@ import { SystemMessage } from "../system-message";
 import { SwitchMessage } from "../switch-message";
 import { SkillMessage } from "../skill-message";
 
-export function SystemMessageRow({
-  message,
-}: {
-  message: SessionMessageInfo;
-}) {
+export function SystemMessageRow({ message }: { message: SessionMessageInfo }) {
   const content = () => {
     switch (message.type) {
       case "system":
