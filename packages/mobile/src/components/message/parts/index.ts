@@ -1,3 +1,8 @@
 export { TextPart } from "./text-part";
 export { ReasoningPart } from "./reasoning-part";
 export { ToolPart } from "./tool-part";
+export { GenericTool } from "./generic-tool";
+export { WriteTool } from "./tool-write";
+export { EditTool } from "./tool-edit";
+export { BashTool } from "./tool-bash";
+export { PatchTool } from "./tool-patch";
