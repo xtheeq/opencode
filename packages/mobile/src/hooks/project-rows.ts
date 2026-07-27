@@ -182,6 +182,20 @@ function tokenTotal(tokens: TokenUsageInfo) {
   );
 }
 
+export function resolvePart(
+  message: SessionMessageAssistant,
+  partID: string,
+): SessionMessageAssistant["content"][number] | undefined {
+  const tool = message.content.find(
+    (part) => part.type === "tool" && part.id === partID,
+  );
+  if (tool) return tool;
+  const match = /^(text|reasoning):(\d+)$/.exec(partID);
+  if (!match) return;
+  const ordinal = Number(match[2]);
+  return message.content.filter((part) => part.type === match[1])[ordinal];
+}
+
 export function cacheReuseDrop(
   previous: CacheUsage | undefined,
   current: CacheUsage,

@@ -2,7 +2,9 @@ import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { LegendList } from "@legendapp/list/react-native";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
-import { MessageBubble } from "@/components/message";
+import { RowRenderer } from "@/components/message/row";
+import { projectRows } from "@/hooks/project-rows";
+import { rowKey } from "@/types/rows";
 import { useMessages } from "@/hooks/use-messages";
 import { useSessionStream } from "@/hooks/use-session-stream";
 
@@ -36,9 +38,12 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     );
   }
 
-  const messages = data?.pages.flatMap((page) => page.data).reverse() ?? [];
+  const all = data?.pages.flatMap((page) => page.data) ?? [];
+  const chronological = [...all].reverse();
+  const messageMap = new Map(chronological.map((m) => [m.id, m]));
+  const rows = projectRows(chronological);
 
-  if (messages.length === 0) {
+  if (rows.length === 0) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <Text color="textSecondary">No messages yet</Text>
@@ -48,9 +53,11 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
 
   return (
     <LegendList
-      data={messages}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => <MessageBubble message={item} />}
+      data={rows}
+      keyExtractor={rowKey}
+      renderItem={({ item }) => (
+        <RowRenderer row={item} messages={messageMap} />
+      )}
       recycleItems
       style={{ backgroundColor: colors.background, flex: 1 }}
       initialScrollAtEnd
