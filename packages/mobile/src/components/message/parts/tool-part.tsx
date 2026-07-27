@@ -4,6 +4,7 @@ import { WriteTool } from "./tool-write";
 import { EditTool } from "./tool-edit";
 import { BashTool } from "./tool-bash";
 import { PatchTool } from "./tool-patch";
+import { ReadTool } from "./tool-read";
 
 export function ToolPart({ part }: { part: SessionMessageAssistantTool }) {
   switch (part.name) {
@@ -18,6 +19,8 @@ export function ToolPart({ part }: { part: SessionMessageAssistantTool }) {
     case "patch":
     case "apply_patch":
       return <PatchTool part={part} />;
+    case "read":
+      return <ReadTool part={part} />;
     default:
       return <GenericTool part={part} />;
   }

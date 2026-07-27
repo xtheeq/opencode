@@ -51,4 +51,10 @@ export const typography = {
     fontWeight: "400",
     lineHeight: 20,
   } satisfies TextStyle,
+  mono: {
+    fontSize: 14,
+    fontWeight: "400",
+    lineHeight: 20,
+    fontFamily: "monospace",
+  } satisfies TextStyle,
 } as const;

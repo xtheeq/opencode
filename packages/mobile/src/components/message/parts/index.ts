@@ -6,3 +6,4 @@ export { WriteTool } from "./tool-write";
 export { EditTool } from "./tool-edit";
 export { BashTool } from "./tool-bash";
 export { PatchTool } from "./tool-patch";
+export { ReadTool } from "./tool-read";
