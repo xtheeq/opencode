@@ -26,6 +26,16 @@ import {
   applyRetryScheduled,
   applyInputAdmitted,
   applyInputPromoted,
+  applyShellStarted,
+  applyShellEnded,
+  applyCompactionStarted,
+  applyCompactionDelta,
+  applyCompactionEnded,
+  applyCompactionFailed,
+  applySynthetic,
+  applyInstructionsUpdated,
+  applyAgentSelected,
+  applyModelSelected,
 } from "./stream-mutations";
 
 type MessagePage = {
@@ -239,6 +249,91 @@ function applyEvent(
       );
     case "session.input.promoted":
       return applyInputPromoted(prev, event.data.inputID, event.created);
+    case "session.shell.started":
+      return applyShellStarted(
+        prev,
+        event.id,
+        event.data.shell,
+        event.created,
+        event.metadata,
+      );
+    case "session.shell.ended":
+      return applyShellEnded(
+        prev,
+        event.data.shell.id,
+        event.data.shell.status as "running" | "exited" | "timeout" | "killed",
+        event.data.shell.exit,
+        event.data.output,
+        event.created,
+      );
+    case "session.compaction.started":
+      return applyCompactionStarted(
+        prev,
+        event.data.inputID ?? event.id,
+        event.data.reason,
+        event.data.recent,
+        event.created,
+      );
+    case "session.compaction.delta":
+      return applyCompactionDelta(prev, event.data.text);
+    case "session.compaction.ended":
+      return applyCompactionEnded(
+        prev,
+        event.id,
+        event.data.reason,
+        event.data.text,
+        event.data.recent,
+        event.created,
+      );
+    case "session.compaction.failed":
+      return applyCompactionFailed(
+        prev,
+        event.id,
+        event.data.reason,
+        event.data.error,
+        event.data.inputID,
+        event.metadata,
+        event.created,
+      );
+    case "session.synthetic":
+      return applySynthetic(
+        prev,
+        event.id,
+        event.data.text,
+        event.data.description,
+        event.data.metadata,
+        event.created,
+      );
+    case "session.instructions.updated": {
+      const instructionsMeta = event.metadata?.instructions;
+      const isInitial =
+        typeof instructionsMeta === "object" &&
+        instructionsMeta !== null &&
+        "initial" in instructionsMeta &&
+        instructionsMeta.initial === true;
+      if (isInitial) return prev;
+      return applyInstructionsUpdated(
+        prev,
+        event.id,
+        Object.keys(event.data.delta),
+        event.metadata,
+        event.created,
+      );
+    }
+    case "session.agent.selected":
+      return applyAgentSelected(
+        prev,
+        event.id,
+        event.data.agent,
+        event.created,
+      );
+    case "session.model.selected":
+      return applyModelSelected(
+        prev,
+        event.id,
+        event.data.model,
+        event.created,
+      );
     default:
       return prev;
   }

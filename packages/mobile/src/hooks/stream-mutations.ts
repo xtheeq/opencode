@@ -4,7 +4,7 @@ import type {
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
   JsonValue,
-  LLMToolContent,
+  ToolContent,
   SessionStructuredError,
 } from "@opencode-ai/client/promise";
 import type { InfiniteData } from "@tanstack/react-query";
@@ -246,6 +246,30 @@ function findToolIndex(
   return content.findIndex((p) => p.type === "tool" && p.id === callID);
 }
 
+function findShellByShellID(pages: MessagePage[], shellID: string) {
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+    const index = pages[pageIndex].data.findIndex(
+      (m) => m.type === "shell" && m.shellID === shellID,
+    );
+    if (index !== -1) return { pageIndex, index };
+  }
+}
+
+function findRunningCompaction(pages: MessagePage[]) {
+  for (let pageIndex = 0; pageIndex < pages.length; pageIndex++) {
+    for (
+      let dataIndex = pages[pageIndex].data.length - 1;
+      dataIndex >= 0;
+      dataIndex--
+    ) {
+      const msg = pages[pageIndex].data[dataIndex];
+      if (msg.type === "compaction" && msg.status === "running") {
+        return { pageIndex, index: dataIndex };
+      }
+    }
+  }
+}
+
 export function applyToolCalled(
   prev: MessageData,
   assistantMessageID: string,
@@ -296,7 +320,7 @@ export function applyToolSuccess(
   prev: MessageData,
   assistantMessageID: string,
   callID: string,
-  content: [LLMToolContent, ...LLMToolContent[]],
+  content: [ToolContent, ...ToolContent[]],
   metadata?: { [x: string]: JsonValue },
 ) {
   return updateContent(prev, assistantMessageID, (contentBlocks) => {
@@ -329,7 +353,7 @@ export function applyToolFailed(
   assistantMessageID: string,
   callID: string,
   error: SessionStructuredError,
-  content?: [LLMToolContent, ...LLMToolContent[]],
+  content?: [ToolContent, ...ToolContent[]],
   metadata?: { [x: string]: JsonValue },
 ) {
   return updateContent(prev, assistantMessageID, (contentBlocks) => {
@@ -486,4 +510,243 @@ export function applyInputPromoted(
     }
   }
   return prev;
+}
+
+export function applyShellStarted(
+  prev: MessageData,
+  eventID: string,
+  shell: {
+    id: string;
+    command: string;
+    status: string;
+    exit?: number | "Infinity" | "-Infinity" | "NaN";
+  },
+  created: number,
+  metadata?: Record<string, JsonValue>,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "shell",
+    shellID: shell.id,
+    command: shell.command,
+    status: shell.status as "running" | "exited" | "timeout" | "killed",
+    exit: shell.exit,
+    metadata,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyShellEnded(
+  prev: MessageData,
+  shellID: string,
+  status: "running" | "exited" | "timeout" | "killed",
+  exit: number | "Infinity" | "-Infinity" | "NaN" | undefined,
+  output: { output: string; cursor: number; size: number; truncated: boolean },
+  completed: number,
+) {
+  const found = findShellByShellID(prev.pages, shellID);
+  if (!found) return prev;
+  const pages = clonePages(prev.pages);
+  const msg = pages[found.pageIndex].data[found.index];
+  if (msg.type !== "shell") return prev;
+  pages[found.pageIndex].data[found.index] = {
+    ...msg,
+    status,
+    exit,
+    output,
+    time: { ...msg.time, completed },
+  };
+  return { ...prev, pages };
+}
+
+export function applyCompactionStarted(
+  prev: MessageData,
+  messageID: string,
+  reason: "auto" | "manual",
+  recent: string,
+  created: number,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: messageID,
+    type: "compaction",
+    status: "running",
+    reason,
+    summary: "",
+    recent,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyCompactionDelta(prev: MessageData, text: string) {
+  const found = findRunningCompaction(prev.pages);
+  if (!found) return prev;
+  const pages = clonePages(prev.pages);
+  const msg = pages[found.pageIndex].data[found.index];
+  if (msg.type !== "compaction" || msg.status !== "running") return prev;
+  pages[found.pageIndex].data[found.index] = {
+    ...msg,
+    summary: msg.summary + text,
+  };
+  return { ...prev, pages };
+}
+
+export function applyCompactionEnded(
+  prev: MessageData,
+  eventID: string,
+  reason: "auto" | "manual",
+  text: string,
+  recent: string,
+  created: number,
+) {
+  const found = findRunningCompaction(prev.pages);
+  const pages = clonePages(prev.pages);
+  if (found) {
+    const msg = pages[found.pageIndex].data[found.index];
+    if (msg.type === "compaction" && msg.status === "running") {
+      pages[found.pageIndex].data[found.index] = {
+        ...msg,
+        status: "completed",
+        reason,
+        summary: text,
+        recent,
+      };
+      return { ...prev, pages };
+    }
+  }
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "compaction",
+    status: "completed",
+    reason,
+    summary: text,
+    recent,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyCompactionFailed(
+  prev: MessageData,
+  eventID: string,
+  reason: "auto" | "manual",
+  error: { type: string; message: string },
+  inputID: string | undefined,
+  metadata: Record<string, JsonValue> | undefined,
+  created: number,
+) {
+  const found = findRunningCompaction(prev.pages);
+  const pages = clonePages(prev.pages);
+  if (found) {
+    const msg = pages[found.pageIndex].data[found.index];
+    if (msg.type === "compaction" && msg.status === "running") {
+      pages[found.pageIndex].data[found.index] = {
+        id: msg.id,
+        type: "compaction",
+        status: "failed",
+        reason,
+        error: error ?? {
+          type: "compaction.failed",
+          message: "Compaction failed before recording an error",
+        },
+        metadata: msg.metadata,
+        time: msg.time,
+      };
+      return { ...prev, pages };
+    }
+  }
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: inputID ?? eventID,
+    type: "compaction",
+    status: "failed",
+    reason: reason ?? "manual",
+    error: error ?? {
+      type: "compaction.failed",
+      message: "Compaction failed before recording an error",
+    },
+    metadata,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applySynthetic(
+  prev: MessageData,
+  eventID: string,
+  text: string,
+  description: string | undefined,
+  metadata: Record<string, JsonValue> | undefined,
+  created: number,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "synthetic",
+    text,
+    description,
+    metadata,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyInstructionsUpdated(
+  prev: MessageData,
+  eventID: string,
+  keys: string[],
+  metadata: Record<string, JsonValue> | undefined,
+  created: number,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "system",
+    text: `Instructions updated: ${keys.join(", ")}`,
+    metadata,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyAgentSelected(
+  prev: MessageData,
+  eventID: string,
+  agent: string,
+  created: number,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "agent-switched",
+    agent,
+    time: { created },
+  });
+  return { ...prev, pages };
+}
+
+export function applyModelSelected(
+  prev: MessageData,
+  eventID: string,
+  model: { id: string; providerID: string; variant?: string },
+  created: number,
+) {
+  const pages = clonePages(prev.pages);
+  if (pages.length === 0) pages.push({ data: [], cursor: {} });
+  pages[0].data.unshift({
+    id: eventID,
+    type: "model-switched",
+    model,
+    time: { created },
+  });
+  return { ...prev, pages };
 }
