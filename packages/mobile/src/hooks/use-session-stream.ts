@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { InfiniteData } from "@tanstack/react-query";
 import type { V2Event } from "@opencode-ai/client/promise";
-import { subscribeSession } from "@/services/event-source";
+import { getEventManager } from "@/services/event-manager";
 import {
   applyStepStarted,
   applyTextStarted,
@@ -38,33 +38,33 @@ export function useSessionStream(sessionID: string) {
   const pendingRef = useRef<V2Event[]>([]);
 
   useEffect(() => {
-    const abort = new AbortController();
     pendingRef.current = [];
 
-    subscribeSession(
-      sessionID,
-      (event) => {
-        const ev = event as V2Event;
-        queryClient.setQueryData(
-          ["messages", sessionID],
-          (prev: InfiniteData<MessagePage> | undefined) => {
-            if (!prev) {
-              pendingRef.current.push(ev);
-              return undefined;
-            }
-            let result = prev;
-            for (const pending of pendingRef.current) {
-              result = applyEvent(result, pending)!;
-            }
-            pendingRef.current = [];
-            return applyEvent(result, ev)!;
-          },
-        );
-      },
-      abort.signal,
-    );
+    const unsub = getEventManager().onAny((event) => {
+      if (!("sessionID" in event.data) || event.data.sessionID !== sessionID)
+        return;
 
-    return () => abort.abort();
+      queryClient.setQueryData(
+        ["messages", sessionID],
+        (prev: InfiniteData<MessagePage> | undefined) => {
+          if (!prev) {
+            pendingRef.current.push(event);
+            return undefined;
+          }
+          let result = prev;
+          for (const pending of pendingRef.current) {
+            result = applyEvent(result, pending)!;
+          }
+          pendingRef.current = [];
+          return applyEvent(result, event)!;
+        },
+      );
+    });
+
+    return () => {
+      unsub();
+      pendingRef.current = [];
+    };
   }, [sessionID, queryClient]);
 
   const data = queryClient.getQueryData<InfiniteData<MessagePage>>([
