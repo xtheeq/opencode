@@ -147,6 +147,11 @@
         "ws": "8.21.0",
       },
       "devDependencies": {
+        "@ff-labs/fff-bin-darwin-arm64": "0.10.1",
+        "@ff-labs/fff-bin-linux-arm64-gnu": "0.10.1",
+        "@ff-labs/fff-bin-linux-x64-gnu": "0.10.1",
+        "@ff-labs/fff-bin-win32-arm64": "0.10.1",
+        "@ff-labs/fff-bin-win32-x64": "0.10.1",
         "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
         "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
         "@lydell/node-pty-linux-arm64": "1.2.0-beta.12",
@@ -164,6 +169,11 @@
         "@types/bun": "catalog:",
         "@types/semver": "catalog:",
         "@typescript/native-preview": "catalog:",
+        "@yuuang/ffi-rs-darwin-arm64": "1.3.2",
+        "@yuuang/ffi-rs-linux-arm64-gnu": "1.3.2",
+        "@yuuang/ffi-rs-linux-x64-gnu": "1.3.2",
+        "@yuuang/ffi-rs-win32-arm64-msvc": "1.3.2",
+        "@yuuang/ffi-rs-win32-x64-msvc": "1.3.2",
         "vite": "catalog:",
         "vite-plugin-solid": "catalog:",
       },
@@ -364,6 +374,7 @@
         "@effect/platform-node": "catalog:",
         "@effect/sql-sqlite-bun": "catalog:",
         "@ff-labs/fff-bun": "0.10.1",
+        "@ff-labs/fff-node": "0.10.1",
         "@lydell/node-pty": "catalog:",
         "@modelcontextprotocol/sdk": "1.29.0",
         "@opencode-ai/ai": "workspace:*",
@@ -622,17 +633,20 @@
         "@tsconfig/node22": "catalog:",
         "@types/node": "catalog:",
         "@typescript/native-preview": "catalog:",
+        "solid-js": "catalog:",
         "typescript": "catalog:",
       },
       "peerDependencies": {
         "@opentui/core": ">=0.4.5",
         "@opentui/keymap": ">=0.4.5",
         "@opentui/solid": ">=0.4.5",
+        "solid-js": ">=1.9.0",
       },
       "optionalPeers": [
         "@opentui/core",
         "@opentui/keymap",
         "@opentui/solid",
+        "solid-js",
       ],
     },
     "packages/protocol": {
@@ -885,6 +899,20 @@
         "vite": "catalog:",
       },
     },
+    "packages/theme": {
+      "name": "@opencode-ai/theme",
+      "version": "0.0.0",
+      "dependencies": {
+        "@opentui/core": "catalog:",
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native-preview": "catalog:",
+        "typescript": "catalog:",
+      },
+    },
     "packages/tui": {
       "name": "@opencode-ai/tui",
       "version": "1.18.4",
@@ -894,6 +922,7 @@
         "@opencode-ai/plugin": "workspace:*",
         "@opencode-ai/schema": "workspace:*",
         "@opencode-ai/simulation": "workspace:*",
+        "@opencode-ai/theme": "workspace:*",
         "@opencode-ai/ui": "workspace:*",
         "@opencode-ai/util": "workspace:*",
         "@opentui/core": "catalog:",
@@ -1056,6 +1085,7 @@
       },
       "devDependencies": {
         "@astrojs/cloudflare": "14.1.4",
+        "@opencode-ai/theme": "workspace:*",
         "@types/bun": "catalog:",
         "astro": "7.1.3",
         "effect": "catalog:",
@@ -1851,6 +1881,8 @@
 
     "@ff-labs/fff-bun": ["@ff-labs/fff-bun@0.10.1", "", { "optionalDependencies": { "@ff-labs/fff-bin-android-arm64": "0.10.1", "@ff-labs/fff-bin-darwin-arm64": "0.10.1", "@ff-labs/fff-bin-darwin-x64": "0.10.1", "@ff-labs/fff-bin-linux-arm64-gnu": "0.10.1", "@ff-labs/fff-bin-linux-arm64-musl": "0.10.1", "@ff-labs/fff-bin-linux-x64-gnu": "0.10.1", "@ff-labs/fff-bin-linux-x64-musl": "0.10.1", "@ff-labs/fff-bin-win32-arm64": "0.10.1", "@ff-labs/fff-bin-win32-x64": "0.10.1" }, "os": [ "!aix", "!sunos", "!freebsd", "!openbsd", ], "cpu": [ "x64", "arm64", ] }, "sha512-9oUCxypGbf2q3vNfKZ31wdzt5KqjhA9S6TwQaFol/j1lkSHVGvtIa3RvdGHPs1UUuvR/MO7b6pHj054BR9bXPQ=="],
 
+    "@ff-labs/fff-node": ["@ff-labs/fff-node@0.10.1", "", { "dependencies": { "ffi-rs": "^1.0.0" }, "optionalDependencies": { "@ff-labs/fff-bin-android-arm64": "0.10.1", "@ff-labs/fff-bin-darwin-arm64": "0.10.1", "@ff-labs/fff-bin-darwin-x64": "0.10.1", "@ff-labs/fff-bin-linux-arm64-gnu": "0.10.1", "@ff-labs/fff-bin-linux-arm64-musl": "0.10.1", "@ff-labs/fff-bin-linux-x64-gnu": "0.10.1", "@ff-labs/fff-bin-linux-x64-musl": "0.10.1", "@ff-labs/fff-bin-win32-arm64": "0.10.1", "@ff-labs/fff-bin-win32-x64": "0.10.1" }, "os": [ "!aix", "!sunos", "!freebsd", "!openbsd", ], "cpu": [ "x64", "arm64", ] }, "sha512-I2TIWHkey4wpLCncUQymBz/yWrjp/TE91yjrPvSLaPMUMRf3wXwEmelGNnZ5ynxy3cUauYg5b5hsUwhOK4skfA=="],
+
     "@floating-ui/core": ["@floating-ui/core@1.8.0", "", { "dependencies": { "@floating-ui/utils": "^0.2.12" } }, "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ=="],
 
     "@floating-ui/dom": ["@floating-ui/dom@1.8.0", "", { "dependencies": { "@floating-ui/core": "^1.8.0", "@floating-ui/utils": "^0.2.12" } }, "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg=="],
@@ -2258,6 +2290,8 @@
     "@opencode-ai/stats-server": ["@opencode-ai/stats-server@workspace:packages/stats/server"],
 
     "@opencode-ai/storybook": ["@opencode-ai/storybook@workspace:packages/storybook"],
+
+    "@opencode-ai/theme": ["@opencode-ai/theme@workspace:packages/theme"],
 
     "@opencode-ai/tui": ["@opencode-ai/tui@workspace:packages/tui"],
 
@@ -3489,6 +3523,28 @@
 
     "@xmldom/xmldom": ["@xmldom/xmldom@0.8.13", "", {}, "sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw=="],
 
+    "@yuuang/ffi-rs-android-arm64": ["@yuuang/ffi-rs-android-arm64@1.3.2", "", { "os": "android", "cpu": "arm64" }, "sha512-eDYLT0kVBkp7e2BwdRDmt6N1rkeDPUHDefk3ZX0/nok+GLsqfy1WBoSL3Yg7HVXN1EyW8OBVc2uK8Zq8HbmaSA=="],
+
+    "@yuuang/ffi-rs-darwin-arm64": ["@yuuang/ffi-rs-darwin-arm64@1.3.2", "", { "os": "darwin", "cpu": "arm64" }, "sha512-kRdgPaOM6TfuC5wHUwstlatk4HNie2lwSLJWQL2LiAUIJ7+96CoiWUNVhwBcFrhdfxhnWenYS6F668CV0vit8Q=="],
+
+    "@yuuang/ffi-rs-darwin-x64": ["@yuuang/ffi-rs-darwin-x64@1.3.2", "", { "os": "darwin", "cpu": "x64" }, "sha512-O3AlVgre8FQcZRJe44Xs7A6iDLumoPXqbw40+eJCa2gyXaXyLPdHoWrS1W9rBCa1QZRRnG7zRulPVFw8C5uo8g=="],
+
+    "@yuuang/ffi-rs-linux-arm-gnueabihf": ["@yuuang/ffi-rs-linux-arm-gnueabihf@1.3.2", "", { "os": "linux", "cpu": "arm" }, "sha512-IXiNdTbIcTCPny5eeElijFWYeKSJjQWSjt9ZyJNdLHYiB1Np+XD6K7wNZS6EOMgMelhW1kQE62T654skGkVDIA=="],
+
+    "@yuuang/ffi-rs-linux-arm64-gnu": ["@yuuang/ffi-rs-linux-arm64-gnu@1.3.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-gWFO6xufUK9lPYUqDvKa6IR243dPqdetgl9Q7HrZWaDu7wLo06QQrosw8QTzndafQnOcBKm6LoLujmGCfTgJOA=="],
+
+    "@yuuang/ffi-rs-linux-arm64-musl": ["@yuuang/ffi-rs-linux-arm64-musl@1.3.2", "", { "os": "linux", "cpu": "arm64" }, "sha512-lejvOSqypPziQH5rzfkDlJ6e92qhWbDutE9ttOO6z5I2k83zoh9iZhZWhaXSU5VqgQpcshRkrbtXb9gy1ft5dA=="],
+
+    "@yuuang/ffi-rs-linux-x64-gnu": ["@yuuang/ffi-rs-linux-x64-gnu@1.3.2", "", { "os": "linux", "cpu": "x64" }, "sha512-s8VCFazaJKmgY2hgMTpWk4TtBY/zy5ovbaGgwyY0FvBD0YvyhcET4IrMsDJpHhFVTPCYfKZ1dN45clD/YiFp6g=="],
+
+    "@yuuang/ffi-rs-linux-x64-musl": ["@yuuang/ffi-rs-linux-x64-musl@1.3.2", "", { "os": "linux", "cpu": "x64" }, "sha512-Ahr5chfKZKWUik20bEZRug+be57LZ2yYrtolyjSRoo7A4ZniBUHBZUNWm6TD6i0CJayqyxWeVk/XiaABD8bY0w=="],
+
+    "@yuuang/ffi-rs-win32-arm64-msvc": ["@yuuang/ffi-rs-win32-arm64-msvc@1.3.2", "", { "os": "win32", "cpu": "arm64" }, "sha512-yhpLcj0qel5VNlpzxPZfNmi7+rEX8444QHjUP6WWLxdRfqPllROu/Cp3OpkBpw3BLdxfcDhWkjWMD5QsJN0Pvg=="],
+
+    "@yuuang/ffi-rs-win32-ia32-msvc": ["@yuuang/ffi-rs-win32-ia32-msvc@1.3.2", "", { "os": "win32", "cpu": [ "x64", "ia32", ] }, "sha512-BFVSbdtg/7mJBw5kQFOPKFiA+SF7z3240HpzHN81Umm4Bp4dWkyx0msYn8+Q7/BBJiLQ4F6bi3Nftk58YA9r9w=="],
+
+    "@yuuang/ffi-rs-win32-x64-msvc": ["@yuuang/ffi-rs-win32-x64-msvc@1.3.2", "", { "os": "win32", "cpu": "x64" }, "sha512-ZL5MJ76n2rjwGo26kCWW7wK6QT/cee00Rx8pfW79pz6vM6jqfhoE7zTnwFiw4aOQUes9+HUc5DeeJ3z+Vb9oLg=="],
+
     "@zip.js/zip.js": ["@zip.js/zip.js@2.7.62", "", {}, "sha512-OaLvZ8j4gCkLn048ypkZu29KX30r8/OfFF2w4Jo5WXFr+J04J+lzJ5TKZBVgFXhlvSkqNFQdfnY1Q8TMTCyBVA=="],
 
     "abbrev": ["abbrev@4.0.0", "", {}, "sha512-a1wflyaL0tHtJSmLSOVybYhy22vRih4eduhhrkcjgrWGnRfrZtovJ2FRjxuTtkkj47O/baf0R86QU5OuYpz8fA=="],
@@ -4344,6 +4400,8 @@
     "fetch-nodeshim": ["fetch-nodeshim@0.4.10", "", {}, "sha512-m6I8ALe4L4XpdETy7MJZWs6L1IVMbjs99bwbpIKphxX+0CTns4IKDWJY0LWfr4YsFjfg+z1TjzTMU8lKl8rG0w=="],
 
     "file-uri-to-path": ["file-uri-to-path@1.0.0", "", {}, "sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw=="],
+
+    "ffi-rs": ["ffi-rs@1.3.2", "", { "optionalDependencies": { "@yuuang/ffi-rs-android-arm64": "1.3.2", "@yuuang/ffi-rs-darwin-arm64": "1.3.2", "@yuuang/ffi-rs-darwin-x64": "1.3.2", "@yuuang/ffi-rs-linux-arm-gnueabihf": "1.3.2", "@yuuang/ffi-rs-linux-arm64-gnu": "1.3.2", "@yuuang/ffi-rs-linux-arm64-musl": "1.3.2", "@yuuang/ffi-rs-linux-x64-gnu": "1.3.2", "@yuuang/ffi-rs-linux-x64-musl": "1.3.2", "@yuuang/ffi-rs-win32-arm64-msvc": "1.3.2", "@yuuang/ffi-rs-win32-ia32-msvc": "1.3.2", "@yuuang/ffi-rs-win32-x64-msvc": "1.3.2" } }, "sha512-4s8dX9VbBw/jd5NOuE3EJRqXaIVdjMyiumeeDzrOhtjQRwp6Bz2za7iksWXTnvTQKV/tTdm1s1w7mObe92zPjQ=="],
 
     "filelist": ["filelist@1.0.6", "", { "dependencies": { "minimatch": "^5.0.1" } }, "sha512-5giy2PkLYY1cP39p17Ech+2xlpTRL9HLspOfEgm0L6CwBXBTgsK5ou0JtzYuepxkaQ/tvhCFIJ5uXo0OrM2DxA=="],
 
