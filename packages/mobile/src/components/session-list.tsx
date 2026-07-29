@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
 import {
   ActivityIndicator,
@@ -11,14 +12,17 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { SessionCard } from "@/components/session-card";
-import { useSessions } from "@/hooks/use-sessions";
+import { useSessions, useSessionsLoaded } from "@/hooks/use-store";
 import { useCreateSession } from "@/hooks/use-create-session";
+import { syncSessionList } from "@/stores/event-store";
 
 export function SessionList() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createSession, isCreating } = useCreateSession();
-  const sessionsQuery = useSessions();
+  const sessions = useSessions();
+  const loaded = useSessionsLoaded();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   async function handleNewSession() {
     try {
@@ -29,23 +33,21 @@ export function SessionList() {
     }
   }
 
-  if (sessionsQuery.isLoading) {
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    try {
+      await syncSessionList();
+    } catch {}
+    setIsRefreshing(false);
+  }
+
+  if (!loaded) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.text} />
       </View>
     );
   }
-
-  if (sessionsQuery.isError) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text color="error">Failed to load sessions</Text>
-      </View>
-    );
-  }
-
-  const sessions = sessionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
 
   return (
     <FlatList
@@ -58,12 +60,8 @@ export function SessionList() {
         />
       )}
       style={{ backgroundColor: colors.background }}
-      onEndReached={() => {
-        if (sessionsQuery.hasNextPage) sessionsQuery.fetchNextPage();
-      }}
-      onEndReachedThreshold={0.5}
-      refreshing={sessionsQuery.isRefetching}
-      onRefresh={sessionsQuery.refetch}
+      refreshing={isRefreshing}
+      onRefresh={handleRefresh}
       ListHeaderComponent={
         <TouchableOpacity
           onPress={handleNewSession}
@@ -96,13 +94,6 @@ export function SessionList() {
           flexGrow: 1,
         },
       ]}
-      ListFooterComponent={
-        sessionsQuery.isFetchingNextPage ? (
-          <View style={styles.footer}>
-            <ActivityIndicator size="small" color={colors.text} />
-          </View>
-        ) : null
-      }
     />
   );
 }

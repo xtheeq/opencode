@@ -21,6 +21,12 @@ import {
   clearServerConfig,
 } from "@/services/server-store";
 import { queryClient } from "@/providers/query-provider";
+import {
+  eventStore,
+  handleEvent,
+  syncLocation,
+  syncSessionList,
+} from "@/stores/event-store";
 
 export type ConnectionStatus =
   | "loading"
@@ -69,10 +75,33 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!url) return;
     const mgr = getEventManager();
+
+    const eventUnsub = mgr.onAny(handleEvent);
     mgr.connect();
-    const unsub = mgr.onStatusChange((ev) => setEventStatus(ev.status));
+    const statusUnsub = mgr.onStatusChange((ev) => {
+      setEventStatus(ev.status);
+      if (ev.status === "connected") {
+        getClient()
+          .session.active()
+          .then((active: Record<string, unknown>) =>
+            eventStore.setState((s) => {
+              for (const sessionID of Object.keys(active)) {
+                s.session.active[sessionID] = "running";
+              }
+            }),
+          )
+          .catch(() => {});
+        syncLocation().catch((e) =>
+          console.error("Failed to preload location", e),
+        );
+        syncSessionList().catch((e) =>
+          console.error("Failed to preload sessions", e),
+        );
+      }
+    });
     return () => {
-      unsub();
+      eventUnsub();
+      statusUnsub();
       mgr.disconnect();
     };
   }, [url]);
