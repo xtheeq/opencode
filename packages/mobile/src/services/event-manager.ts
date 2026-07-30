@@ -1,5 +1,4 @@
 import { AppState, type AppStateStatus } from "react-native";
-import type { QueryClient } from "@tanstack/react-query";
 import type { OpenCodeClient, V2Event } from "@opencode-ai/client/promise";
 
 type EventMap = { [K in V2Event["type"]]: Extract<V2Event, { type: K }> };
@@ -38,7 +37,6 @@ export function createEventManager(
   opts?: {
     onReconnected?: () => void;
     reconnect?: TransportReconnect;
-    queryClient?: QueryClient;
   },
 ): EventManager {
   instance?.disconnect();
@@ -69,20 +67,17 @@ class EventManager {
 
   private onReconnected?: () => void;
   private reconnect?: TransportReconnect;
-  private queryClient?: QueryClient;
 
   constructor(
     client: OpenCodeClient,
     opts?: {
       onReconnected?: () => void;
       reconnect?: TransportReconnect;
-      queryClient?: QueryClient;
     },
   ) {
     this.client = client;
     this.onReconnected = opts?.onReconnected;
     this.reconnect = opts?.reconnect;
-    this.queryClient = opts?.queryClient;
   }
 
   getStatus(): ConnectionStatus {
@@ -119,7 +114,6 @@ class EventManager {
     if (status === "connected" && prevStatus !== "connected") {
       this.attempt = 0;
       console.info("[event-manager] reconnected");
-      this.queryClient?.invalidateQueries();
       this.onReconnected?.();
     }
   }

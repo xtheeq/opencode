@@ -13,7 +13,6 @@
   "dependencies": {
     "@legendapp/list": "3.3.3",
     "@opencode-ai/client": "workspace:*",
-    "@tanstack/react-query": "~5.101.2",
     "expo": "~57.0.7",
     "expo-constants": "~57.0.6",
     "expo-linking": "~57.0.3",

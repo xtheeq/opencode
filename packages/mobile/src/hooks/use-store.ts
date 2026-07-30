@@ -6,6 +6,8 @@ import type {
   SessionMessageInfo,
 } from "@opencode-ai/client/promise";
 
+const EMPTY_MESSAGES: never[] = [];
+
 export function useSessions() {
   return eventStore(
     useShallow((s) =>
@@ -29,11 +31,17 @@ export function useSessionActive(sessionID: string) {
 }
 
 export function useSessionMessages(sessionID: string) {
-  const loaded = eventStore((s) => s._loadedMessages[sessionID]);
+  const state = eventStore(
+    useShallow((s) => ({
+      loaded: s._loadedMessages[sessionID] ?? false,
+      loading: s._loadingMessages[sessionID] ?? false,
+      messages: s.session.message[sessionID] ?? EMPTY_MESSAGES,
+    })),
+  );
   useEffect(() => {
-    if (!loaded) loadMessages(sessionID);
-  }, [sessionID, loaded]);
-  return eventStore((s) => s.session.message[sessionID] ?? []);
+    if (!state.loaded) loadMessages(sessionID);
+  }, [sessionID, state.loaded]);
+  return state;
 }
 
 export type { SessionInfo, SessionMessageInfo };

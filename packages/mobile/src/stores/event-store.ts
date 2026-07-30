@@ -10,6 +10,7 @@ import type {
   ModelInfo,
   PermissionSavedInfo,
   PermissionRequest,
+  Project,
   ProviderInfo,
   ReferenceInfo,
   SessionMessageInfo,
@@ -65,12 +66,14 @@ export type Store = {
     form: Record<string, FormWithLocation[]>;
   };
   project: {
+    info: Record<string, Project>;
     permission: Record<string, PermissionSavedInfo[]>;
   };
   location: Record<string, LocationData>;
   _loadedMessages: Record<string, boolean>;
   _loadedSessions: boolean;
   _defaultLocation: LocationRef;
+  _loadingMessages: Record<string, boolean>;
 };
 
 function locationKey(location: LocationRef) {
@@ -236,6 +239,11 @@ function removePending(store: Store, sessionID: string, inputID?: string) {
 
 function removeSession(store: Store, sessionID: string) {
   messageIndex.delete(sessionID);
+  sync.invalidate(`session:${sessionID}`);
+  sync.invalidate(`session.pending:${sessionID}`);
+  sync.invalidate(`session.message:${sessionID}`);
+  sync.invalidate(`session.permission:${sessionID}`);
+  sync.invalidate(`session.form:${sessionID}`);
   delete store.session.info[sessionID];
   delete store.session.active[sessionID];
   delete store.session.message[sessionID];
@@ -243,6 +251,8 @@ function removeSession(store: Store, sessionID: string) {
   delete store.session.input[sessionID];
   delete store.session.permission[sessionID];
   delete store.session.form[sessionID];
+  delete store._loadedMessages[sessionID];
+  delete store._loadingMessages[sessionID];
   for (const [rootID, family] of Object.entries(store.session.family)) {
     const next = family.filter((id) => id !== sessionID);
     if (next.length === 0) delete store.session.family[rootID];
@@ -250,12 +260,7 @@ function removeSession(store: Store, sessionID: string) {
   }
 }
 
-type FullStore = Store & {
-  _defaultLocation: LocationRef;
-  _loadedMessages: Record<string, boolean>;
-};
-
-export const eventStore = create<FullStore>()(
+export const eventStore = create<Store>()(
   immer(() => ({
     session: {
       info: {},
@@ -267,17 +272,16 @@ export const eventStore = create<FullStore>()(
       permission: {},
       form: {},
     },
-    project: { permission: {} },
+    project: { info: {}, permission: {} },
     location: {},
     _defaultLocation: { directory: "" },
     _loadedMessages: {},
+    _loadingMessages: {},
     _loadedSessions: false,
   })),
 );
 
 export function handleEvent(event: V2Event) {
-  const state = eventStore.getState();
-
   switch (event.type) {
     case "session.created":
       sync.invalidate(`session:${event.data.sessionID}`);
@@ -312,16 +316,18 @@ export function handleEvent(event: V2Event) {
 
     case "catalog.updated":
       sync.invalidate(
-        `location.model:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.invalidate(
-        `location.provider:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.model:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().model.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -330,10 +336,12 @@ export function handleEvent(event: V2Event) {
         },
       );
       sync.run(
-        `location.provider:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().provider.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -345,13 +353,15 @@ export function handleEvent(event: V2Event) {
 
     case "agent.updated":
       sync.invalidate(
-        `location.agent:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.agent:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.agent:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.agent:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().agent.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -363,13 +373,15 @@ export function handleEvent(event: V2Event) {
 
     case "command.updated":
       sync.invalidate(
-        `location.command:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.command:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.command:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.command:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().command.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -381,13 +393,15 @@ export function handleEvent(event: V2Event) {
 
     case "skill.updated":
       sync.invalidate(
-        `location.skill:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.skill:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.skill:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.skill:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().skill.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -398,13 +412,9 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.agent.selected":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.agent = event.data.agent;
-        });
-      }
       eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].agent = event.data.agent;
         const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
         append(messages, idx, {
@@ -417,67 +427,67 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.model.selected":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.model = event.data.model;
-        });
-      }
-      if (state.session.message[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const idx = index(event.data.sessionID);
-          const messages = (s.session.message[event.data.sessionID] ??= []);
-          append(messages, idx, {
-            id: messageIDFromEvent(event.id),
-            type: "model-switched",
-            model: event.data.model,
-            time: { created: event.created },
-          });
-        });
-      }
-      getClient()
-        .session.message({
-          sessionID: event.data.sessionID,
-          messageID: messageIDFromEvent(event.id),
-        })
-        .then((item) => {
+      eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].model = event.data.model;
+      });
+      {
+        const hasMessages =
+          eventStore.getState().session.message[event.data.sessionID];
+        if (hasMessages) {
           eventStore.setState((s) => {
             const idx = index(event.data.sessionID);
-            const messages = s.session.message[event.data.sessionID];
-            if (!messages) return;
-            const position = idx.get(item.id);
-            if (position === undefined) {
-              append(messages, idx, item);
-              return;
-            }
-            messages[position] = item;
+            const messages = (s.session.message[event.data.sessionID] ??= []);
+            append(messages, idx, {
+              id: messageIDFromEvent(event.id),
+              type: "model-switched",
+              model: event.data.model,
+              time: { created: event.created },
+            });
           });
-        })
-        .catch((error: Error) =>
-          console.error("Failed to load projected model switch message", error),
-        );
+        }
+        getClient()
+          .session.message({
+            sessionID: event.data.sessionID,
+            messageID: messageIDFromEvent(event.id),
+          })
+          .then((item) => {
+            eventStore.setState((s) => {
+              const idx = index(event.data.sessionID);
+              const messages = s.session.message[event.data.sessionID];
+              if (!messages) return;
+              const position = idx.get(item.id);
+              if (position === undefined) {
+                append(messages, idx, item);
+                return;
+              }
+              messages[position] = item;
+            });
+          })
+          .catch((error: Error) =>
+            console.error(
+              "Failed to load projected model switch message",
+              error,
+            ),
+          );
+      }
       break;
 
     case "session.renamed":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.title = event.data.title;
-        });
-      }
+      eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].title = event.data.title;
+      });
       break;
 
     case "session.moved":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) {
-            info.location = event.data.location;
-            if (event.data.projectID) info.projectID = event.data.projectID;
-            info.subpath = event.data.subpath;
-          }
-        });
-      }
+      eventStore.setState((s) => {
+        const info = s.session.info[event.data.sessionID];
+        if (!info) return;
+        info.location = event.data.location;
+        if (event.data.projectID) info.projectID = event.data.projectID;
+        info.subpath = event.data.subpath;
+      });
       break;
 
     case "session.input.promoted": {
@@ -515,7 +525,6 @@ export function handleEvent(event: V2Event) {
         addPending(s, {
           id: event.data.inputID,
           sessionID: event.data.sessionID,
-          admittedSeq: event.durable.seq,
           timeCreated: event.created,
           ...event.data.input,
         });
@@ -951,7 +960,6 @@ export function handleEvent(event: V2Event) {
         addPending(s, {
           id: event.data.inputID,
           sessionID: event.data.sessionID,
-          admittedSeq: event.durable.seq,
           timeCreated: event.created,
           type: "compaction",
         });
@@ -988,30 +996,24 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.revert.staged":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.revert = event.data.revert;
-        });
-      }
+      eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].revert = event.data.revert;
+      });
       break;
 
     case "session.revert.cleared":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.revert = undefined;
-        });
-      }
+      eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].revert = undefined;
+      });
       break;
 
     case "session.revert.committed":
-      if (state.session.info[event.data.sessionID]) {
-        eventStore.setState((s) => {
-          const info = s.session.info[event.data.sessionID];
-          if (info) info.revert = undefined;
-        });
-      }
+      eventStore.setState((s) => {
+        if (s.session.info[event.data.sessionID])
+          s.session.info[event.data.sessionID].revert = undefined;
+      });
       eventStore.setState((s) => {
         s.session.input[event.data.sessionID] = (
           s.session.input[event.data.sessionID] ?? []
@@ -1037,6 +1039,9 @@ export function handleEvent(event: V2Event) {
 
     case "session.compaction.ended":
       eventStore.setState((s) => {
+        s.session.pending[event.data.sessionID] = (
+          s.session.pending[event.data.sessionID] ?? []
+        ).filter((item) => item.type !== "compaction");
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const idx = index(event.data.sessionID);
@@ -1105,13 +1110,13 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "permission.asked":
-      if (
-        state.session.permission[event.data.sessionID]?.some(
-          (r) => r.id === event.data.id,
-        )
-      )
-        break;
       eventStore.setState((s) => {
+        if (
+          s.session.permission[event.data.sessionID]?.some(
+            (r) => r.id === event.data.id,
+          )
+        )
+          return;
         s.session.permission[event.data.sessionID] = [
           ...(s.session.permission[event.data.sessionID] ?? []),
           event.data,
@@ -1130,13 +1135,13 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "form.created":
-      if (
-        state.session.form[event.data.form.sessionID]?.some(
-          (f) => f.id === event.data.form.id,
-        )
-      )
-        break;
       eventStore.setState((s) => {
+        if (
+          s.session.form[event.data.form.sessionID]?.some(
+            (f) => f.id === event.data.form.id,
+          )
+        )
+          return;
         s.session.form[event.data.form.sessionID] = [
           ...(s.session.form[event.data.form.sessionID] ?? []),
           event.data.form.sessionID === "global"
@@ -1186,13 +1191,13 @@ export function handleEvent(event: V2Event) {
 
     case "reference.updated":
       sync.invalidate(
-        `location.reference:${locationKey(state._defaultLocation)}`,
+        `location.reference:${locationKey(eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.reference:${locationKey(state._defaultLocation)}`,
+        `location.reference:${locationKey(eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().reference.list({
-            location: locationQuery(state._defaultLocation),
+            location: locationQuery(eventStore.getState()._defaultLocation),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -1204,20 +1209,22 @@ export function handleEvent(event: V2Event) {
 
     case "integration.updated":
       sync.invalidate(
-        `location.integration:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.integration:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.invalidate(
-        `location.model:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.invalidate(
-        `location.provider:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       void Promise.all([
         sync.run(
-          `location.integration:${locationKey(event.location ?? state._defaultLocation)}`,
+          `location.integration:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
           async () => {
             const response = await getClient().integration.list({
-              location: locationQuery(event.location ?? state._defaultLocation),
+              location: locationQuery(
+                event.location ?? eventStore.getState()._defaultLocation,
+              ),
             });
             eventStore.setState((s) => {
               const key = locationKey(response.location);
@@ -1229,10 +1236,12 @@ export function handleEvent(event: V2Event) {
           },
         ),
         sync.run(
-          `location.model:${locationKey(event.location ?? state._defaultLocation)}`,
+          `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
           async () => {
             const response = await getClient().model.list({
-              location: locationQuery(event.location ?? state._defaultLocation),
+              location: locationQuery(
+                event.location ?? eventStore.getState()._defaultLocation,
+              ),
             });
             eventStore.setState((s) => {
               const key = locationKey(response.location);
@@ -1241,10 +1250,12 @@ export function handleEvent(event: V2Event) {
           },
         ),
         sync.run(
-          `location.provider:${locationKey(event.location ?? state._defaultLocation)}`,
+          `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
           async () => {
             const response = await getClient().provider.list({
-              location: locationQuery(event.location ?? state._defaultLocation),
+              location: locationQuery(
+                event.location ?? eventStore.getState()._defaultLocation,
+              ),
             });
             eventStore.setState((s) => {
               const key = locationKey(response.location);
@@ -1258,10 +1269,12 @@ export function handleEvent(event: V2Event) {
     case "config.updated":
     case "websearch.updated":
       sync.run(
-        `location.websearch:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.websearch:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().websearch.providers({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -1273,13 +1286,15 @@ export function handleEvent(event: V2Event) {
 
     case "mcp.status.changed":
       sync.invalidate(
-        `location.mcp.server:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.mcp.server:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.mcp.server:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.mcp.server:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().mcp.list({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -1294,13 +1309,15 @@ export function handleEvent(event: V2Event) {
 
     case "mcp.resources.changed":
       sync.invalidate(
-        `location.mcp.resource:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.mcp.resource:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
       );
       sync.run(
-        `location.mcp.resource:${locationKey(event.location ?? state._defaultLocation)}`,
+        `location.mcp.resource:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
         async () => {
           const response = await getClient().mcp.resource.catalog({
-            location: locationQuery(event.location ?? state._defaultLocation),
+            location: locationQuery(
+              event.location ?? eventStore.getState()._defaultLocation,
+            ),
           });
           eventStore.setState((s) => {
             const key = locationKey(response.location);
@@ -1319,17 +1336,32 @@ export function handleEvent(event: V2Event) {
 }
 
 export async function loadMessages(sessionID: string) {
+  eventStore.setState((s) => {
+    s._loadingMessages[sessionID] = true;
+  });
   return sync.run(`session.message:${sessionID}`, async () => {
     const response = await getClient().message.list({
       sessionID,
       limit: 200,
       order: "desc",
     });
-    const messages = response.data.toReversed();
-    messageIndex.set(sessionID, new Map(messages.map((m, i) => [m.id, i])));
+    const fetched = response.data.toReversed();
     eventStore.setState((s) => {
-      s.session.message[sessionID] = messages;
+      const existing = s.session.message[sessionID];
+      if (existing && existing.length > 0) {
+        const fetchedIds = new Set(fetched.map((m) => m.id));
+        const merged = [
+          ...fetched,
+          ...existing.filter((m) => !fetchedIds.has(m.id)),
+        ];
+        s.session.message[sessionID] = merged;
+        messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
+      } else {
+        s.session.message[sessionID] = fetched;
+        messageIndex.set(sessionID, new Map(fetched.map((m, i) => [m.id, i])));
+      }
       s._loadedMessages[sessionID] = true;
+      s._loadingMessages[sessionID] = false;
     });
   });
 }
@@ -1478,6 +1510,17 @@ export async function syncSessionList() {
         registerSession(s, session.id);
       }
       s._loadedSessions = true;
+    });
+  });
+}
+
+export async function syncProjectList() {
+  return sync.run("project.list", async () => {
+    const projects = await getClient().project.list();
+    eventStore.setState((s) => {
+      for (const project of projects) {
+        s.project.info[project.id] = project;
+      }
     });
   });
 }

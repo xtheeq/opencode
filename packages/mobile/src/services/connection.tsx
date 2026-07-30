@@ -20,12 +20,12 @@ import {
   setServerPassword,
   clearServerConfig,
 } from "@/services/server-store";
-import { queryClient } from "@/providers/query-provider";
 import {
   eventStore,
   handleEvent,
   syncLocation,
   syncSessionList,
+  syncProjectList,
 } from "@/stores/event-store";
 
 export type ConnectionStatus =
@@ -61,7 +61,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (storedUrl) {
         createClient(storedUrl, storedPassword ?? undefined);
-        createEventManager(getClient(), { queryClient });
+        createEventManager(getClient());
         setUrl(storedUrl);
       }
       setInitialized(true);
@@ -97,6 +97,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         syncSessionList().catch((e) =>
           console.error("Failed to preload sessions", e),
         );
+        syncProjectList().catch((e) =>
+          console.error("Failed to preload projects", e),
+        );
       }
     });
     return () => {
@@ -108,7 +111,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
 
   const connect = useCallback((serverUrl: string, password?: string) => {
     createClient(serverUrl, password);
-    createEventManager(getClient(), { queryClient });
+    createEventManager(getClient());
     setServerUrl(serverUrl).catch(console.error);
     if (password) setServerPassword(password).catch(console.error);
     setUrl(serverUrl);
