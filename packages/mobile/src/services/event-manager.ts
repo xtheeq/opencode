@@ -24,6 +24,71 @@ const BASE_DELAY = 1_000;
 const MAX_DELAY = 30_000;
 const CONNECT_TIMEOUT = 2_000;
 const CONNECTION_HISTORY_LIMIT = 50;
+const FLUSH_INTERVAL_MS = 16;
+
+type DeltaEvent = Extract<
+  V2Event,
+  {
+    type:
+      | "session.text.delta"
+      | "session.reasoning.delta"
+      | "session.tool.input.delta"
+      | "session.compaction.delta";
+  }
+>;
+
+const DELTA_TYPES = new Set([
+  "session.text.delta",
+  "session.reasoning.delta",
+  "session.tool.input.delta",
+  "session.compaction.delta",
+]);
+
+function isDeltaEvent(event: V2Event): event is DeltaEvent {
+  return DELTA_TYPES.has(event.type);
+}
+
+function deltaCoalesceKey(event: DeltaEvent): string {
+  switch (event.type) {
+    case "session.text.delta":
+    case "session.reasoning.delta":
+      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.ordinal}`;
+    case "session.tool.input.delta":
+      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.callID}`;
+    case "session.compaction.delta":
+      return `${event.type}:${event.data.sessionID}`;
+  }
+}
+
+function deltaFragment(event: DeltaEvent): string {
+  return event.type === "session.compaction.delta"
+    ? event.data.text
+    : event.data.delta;
+}
+
+function coalesceEvents(events: V2Event[]): V2Event[] {
+  const result: V2Event[] = [];
+  for (const event of events) {
+    if (isDeltaEvent(event)) {
+      const prev = result[result.length - 1];
+      if (
+        prev &&
+        isDeltaEvent(prev) &&
+        deltaCoalesceKey(prev) === deltaCoalesceKey(event)
+      ) {
+        const fragment = deltaFragment(prev) + deltaFragment(event);
+        const data =
+          event.type === "session.compaction.delta"
+            ? { ...event.data, text: fragment }
+            : { ...event.data, delta: fragment };
+        result[result.length - 1] = { ...event, data } as V2Event;
+        continue;
+      }
+    }
+    result.push(event);
+  }
+  return result;
+}
 
 let instance: EventManager | null = null;
 
@@ -64,6 +129,8 @@ class EventManager {
   private appStateUnsub?: () => void;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
   private history: ConnectionStatusEvent[] = [];
+  private pending: V2Event[] = [];
+  private flushTimer: ReturnType<typeof setTimeout> | undefined;
 
   private onReconnected?: () => void;
   private reconnect?: TransportReconnect;
@@ -139,6 +206,23 @@ class EventManager {
   }
 
   private emit(event: V2Event) {
+    this.pending.push(event);
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(() => this.flushEvents(), FLUSH_INTERVAL_MS);
+  }
+
+  private flushEvents() {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+    const events = this.pending;
+    this.pending = [];
+    const coalesced = coalesceEvents(events);
+    for (const event of coalesced) this.dispatch(event);
+  }
+
+  private dispatch(event: V2Event) {
     this.typeListeners.get(event.type)?.forEach((handler) => {
       try {
         handler(event);
@@ -178,6 +262,9 @@ class EventManager {
     this.stream = null;
     clearTimeout(this.reconnectTimer);
     this.reconnectTimer = undefined;
+    clearTimeout(this.flushTimer);
+    this.flushTimer = undefined;
+    this.pending = [];
     this.appStateUnsub?.();
     this.appStateUnsub = undefined;
     this.setStatus("disconnected");
@@ -190,6 +277,8 @@ class EventManager {
       this.stream?.abort();
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
     } else if (nextAppState === "active" && this.isActive && this.paused) {
       this.paused = false;
       console.info("[event-manager] app foregrounded, resuming SSE");
