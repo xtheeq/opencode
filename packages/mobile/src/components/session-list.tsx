@@ -27,7 +27,7 @@ export function SessionList() {
   async function handleNewSession() {
     try {
       const session = await createSession();
-      router.push(`/session/${session.id}`);
+      router.push({ pathname: "/session/[id]", params: { id: session.id } });
     } catch (error) {
       console.error("Failed to create session", error);
     }
@@ -56,7 +56,9 @@ export function SessionList() {
       renderItem={({ item }) => (
         <SessionCard
           session={item}
-          onPress={() => router.push(`/session/${item.id}`)}
+          onPress={() =>
+            router.push({ pathname: "/session/[id]", params: { id: item.id } })
+          }
         />
       )}
       style={{ backgroundColor: colors.background }}
