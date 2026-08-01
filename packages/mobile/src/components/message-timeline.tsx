@@ -1,7 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { LegendList } from "@legendapp/list/react-native";
 import { spacing, useTheme } from "@/theme";
-import { Text } from "@/components/primitives";
 import { RowRenderer } from "@/components/message/row";
 import { projectRows } from "@/hooks/project-rows";
 import { rowKey } from "@/types/rows";
@@ -18,14 +17,6 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.text} />
-      </View>
-    );
-  }
-
-  if (loaded && rows.length === 0) {
-    return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <Text color="textSecondary">No messages yet</Text>
       </View>
     );
   }
