@@ -1,0 +1,307 @@
+import type {
+  AgentInfo,
+  CommandInfo,
+  IntegrationInfo,
+  LocationGetOutput,
+  LocationRef,
+  McpResource,
+  McpResourceCatalog,
+  McpServer,
+  ModelInfo,
+  ProviderInfo,
+  ReferenceInfo,
+  ShellInfo,
+  SkillInfo,
+  WebSearchProvider,
+} from "@opencode-ai/client/promise";
+import { getClient } from "@/services/api";
+import {
+  eventStore,
+  locationKey,
+  locationQuery,
+  messageIndex,
+  registerSession,
+  type LocationData,
+  type Store,
+} from "./store";
+
+function createSync() {
+  const state = new Map<string, true | Promise<void>>();
+  return {
+    run(key: string, load: () => Promise<void>) {
+      const active = state.get(key);
+      if (active === true) return Promise.resolve();
+      if (active) return active;
+      const pending = load()
+        .then(() => {
+          if (state.get(key) === pending) state.set(key, true);
+        })
+        .finally(() => {
+          if (state.get(key) === pending) state.delete(key);
+        });
+      state.set(key, pending);
+      return pending;
+    },
+    complete(key: string) {
+      if (state.has(key)) return;
+      state.set(key, true);
+    },
+    invalidate(key?: string) {
+      if (key) {
+        state.delete(key);
+        return;
+      }
+      state.clear();
+    },
+  };
+}
+
+export const sync = createSync();
+
+const CATALOG_FIELDS = [
+  "agent",
+  "command",
+  "integration",
+  "mcp.server",
+  "mcp.resource",
+  "model",
+  "provider",
+  "reference",
+  "skill",
+  "shell",
+] as const;
+
+type CatalogField =
+  | "agent"
+  | "command"
+  | "integration"
+  | "mcp.server"
+  | "mcp.resource"
+  | "model"
+  | "provider"
+  | "reference"
+  | "skill"
+  | "shell"
+  | "websearch";
+
+type CatalogResponse =
+  | { field: "agent"; location: LocationGetOutput; data: AgentInfo[] }
+  | { field: "command"; location: LocationGetOutput; data: CommandInfo[] }
+  | { field: "integration"; location: LocationGetOutput; data: IntegrationInfo[] }
+  | { field: "mcp.server"; location: LocationGetOutput; data: McpServer[] }
+  | { field: "mcp.resource"; location: LocationGetOutput; data: McpResourceCatalog }
+  | { field: "model"; location: LocationGetOutput; data: ModelInfo[] }
+  | { field: "provider"; location: LocationGetOutput; data: ProviderInfo[] }
+  | { field: "reference"; location: LocationGetOutput; data: ReferenceInfo[] }
+  | { field: "shell"; location: LocationGetOutput; data: ShellInfo[] }
+  | { field: "skill"; location: LocationGetOutput; data: SkillInfo[] }
+  | { field: "websearch"; location: LocationGetOutput; data: WebSearchProvider[] };
+
+async function fetchCatalog(
+  field: CatalogField,
+  location: LocationRef,
+): Promise<CatalogResponse> {
+  const query = { location: locationQuery(location) };
+  switch (field) {
+    case "agent": {
+      const r = await getClient().agent.list(query);
+      return { field, ...r };
+    }
+    case "command": {
+      const r = await getClient().command.list(query);
+      return { field, ...r };
+    }
+    case "integration": {
+      const r = await getClient().integration.list(query);
+      return { field, ...r };
+    }
+    case "mcp.server": {
+      const r = await getClient().mcp.list(query);
+      return { field, ...r };
+    }
+    case "mcp.resource": {
+      const r = await getClient().mcp.resource.catalog(query);
+      return { field, ...r };
+    }
+    case "model": {
+      const r = await getClient().model.list(query);
+      return { field, ...r };
+    }
+    case "provider": {
+      const r = await getClient().provider.list(query);
+      return { field, ...r };
+    }
+    case "reference": {
+      const r = await getClient().reference.list(query);
+      return { field, ...r };
+    }
+    case "shell": {
+      const r = await getClient().shell.list(query);
+      return { field, ...r };
+    }
+    case "skill": {
+      const r = await getClient().skill.list(query);
+      return { field, ...r };
+    }
+    case "websearch": {
+      const r = await getClient().websearch.providers(query);
+      return { field, ...r };
+    }
+  }
+}
+
+function setLocationField(
+  store: Store,
+  key: string,
+  response: CatalogResponse,
+): LocationData {
+  const base = store.location[key];
+  switch (response.field) {
+    case "mcp.server":
+      return {
+        ...base,
+        mcp: { ...base?.mcp, server: response.data },
+      };
+    case "mcp.resource":
+      return {
+        ...base,
+        mcp: { ...base?.mcp, resource: response.data.resources },
+      };
+    case "shell":
+      return {
+        ...base,
+        shell: Object.fromEntries(
+          response.data.map((info) => [info.id, info]),
+        ),
+      };
+    default:
+      return { ...base, [response.field]: response.data };
+  }
+}
+
+export function refreshLocation(field: CatalogField, location: LocationRef) {
+  const key = `location.${field}:${locationKey(location)}`;
+  sync.invalidate(key);
+  return sync.run(key, async () => {
+    const response = await fetchCatalog(field, location);
+    eventStore.setState((s) => {
+      const storeKey = locationKey(response.location);
+      s.location[storeKey] = setLocationField(s, storeKey, response);
+    });
+  });
+}
+
+export function removeSession(store: Store, sessionID: string) {
+  messageIndex.delete(sessionID);
+  sync.invalidate(`session:${sessionID}`);
+  sync.invalidate(`session.pending:${sessionID}`);
+  sync.invalidate(`session.message:${sessionID}`);
+  sync.invalidate(`session.permission:${sessionID}`);
+  sync.invalidate(`session.form:${sessionID}`);
+  delete store.session.info[sessionID];
+  delete store.session.active[sessionID];
+  delete store.session.message[sessionID];
+  delete store.session.pending[sessionID];
+  delete store.session.input[sessionID];
+  delete store.session.permission[sessionID];
+  delete store.session.form[sessionID];
+  delete store._loadedMessages[sessionID];
+  delete store._loadingMessages[sessionID];
+  for (const [rootID, family] of Object.entries(store.session.family)) {
+    const next = family.filter((id) => id !== sessionID);
+    if (next.length === 0) delete store.session.family[rootID];
+    else store.session.family[rootID] = next;
+  }
+}
+
+export function loadSession(sessionID: string) {
+  sync.run(`session:${sessionID}`, async () => {
+    const session = await getClient().session.get({ sessionID });
+    eventStore.setState((s) => {
+      s.session.info[sessionID] = session;
+      registerSession(s, sessionID);
+    });
+  });
+}
+
+export async function loadMessages(sessionID: string) {
+  eventStore.setState((s) => {
+    s._loadingMessages[sessionID] = true;
+  });
+  return sync.run(`session.message:${sessionID}`, async () => {
+    const response = await getClient().message.list({
+      sessionID,
+      limit: 200,
+      order: "desc",
+    });
+    const fetched = response.data.toReversed();
+    eventStore.setState((s) => {
+      const existing = s.session.message[sessionID];
+      if (existing && existing.length > 0) {
+        const fetchedIds = new Set(fetched.map((m) => m.id));
+        const merged = [
+          ...fetched,
+          ...existing.filter((m) => !fetchedIds.has(m.id)),
+        ];
+        s.session.message[sessionID] = merged;
+        messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
+      } else {
+        s.session.message[sessionID] = fetched;
+        messageIndex.set(sessionID, new Map(fetched.map((m, i) => [m.id, i])));
+      }
+      s._loadedMessages[sessionID] = true;
+      s._loadingMessages[sessionID] = false;
+    });
+  });
+}
+
+export async function syncLocation() {
+  const currentLoc = eventStore.getState()._defaultLocation;
+  await sync.run(`location:${locationKey(currentLoc)}`, async () => {
+    const location = await getClient().location.get({
+      location: locationQuery(currentLoc),
+    });
+    const key = locationKey(location);
+    eventStore.setState((s) => {
+      if (!s.location[key]) s.location[key] = {};
+      s.location[key].info = location;
+      s._defaultLocation = {
+        directory: location.directory,
+        workspaceID: location.workspaceID,
+      };
+    });
+  });
+  const loc = eventStore.getState()._defaultLocation;
+  await Promise.all(CATALOG_FIELDS.map((field) => refreshLocation(field, loc)));
+}
+
+export async function syncSessionList() {
+  return sync.run("session.list", async () => {
+    const response = await getClient().session.list({
+      parentID: null,
+      limit: 50,
+      order: "desc",
+    });
+    eventStore.setState((s) => {
+      for (const session of response.data) {
+        s.session.info[session.id] = session;
+      }
+      for (const session of response.data) {
+        sync.complete(`session:${session.id}`);
+        registerSession(s, session.id);
+      }
+      s._loadedSessions = true;
+    });
+  });
+}
+
+export async function syncProjectList() {
+  return sync.run("project.list", async () => {
+    const projects = await getClient().project.list();
+    eventStore.setState((s) => {
+      for (const project of projects) {
+        s.project.info[project.id] = project;
+      }
+    });
+  });
+}

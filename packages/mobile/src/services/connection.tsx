@@ -20,13 +20,13 @@ import {
   setServerPassword,
   clearServerConfig,
 } from "@/services/server-store";
+import { eventStore } from "@/stores/store";
+import { handleEvent } from "@/stores/reducer";
 import {
-  eventStore,
-  handleEvent,
   syncLocation,
   syncSessionList,
   syncProjectList,
-} from "@/stores/event-store";
+} from "@/stores/sync";
 
 export type ConnectionStatus =
   | "loading"

@@ -1,299 +1,33 @@
-import type {
-  AgentInfo,
-  CommandInfo,
-  FormInfo,
-  IntegrationInfo,
-  LocationRef,
-  LocationGetOutput,
-  McpResource,
-  McpServer,
-  ModelInfo,
-  PermissionSavedInfo,
-  PermissionRequest,
-  Project,
-  ProviderInfo,
-  ReferenceInfo,
-  SessionMessageInfo,
-  SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageAssistantText,
-  SessionMessageAssistantTool,
-  SessionInfo,
-  SessionPendingInfo,
-  ShellInfo,
-  SkillInfo,
-  WebSearchProvider,
-  V2Event,
-  JsonValue,
-} from "@opencode-ai/client/promise";
-import { create } from "zustand";
-import { immer } from "zustand/middleware/immer";
+import type { SessionMessageInfo, V2Event } from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
-
-export type DataSessionStatus = "idle" | "running";
-
-const messageIDFromEvent = (eventID: string) =>
-  eventID.replace(/^evt_/, "msg_");
-
-export type FormWithLocation = FormInfo & { readonly location?: LocationRef };
-
-type LocationData = {
-  info?: LocationGetOutput;
-  agent?: AgentInfo[];
-  command?: CommandInfo[];
-  integration?: IntegrationInfo[];
-  mcp?: {
-    server?: McpServer[];
-    resource?: McpResource[];
-  };
-  model?: ModelInfo[];
-  provider?: ProviderInfo[];
-  reference?: ReferenceInfo[];
-  websearch?: WebSearchProvider[];
-  shell?: Record<string, ShellInfo>;
-  skill?: SkillInfo[];
-};
-
-export type Store = {
-  session: {
-    info: Record<string, SessionInfo>;
-    family: Record<string, string[]>;
-    active: Record<string, DataSessionStatus>;
-    message: Record<string, SessionMessageInfo[]>;
-    pending: Record<string, SessionPendingInfo[]>;
-    input: Record<string, string[]>;
-    permission: Record<string, PermissionRequest[]>;
-    form: Record<string, FormWithLocation[]>;
-  };
-  project: {
-    info: Record<string, Project>;
-    permission: Record<string, PermissionSavedInfo[]>;
-  };
-  location: Record<string, LocationData>;
-  _loadedMessages: Record<string, boolean>;
-  _loadedSessions: boolean;
-  _defaultLocation: LocationRef;
-  _loadingMessages: Record<string, boolean>;
-};
-
-function locationKey(location: LocationRef) {
-  return JSON.stringify([location.directory, location.workspaceID]);
-}
-
-function locationQuery(ref?: LocationRef) {
-  return ref
-    ? { directory: ref.directory, workspace: ref.workspaceID }
-    : undefined;
-}
-
-function createSync() {
-  const state = new Map<string, true | Promise<void>>();
-  return {
-    run(key: string, load: () => Promise<void>) {
-      const active = state.get(key);
-      if (active === true) return Promise.resolve();
-      if (active) return active;
-      const pending = load()
-        .then(() => {
-          if (state.get(key) === pending) state.set(key, true);
-        })
-        .finally(() => {
-          if (state.get(key) === pending) state.delete(key);
-        });
-      state.set(key, pending);
-      return pending;
-    },
-    complete(key: string) {
-      if (state.has(key)) return;
-      state.set(key, true);
-    },
-    invalidate(key?: string) {
-      if (key) {
-        state.delete(key);
-        return;
-      }
-      state.clear();
-    },
-  };
-}
-
-const sync = createSync();
-const messageIndex = new Map<string, Map<string, number>>();
-
-function index(sessionID: string) {
-  const existing = messageIndex.get(sessionID);
-  if (existing) return existing;
-  const created = new Map<string, number>();
-  messageIndex.set(sessionID, created);
-  return created;
-}
-
-function append(
-  messages: SessionMessageInfo[],
-  idx: Map<string, number>,
-  item: SessionMessageInfo,
-) {
-  if (idx.has(item.id)) return;
-  idx.set(item.id, messages.length);
-  messages.push(item);
-}
-
-function activeAssistant(messages: SessionMessageInfo[]) {
-  const item = messages.findLast(
-    (item) => item.type === "assistant" && !item.time.completed,
-  );
-  return item?.type === "assistant" ? item : undefined;
-}
-
-function findAssistant(
-  messages: SessionMessageInfo[],
-  idx: Map<string, number>,
-  messageID: string,
-) {
-  const position = idx.get(messageID);
-  const item = position === undefined ? undefined : messages[position];
-  return item?.type === "assistant" ? item : undefined;
-}
-
-function findShellByShellID(messages: SessionMessageInfo[], shellID: string) {
-  return messages.findLast(
-    (item) => item.type === "shell" && item.shellID === shellID,
-  );
-}
-
-function findRunningCompaction(messages: SessionMessageInfo[]) {
-  return messages.findLast(
-    (item) => item.type === "compaction" && item.status === "running",
-  );
-}
-
-function latestTool(
-  assistant: SessionMessageAssistant | undefined,
-  callID?: string,
-) {
-  return assistant?.content.findLast(
-    (item): item is SessionMessageAssistantTool =>
-      item.type === "tool" && (callID === undefined || item.id === callID),
-  );
-}
-
-function latestText(assistant: SessionMessageAssistant | undefined) {
-  return assistant?.content.findLast(
-    (item): item is SessionMessageAssistantText => item.type === "text",
-  );
-}
-
-function latestReasoning(assistant: SessionMessageAssistant | undefined) {
-  return assistant?.content.findLast(
-    (item): item is SessionMessageAssistantReasoning =>
-      item.type === "reasoning" && !item.time?.completed,
-  );
-}
-
-function resolveRoot(
-  sessionInfo: Record<string, SessionInfo>,
-  sessionID: string,
-) {
-  let current = sessionID;
-  let parentID = sessionInfo[sessionID]?.parentID;
-  const seen = new Set([sessionID]);
-  while (parentID) {
-    if (seen.has(parentID)) break;
-    seen.add(parentID);
-    current = parentID;
-    parentID = sessionInfo[parentID]?.parentID;
-  }
-  return current;
-}
-
-function registerSession(store: Store, sessionID: string) {
-  const info = store.session.info[sessionID];
-  if (!info) return;
-  const rootID = resolveRoot(store.session.info, sessionID);
-  if (sessionID !== rootID && store.session.family[sessionID]) {
-    const members = (store.session.family[rootID] ??= []);
-    for (const id of store.session.family[sessionID]) {
-      if (!members.includes(id)) members.push(id);
-    }
-    delete store.session.family[sessionID];
-  }
-  const family = (store.session.family[rootID] ??= []);
-  if (!family.includes(sessionID)) family.push(sessionID);
-}
-
-function addPending(store: Store, item: SessionPendingInfo) {
-  if (store.session.pending[item.sessionID]?.some((p) => p.id === item.id))
-    return;
-  store.session.pending[item.sessionID] = [
-    ...(store.session.pending[item.sessionID] ?? []),
-    item,
-  ];
-}
-
-function removePending(store: Store, sessionID: string, inputID?: string) {
-  if (!inputID) return;
-  store.session.pending[sessionID] = (
-    store.session.pending[sessionID] ?? []
-  ).filter((item) => item.id !== inputID);
-}
-
-function removeSession(store: Store, sessionID: string) {
-  messageIndex.delete(sessionID);
-  sync.invalidate(`session:${sessionID}`);
-  sync.invalidate(`session.pending:${sessionID}`);
-  sync.invalidate(`session.message:${sessionID}`);
-  sync.invalidate(`session.permission:${sessionID}`);
-  sync.invalidate(`session.form:${sessionID}`);
-  delete store.session.info[sessionID];
-  delete store.session.active[sessionID];
-  delete store.session.message[sessionID];
-  delete store.session.pending[sessionID];
-  delete store.session.input[sessionID];
-  delete store.session.permission[sessionID];
-  delete store.session.form[sessionID];
-  delete store._loadedMessages[sessionID];
-  delete store._loadingMessages[sessionID];
-  for (const [rootID, family] of Object.entries(store.session.family)) {
-    const next = family.filter((id) => id !== sessionID);
-    if (next.length === 0) delete store.session.family[rootID];
-    else store.session.family[rootID] = next;
-  }
-}
-
-export const eventStore = create<Store>()(
-  immer(() => ({
-    session: {
-      info: {},
-      family: {},
-      active: {},
-      message: {},
-      pending: {},
-      input: {},
-      permission: {},
-      form: {},
-    },
-    project: { info: {}, permission: {} },
-    location: {},
-    _defaultLocation: { directory: "" },
-    _loadedMessages: {},
-    _loadingMessages: {},
-    _loadedSessions: false,
-  })),
-);
+import {
+  activeAssistant,
+  addPending,
+  append,
+  eventStore,
+  findAssistant,
+  findRunningCompaction,
+  findShellByShellID,
+  index,
+  latestReasoning,
+  latestText,
+  latestTool,
+  locationKey,
+  messageIDFromEvent,
+  removePending,
+} from "./store";
+import {
+  loadSession,
+  refreshLocation,
+  removeSession,
+  sync,
+} from "./sync";
 
 export function handleEvent(event: V2Event) {
   switch (event.type) {
     case "session.created":
       sync.invalidate(`session:${event.data.sessionID}`);
-      sync.run(`session:${event.data.sessionID}`, async () => {
-        const session = await getClient().session.get({
-          sessionID: event.data.sessionID,
-        });
-        eventStore.setState((s) => {
-          s.session.info[event.data.sessionID] = session;
-          registerSession(s, event.data.sessionID);
-        });
-      });
+      loadSession(event.data.sessionID);
       sync.complete(`session.pending:${event.data.sessionID}`);
       sync.complete(`session.message:${event.data.sessionID}`);
       break;
@@ -314,100 +48,31 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
-    case "catalog.updated":
-      sync.invalidate(
-        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.invalidate(
-        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().model.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], model: response.data };
-          });
-        },
-      );
-      sync.run(
-        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().provider.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], provider: response.data };
-          });
-        },
-      );
+    case "catalog.updated": {
+      const loc = event.location ?? eventStore.getState()._defaultLocation;
+      refreshLocation("model", loc);
+      refreshLocation("provider", loc);
       break;
+    }
 
     case "agent.updated":
-      sync.invalidate(
-        `location.agent:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.agent:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().agent.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], agent: response.data };
-          });
-        },
+      refreshLocation(
+        "agent",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
 
     case "command.updated":
-      sync.invalidate(
-        `location.command:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.command:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().command.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], command: response.data };
-          });
-        },
+      refreshLocation(
+        "command",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
 
     case "skill.updated":
-      sync.invalidate(
-        `location.skill:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.skill:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().skill.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], skill: response.data };
-          });
-        },
+      refreshLocation(
+        "skill",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
 
@@ -1190,337 +855,39 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "reference.updated":
-      sync.invalidate(
-        `location.reference:${locationKey(eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.reference:${locationKey(eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().reference.list({
-            location: locationQuery(eventStore.getState()._defaultLocation),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], reference: response.data };
-          });
-        },
+      refreshLocation(
+        "reference",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
 
-    case "integration.updated":
-      sync.invalidate(
-        `location.integration:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.invalidate(
-        `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.invalidate(
-        `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      void Promise.all([
-        sync.run(
-          `location.integration:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-          async () => {
-            const response = await getClient().integration.list({
-              location: locationQuery(
-                event.location ?? eventStore.getState()._defaultLocation,
-              ),
-            });
-            eventStore.setState((s) => {
-              const key = locationKey(response.location);
-              s.location[key] = {
-                ...s.location[key],
-                integration: response.data,
-              };
-            });
-          },
-        ),
-        sync.run(
-          `location.model:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-          async () => {
-            const response = await getClient().model.list({
-              location: locationQuery(
-                event.location ?? eventStore.getState()._defaultLocation,
-              ),
-            });
-            eventStore.setState((s) => {
-              const key = locationKey(response.location);
-              s.location[key] = { ...s.location[key], model: response.data };
-            });
-          },
-        ),
-        sync.run(
-          `location.provider:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-          async () => {
-            const response = await getClient().provider.list({
-              location: locationQuery(
-                event.location ?? eventStore.getState()._defaultLocation,
-              ),
-            });
-            eventStore.setState((s) => {
-              const key = locationKey(response.location);
-              s.location[key] = { ...s.location[key], provider: response.data };
-            });
-          },
-        ),
-      ]);
+    case "integration.updated": {
+      const loc = event.location ?? eventStore.getState()._defaultLocation;
+      refreshLocation("integration", loc);
+      refreshLocation("model", loc);
+      refreshLocation("provider", loc);
       break;
+    }
 
     case "config.updated":
-    case "websearch.updated":
-      sync.run(
-        `location.websearch:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().websearch.providers({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = { ...s.location[key], websearch: response.data };
-          });
-        },
-      );
+    case "websearch.updated": {
+      const loc = event.location ?? eventStore.getState()._defaultLocation;
+      refreshLocation("websearch", loc);
       break;
+    }
 
     case "mcp.status.changed":
-      sync.invalidate(
-        `location.mcp.server:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.mcp.server:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().mcp.list({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = {
-              ...s.location[key],
-              mcp: { ...s.location[key]?.mcp, server: response.data },
-            };
-          });
-        },
+      refreshLocation(
+        "mcp.server",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
 
     case "mcp.resources.changed":
-      sync.invalidate(
-        `location.mcp.resource:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-      );
-      sync.run(
-        `location.mcp.resource:${locationKey(event.location ?? eventStore.getState()._defaultLocation)}`,
-        async () => {
-          const response = await getClient().mcp.resource.catalog({
-            location: locationQuery(
-              event.location ?? eventStore.getState()._defaultLocation,
-            ),
-          });
-          eventStore.setState((s) => {
-            const key = locationKey(response.location);
-            s.location[key] = {
-              ...s.location[key],
-              mcp: {
-                ...s.location[key]?.mcp,
-                resource: response.data.resources,
-              },
-            };
-          });
-        },
+      refreshLocation(
+        "mcp.resource",
+        event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
   }
-}
-
-export async function loadMessages(sessionID: string) {
-  eventStore.setState((s) => {
-    s._loadingMessages[sessionID] = true;
-  });
-  return sync.run(`session.message:${sessionID}`, async () => {
-    const response = await getClient().message.list({
-      sessionID,
-      limit: 200,
-      order: "desc",
-    });
-    const fetched = response.data.toReversed();
-    eventStore.setState((s) => {
-      const existing = s.session.message[sessionID];
-      if (existing && existing.length > 0) {
-        const fetchedIds = new Set(fetched.map((m) => m.id));
-        const merged = [
-          ...fetched,
-          ...existing.filter((m) => !fetchedIds.has(m.id)),
-        ];
-        s.session.message[sessionID] = merged;
-        messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
-      } else {
-        s.session.message[sessionID] = fetched;
-        messageIndex.set(sessionID, new Map(fetched.map((m, i) => [m.id, i])));
-      }
-      s._loadedMessages[sessionID] = true;
-      s._loadingMessages[sessionID] = false;
-    });
-  });
-}
-
-export async function syncLocation() {
-  const currentLoc = eventStore.getState()._defaultLocation;
-  await sync.run(`location:${locationKey(currentLoc)}`, async () => {
-    const location = await getClient().location.get({
-      location: locationQuery(currentLoc),
-    });
-    const key = locationKey(location);
-    eventStore.setState((s) => {
-      if (!s.location[key]) s.location[key] = {};
-      s.location[key].info = location;
-      s._defaultLocation = {
-        directory: location.directory,
-        workspaceID: location.workspaceID,
-      };
-    });
-  });
-  const loc = eventStore.getState()._defaultLocation;
-  await Promise.all([
-    sync.run(`location.agent:${locationKey(loc)}`, async () => {
-      const r = await getClient().agent.list({ location: locationQuery(loc) });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          agent: r.data,
-        };
-      });
-    }),
-    sync.run(`location.command:${locationKey(loc)}`, async () => {
-      const r = await getClient().command.list({
-        location: locationQuery(loc),
-      });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          command: r.data,
-        };
-      });
-    }),
-    sync.run(`location.integration:${locationKey(loc)}`, async () => {
-      const r = await getClient().integration.list({
-        location: locationQuery(loc),
-      });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          integration: r.data,
-        };
-      });
-    }),
-    sync.run(`location.mcp.server:${locationKey(loc)}`, async () => {
-      const r = await getClient().mcp.list({ location: locationQuery(loc) });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          mcp: { ...s.location[locationKey(r.location)]?.mcp, server: r.data },
-        };
-      });
-    }),
-    sync.run(`location.mcp.resource:${locationKey(loc)}`, async () => {
-      const r = await getClient().mcp.resource.catalog({
-        location: locationQuery(loc),
-      });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          mcp: {
-            ...s.location[locationKey(r.location)]?.mcp,
-            resource: r.data.resources,
-          },
-        };
-      });
-    }),
-    sync.run(`location.model:${locationKey(loc)}`, async () => {
-      const r = await getClient().model.list({ location: locationQuery(loc) });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          model: r.data,
-        };
-      });
-    }),
-    sync.run(`location.provider:${locationKey(loc)}`, async () => {
-      const r = await getClient().provider.list({
-        location: locationQuery(loc),
-      });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          provider: r.data,
-        };
-      });
-    }),
-    sync.run(`location.reference:${locationKey(loc)}`, async () => {
-      const r = await getClient().reference.list({
-        location: locationQuery(loc),
-      });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          reference: r.data,
-        };
-      });
-    }),
-    sync.run(`location.skill:${locationKey(loc)}`, async () => {
-      const r = await getClient().skill.list({ location: locationQuery(loc) });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          skill: r.data,
-        };
-      });
-    }),
-    sync.run(`location.shell:${locationKey(loc)}`, async () => {
-      const r = await getClient().shell.list({ location: locationQuery(loc) });
-      eventStore.setState((s) => {
-        s.location[locationKey(r.location)] = {
-          ...s.location[locationKey(r.location)],
-          shell: Object.fromEntries(
-            r.data.map((info: ShellInfo) => [info.id, info]),
-          ),
-        };
-      });
-    }),
-  ]);
-}
-
-export async function syncSessionList() {
-  return sync.run("session.list", async () => {
-    const loc = eventStore.getState()._defaultLocation;
-    const response = await getClient().session.list({
-      project: loc.directory ? undefined : undefined,
-      parentID: null,
-      limit: 50,
-      order: "desc",
-    });
-    eventStore.setState((s) => {
-      for (const session of response.data) {
-        s.session.info[session.id] = session;
-      }
-      for (const session of response.data) {
-        sync.complete(`session:${session.id}`);
-        registerSession(s, session.id);
-      }
-      s._loadedSessions = true;
-    });
-  });
-}
-
-export async function syncProjectList() {
-  return sync.run("project.list", async () => {
-    const projects = await getClient().project.list();
-    eventStore.setState((s) => {
-      for (const project of projects) {
-        s.project.info[project.id] = project;
-      }
-    });
-  });
 }

@@ -14,7 +14,7 @@ import { Text } from "@/components/primitives";
 import { SessionCard } from "@/components/session-card";
 import { useSessions, useSessionsLoaded } from "@/hooks/use-store";
 import { useCreateSession } from "@/hooks/use-create-session";
-import { syncSessionList } from "@/stores/event-store";
+import { syncSessionList } from "@/stores/sync";
 
 export function SessionList() {
   const { colors } = useTheme();

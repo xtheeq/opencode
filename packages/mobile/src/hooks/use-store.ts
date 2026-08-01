@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { eventStore, loadMessages } from "@/stores/event-store";
+import { eventStore } from "@/stores/store";
+import { loadMessages } from "@/stores/sync";
 import type {
   SessionInfo,
   SessionMessageInfo,
