@@ -6,18 +6,20 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConnection } from "@/services/connection";
 import { spacing, useTheme } from "@/theme";
 import HistoryIcon from "lucide-react-native/icons/history";
 import { Button, Text } from "@/components/primitives";
 import { ConnectForm } from "@/components/connect-form";
 import { PromptInput } from "@/components/prompt-input";
-import { KeyboardView } from "@/components/keyboard-view";
 import { useCreateSession } from "@/hooks/use-create-session";
 import { getClient } from "@/services/api";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { status, url, disconnect } = useConnection();
   const { createSession } = useCreateSession();
 
@@ -43,27 +45,27 @@ export default function HomeScreen() {
 
   if (status === "connected") {
     return (
-      <KeyboardView>
-        <View
-          style={[
-            styles.connectedContainer,
-            { backgroundColor: colors.background },
-          ]}
-        >
-          <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.push("/sessions")}>
-              <HistoryIcon size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+      <View
+        style={[
+          styles.connectedContainer,
+          { backgroundColor: colors.background },
+        ]}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.push("/sessions")}>
+            <HistoryIcon size={20} color={colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
 
-          <View style={{ flex: 1 }} />
+        <View style={{ flex: 1 }} />
 
+        <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
           <PromptInput
             onSubmit={handleInitialSend}
             placeholder="Start a new session..."
           />
-        </View>
-      </KeyboardView>
+        </KeyboardStickyView>
+      </View>
     );
   }
 

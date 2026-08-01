@@ -1,5 +1,6 @@
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { LegendList } from "@legendapp/list/react-native";
+import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, useTheme } from "@/theme";
 import { RowRenderer } from "@/components/message/row";
 import { projectRows } from "@/hooks/project-rows";
@@ -8,6 +9,7 @@ import { useSessionMessages } from "@/hooks/use-store";
 
 export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { messages, loaded, loading } = useSessionMessages(sessionID);
   const chronological = messages;
   const messageMap = new Map(chronological.map((m) => [m.id, m]));
@@ -22,7 +24,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
   }
 
   return (
-    <LegendList
+    <KeyboardAwareLegendList
       data={rows}
       keyExtractor={rowKey}
       renderItem={({ item }) => (
@@ -33,6 +35,9 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
       initialScrollAtEnd
       maintainScrollAtEnd
       maintainVisibleContentPosition
+      alignItemsAtEnd
+      keyboardOffset={insets.bottom}
+      keyboardDismissMode="interactive"
       contentContainerStyle={{ paddingVertical: spacing.sm }}
     />
   );
