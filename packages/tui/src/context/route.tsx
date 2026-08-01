@@ -1,4 +1,5 @@
 import { createStore, reconcile } from "solid-js/store"
+import type { LocationRef } from "@opencode-ai/client"
 import { createSimpleContext } from "./helper"
 import type { PromptInfo } from "../prompt/history"
 import { useTuiStartup } from "./runtime"
@@ -6,6 +7,8 @@ import { useTuiStartup } from "./runtime"
 export type HomeRoute = {
   type: "home"
   prompt?: PromptInfo
+  // Location carried over from the previous session or project picker so a new session lands there.
+  location?: LocationRef
 }
 
 export type SessionRoute = {

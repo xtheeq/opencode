@@ -71,6 +71,27 @@ function withTmp<A, E, R>(f: (directory: string) => Effect.Effect<A, E, R>) {
 }
 
 describe("Session.create", () => {
+  it.effect("persists a missing title until one is generated or supplied", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const { db } = yield* Database.Service
+
+      const created = yield* session.create({ location })
+      const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, created.id)).get().pipe(Effect.orDie)
+      const event = yield* db
+        .select({ data: EventTable.data })
+        .from(EventTable)
+        .where(eq(EventTable.aggregate_id, created.id))
+        .get()
+        .pipe(Effect.orDie)
+
+      expect(created.title).toBeUndefined()
+      expect(row?.title).toBeNull()
+      expect(event?.data).not.toHaveProperty("info.title")
+      expect((yield* session.create({ location, title: "Explicit title" })).title).toBe("Explicit title")
+    }),
+  )
+
   it.effect("creates a fresh projected session when the ID is omitted", () =>
     Effect.gen(function* () {
       const session = yield* Session.Service
@@ -168,6 +189,30 @@ describe("Session.create", () => {
       const page = yield* session.list({ directory: location.directory, parentID: null, limit: 1, order: "desc" })
 
       expect(page.data.map((item) => item.id)).toEqual([root.id])
+    }),
+  )
+
+  it.effect("orders sessions by their latest prompt", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const { db } = yield* Database.Service
+      const active = yield* session.create({ location, title: "active" })
+      const newer = yield* session.create({ location, title: "newer" })
+
+      yield* db
+        .update(SessionTable)
+        .set({ time_created: -2, time_updated: -2 })
+        .where(eq(SessionTable.id, active.id))
+        .run()
+      yield* db
+        .update(SessionTable)
+        .set({ time_created: -1, time_updated: -1 })
+        .where(eq(SessionTable.id, newer.id))
+        .run()
+
+      yield* session.prompt({ sessionID: active.id, text: "continue", resume: false })
+
+      expect((yield* session.list()).data.map((item) => item.id)).toEqual([active.id, newer.id])
     }),
   )
 
@@ -269,6 +314,23 @@ describe("Session.create", () => {
         ),
       ).toEqual([0, 5, 6])
       expect(yield* SessionPending.find(db, admitted.id)).toBeUndefined()
+    }),
+  )
+
+  it.effect("keeps a fork untitled when its parent is untitled", () =>
+    Effect.gen(function* () {
+      const session = yield* Session.Service
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      const parent = yield* session.create({ location })
+      yield* session.prompt({ sessionID: parent.id, text: "First", resume: false })
+      yield* SessionPending.promote(db, bus, parent.id, "steer")
+
+      const forked = yield* session.fork({ sessionID: parent.id, boundary: { type: "through" } })
+      const row = yield* db.select().from(SessionTable).where(eq(SessionTable.id, forked.id)).get().pipe(Effect.orDie)
+
+      expect(forked.title).toBeUndefined()
+      expect(row?.title).toBeNull()
     }),
   )
 

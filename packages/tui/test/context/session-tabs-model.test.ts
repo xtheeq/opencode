@@ -6,7 +6,9 @@ import {
   moveSessionTab,
   moveSessionTabHistory,
   openSessionTab,
+  recordClosedSessionTab,
   recordSessionTabHistory,
+  reopenSessionTab,
   seedSessionTabMotion,
   sessionTabComplete,
   sessionTabOverflowWidth,
@@ -78,6 +80,11 @@ describe("session tabs", () => {
     expect(closeSessionTab([{ sessionID: "a" }], "a").next).toBeUndefined()
   })
 
+  test("closing an unknown session returns the same tabs reference", () => {
+    const tabs = [{ sessionID: "a" }, { sessionID: "b" }]
+    expect(closeSessionTab(tabs, "missing").tabs).toBe(tabs)
+  })
+
   test("cycles through a filtered tab set in either direction", () => {
     const tabs = ["a", "c", "e"].map((sessionID) => ({ sessionID }))
     expect(cycleSessionTab(tabs, "c", 1)?.sessionID).toBe("e")
@@ -120,6 +127,15 @@ describe("session tabs", () => {
     expect(recordSessionTabHistory(history, "b")).toBe(history)
   })
 
+  test("drops the oldest history entries beyond the limit", () => {
+    const sessions = Array.from({ length: 150 }, (_, index) => `session-${index}`)
+    const history = sessions.reduce(recordSessionTabHistory, { entries: [], index: -1 })
+
+    expect(history.entries.length).toBe(100)
+    expect(history.entries[0]).toBe("session-50")
+    expect(history.entries[history.index]).toBe("session-149")
+  })
+
   test("returns to the latest history entry when no tab is active", () => {
     const tabs = ["a", "b"].map((sessionID) => ({ sessionID }))
     const history = ["a", "b"].reduce(recordSessionTabHistory, { entries: [], index: -1 })
@@ -134,6 +150,45 @@ describe("session tabs", () => {
     const current = recordSessionTabHistory(history, "b")
 
     expect(moveSessionTabHistory(current, closed.tabs, "b", -1).sessionID).toBe("c")
+  })
+
+  test("reopens the most recently closed tab at its original position", () => {
+    const tabs = ["a", "b", "c"].map((sessionID) => ({ sessionID }))
+    const stack = recordClosedSessionTab([], { sessionID: "b", title: "Middle" }, 1)
+    const reopened = reopenSessionTab(stack, [{ sessionID: "a" }, { sessionID: "c" }])
+
+    expect(reopened.sessionID).toBe("b")
+    expect(reopened.tabs).toEqual([{ sessionID: "a" }, { sessionID: "b", title: "Middle" }, { sessionID: "c" }])
+    expect(reopened.stack).toEqual([])
+    expect(reopenSessionTab([], tabs)).toEqual({ stack: [], tabs: undefined, sessionID: undefined })
+  })
+
+  test("skips and consumes closed entries that are already open", () => {
+    const stack = [
+      { tab: { sessionID: "a" }, index: 0 },
+      { tab: { sessionID: "b" }, index: 1 },
+    ]
+    const reopened = reopenSessionTab(stack, [{ sessionID: "b" }])
+
+    expect(reopened.sessionID).toBe("a")
+    expect(reopened.tabs).toEqual([{ sessionID: "a" }, { sessionID: "b" }])
+    expect(reopened.stack).toEqual([])
+  })
+
+  test("clamps restored positions and keeps one entry per session", () => {
+    const twice = recordClosedSessionTab(recordClosedSessionTab([], { sessionID: "a" }, 5), { sessionID: "a" }, 2)
+    expect(twice).toEqual([{ tab: { sessionID: "a" }, index: 2 }])
+
+    const reopened = reopenSessionTab(twice, [{ sessionID: "b" }])
+    expect(reopened.tabs).toEqual([{ sessionID: "b" }, { sessionID: "a" }])
+
+    const overflow = Array.from({ length: 12 }, (_, index) => ({ sessionID: String(index) })).reduce(
+      (stack, tab, index) => recordClosedSessionTab(stack, tab, index),
+      twice,
+    )
+    expect(overflow).toHaveLength(10)
+    expect(overflow.at(-1)?.tab.sessionID).toBe("11")
+    expect(overflow[0]?.tab.sessionID).toBe("2")
   })
 
   test("reveals completion activity only after session work becomes idle", () => {
@@ -151,12 +206,12 @@ describe("session tabs", () => {
     expect(layout.widths.reduce((total, width) => total + width, 0)).toBe(76)
   })
 
-  test("does not reserve an active tab slot on the new session page", () => {
-    const tabs = ["a", "b", "c", "d", "e"].map((sessionID) => ({ sessionID }))
-    const layout = adaptiveSessionTabLayout(tabs, "dummy", 40)
+  test("reserves an active tab slot for the new session page", () => {
+    const tabs = ["a", "b", "c", "d", "new"].map((sessionID) => ({ sessionID }))
+    const layout = adaptiveSessionTabLayout(tabs, "new", 54)
 
     expect(layout.tabs).toEqual(tabs)
-    expect(layout.widths).toEqual([8, 8, 8, 8, 8])
+    expect(layout.widths).toEqual([8, 8, 8, 8, 22])
     expect(layout.widths.reduce((total, width) => total + width, 0)).toBe(layout.total)
   })
 

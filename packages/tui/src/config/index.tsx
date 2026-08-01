@@ -127,13 +127,13 @@ export const Info = Schema.Struct({
   tabs: Schema.optional(
     Schema.Struct({
       enabled: Schema.optional(Schema.Boolean).annotate({
-        description: "Use a persistent session tab strip instead of pinned quick-switch sessions",
+        description: "Use a persistent tab strip instead of pinned quick-switch sessions",
       }),
       scope: Schema.optional(Schema.Literals(["global", "cwd"])).annotate({
-        description: "Share session tabs globally or keep a separate set for each working directory",
+        description: "Share tabs globally or keep a separate set for each working directory",
       }),
     }),
-  ).annotate({ description: "Session tab settings" }),
+  ).annotate({ description: "Tab strip settings" }),
   mini: Schema.optional(
     Schema.Struct({
       thinking: Schema.optional(Schema.Literals(["show", "hide"])).annotate({
@@ -162,11 +162,6 @@ export const Info = Schema.Struct({
       }),
     }),
   ).annotate({ description: "Mini transcript presentation settings" }),
-  hints: Schema.optional(
-    Schema.Struct({
-      onboarding: Schema.optional(Schema.Boolean).annotate({ description: "Show getting-started guidance" }),
-    }),
-  ).annotate({ description: "In-product guidance settings" }),
   debug: Schema.optional(
     Schema.Struct({
       devtools: Schema.optional(Schema.Boolean).annotate({ description: "Show the DevTools debug bar" }),
@@ -266,8 +261,4 @@ export function useConfig() {
   const value = useContext(ConfigContext)
   if (!value) throw new Error("ConfigProvider is missing")
   return value
-}
-
-export function useConfigOptional() {
-  return useContext(ConfigContext)
 }

@@ -1,8 +1,9 @@
-import { createEffect, createMemo, onCleanup } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { isDeepEqual } from "remeda"
 import { createSimpleContext } from "./helper"
 import { useClient } from "./client"
 import { useData } from "./data"
+import { withTimestampedFallback } from "@opencode-ai/util/session-title-fallback"
 import { useEvent } from "./event"
 import { useRoute } from "./route"
 import { useConfig } from "../config"
@@ -13,8 +14,12 @@ import {
   cycleSessionTab,
   moveSessionTab,
   moveSessionTabHistory,
+  NEW_SESSION_TAB_TITLE,
   openSessionTab,
+  recordClosedSessionTab,
   recordSessionTabHistory,
+  reopenSessionTab,
+  type ClosedSessionTab,
   type SessionTab,
   type SessionTabHistory,
   type SessionTabUnread,
@@ -55,28 +60,54 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       key: "sessionID",
     })
     const fallback = empty()
+    const [promptPulses, setPromptPulses] = createSignal<Record<string, number>>({})
     let history: SessionTabHistory = { entries: [], index: -1 }
+    // User-closed tabs eligible for reopening; in-memory like history, deleted sessions pruned.
+    let closedTabs: ClosedSessionTab[] = []
 
     function state() {
-      if (config.tabs?.scope === "global") return store.global
-      return store.cwd[paths.cwd] ?? fallback
+      if (config.tabs?.scope === "cwd") return store.cwd[paths.cwd] ?? fallback
+      return store.global
     }
 
     function update(mutation: (draft: TabsState) => void) {
-      const scope = config.tabs?.scope ?? "cwd"
+      const scope = config.tabs?.scope ?? "global"
       void updateStore((draft) => mutation(scope === "cwd" ? (draft.cwd[paths.cwd] ??= empty()) : draft.global)).catch(
-        () => {},
+        // Failed writes lose only tab layout, but silence would hide tabs resetting every launch.
+        (error) => console.error("Failed to persist session tabs", error),
       )
     }
 
     const root = (sessionID: string) => data.session.root(sessionID)
+    const title = (sessionID: string, persisted?: string, fallback?: string) => {
+      const session = data.session.get(sessionID)
+      return session?.title ?? persisted ?? fallback ?? (session ? withTimestampedFallback(session) : undefined)
+    }
+    const normalize = (value: TabsState) => ({
+      tabs: value.tabs.reduce<SessionTab[]>((tabs, tab) => {
+        const sessionID = root(tab.sessionID)
+        return openSessionTab(tabs, { sessionID, title: title(sessionID, tab.title) })
+      }, []),
+      unread: Object.entries(value.unread).reduce<Record<string, SessionTabUnread>>((result, entry) => {
+        const sessionID = root(entry[0])
+        result[sessionID] = result[sessionID] === "error" ? "error" : entry[1]
+        return result
+      }, {}),
+    })
     const current = () => (route.data.type === "session" ? root(route.data.sessionID) : undefined)
+    const newTab = createMemo((open = false) => {
+      if (route.data.type === "home") return true
+      if (!open) return false
+      const sessionID = current()
+      return sessionID !== undefined && !state().tabs.some((tab) => tab.sessionID === sessionID)
+    }, false)
     const status = (sessionID: string) => {
       const session = root(sessionID)
       const members = data.session.family(session)
       const family = members.length > 0 ? members : [session]
       return {
         unread: state().unread[session],
+        promptPulse: promptPulses()[session] ?? 0,
         attention: family.some(
           (id) => (data.session.permission.list(id)?.length ?? 0) > 0 || (data.session.form.list(id)?.length ?? 0) > 0,
         ),
@@ -100,37 +131,29 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       if (route.data.type !== "session" || route.data.sessionID === "dummy") return
       const sessionID = root(route.data.sessionID)
       history = recordSessionTabHistory(history, sessionID)
-      const title = data.session.get(sessionID)?.title
-      const tabs = openSessionTab(state().tabs, { sessionID, title })
+      const fallback = newTab() ? NEW_SESSION_TAB_TITLE : undefined
+      const tabs = openSessionTab(state().tabs, {
+        sessionID,
+        title: title(sessionID, state().tabs.find((tab) => tab.sessionID === sessionID)?.title, fallback),
+      })
       if (tabs === state().tabs && !state().unread[sessionID]) return
       update((draft) => {
-        draft.tabs = openSessionTab(draft.tabs, { sessionID, title })
+        draft.tabs = openSessionTab(draft.tabs, {
+          sessionID,
+          title: title(sessionID, draft.tabs.find((tab) => tab.sessionID === sessionID)?.title, fallback),
+        })
         delete draft.unread[sessionID]
       })
     })
 
     createEffect(() => {
       if (!enabled()) return
-      const next = state().tabs.reduce<SessionTab[]>((tabs, tab) => {
-        const sessionID = root(tab.sessionID)
-        return openSessionTab(tabs, { sessionID, title: data.session.get(sessionID)?.title ?? tab.title })
-      }, [])
-      const unread = Object.entries(state().unread).reduce<Record<string, SessionTabUnread>>((result, entry) => {
-        const sessionID = root(entry[0])
-        result[sessionID] = result[sessionID] === "error" ? "error" : entry[1]
-        return result
-      }, {})
-      if (isDeepEqual(next, state().tabs) && isDeepEqual(unread, state().unread)) return
+      const next = normalize(state())
+      if (isDeepEqual(next, state())) return
       update((draft) => {
-        draft.tabs = draft.tabs.reduce<SessionTab[]>((tabs, tab) => {
-          const sessionID = root(tab.sessionID)
-          return openSessionTab(tabs, { sessionID, title: data.session.get(sessionID)?.title ?? tab.title })
-        }, [])
-        draft.unread = Object.entries(draft.unread).reduce<Record<string, SessionTabUnread>>((result, entry) => {
-          const sessionID = root(entry[0])
-          result[sessionID] = result[sessionID] === "error" ? "error" : entry[1]
-          return result
-        }, {})
+        const next = normalize(draft)
+        draft.tabs = next.tabs
+        draft.unread = next.unread
       })
     })
 
@@ -177,12 +200,22 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
     onCleanup(event.on("session.execution.interrupted", (evt) => markUnread(evt.data.sessionID, "activity")))
     onCleanup(event.on("session.execution.failed", (evt) => markUnread(evt.data.sessionID, "error")))
     onCleanup(
+      event.on("session.input.admitted", (evt) => {
+        if (!enabled() || evt.data.input.type !== "user") return
+        const sessionID = root(evt.data.sessionID)
+        if (current() === sessionID || !state().tabs.some((tab) => tab.sessionID === sessionID)) return
+        setPromptPulses((pulses) => ({ ...pulses, [sessionID]: (pulses[sessionID] ?? 0) + 1 }))
+      }),
+    )
+    onCleanup(
       event.on("session.error", (evt) => {
         if (evt.data.sessionID) markUnread(evt.data.sessionID, "error")
       }),
     )
     onCleanup(
       event.on("session.deleted", (evt) => {
+        const target = root(evt.data.sessionID)
+        closedTabs = closedTabs.filter((entry) => entry.tab.sessionID !== target)
         remove(evt.data.sessionID, enabled())
       }),
     )
@@ -190,7 +223,7 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
     function remove(sessionID: string, navigate: boolean) {
       const target = root(sessionID)
       const closed = closeSessionTab(state().tabs, target)
-      if (closed.tabs.length === state().tabs.length) return
+      if (closed.tabs === state().tabs) return
       const selected = navigate && current() === target
       const previous = selected
         ? moveSessionTabHistory(recordSessionTabHistory(history, target), closed.tabs, target, -1)
@@ -201,6 +234,12 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
         draft.tabs = closeSessionTab(draft.tabs, target).tabs
         delete draft.unread[target]
       })
+      setPromptPulses((pulses) => {
+        if (pulses[target] === undefined) return pulses
+        const next = { ...pulses }
+        delete next[target]
+        return next
+      })
       if (selected) route.navigate(next ? { type: "session", sessionID: next } : { type: "home" })
     }
 
@@ -208,6 +247,9 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
       enabled,
       tabs() {
         return state().tabs
+      },
+      newTab() {
+        return newTab()
       },
       current,
       status,
@@ -219,11 +261,27 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
         if (!enabled()) return
         const target = sessionID ? root(sessionID) : current()
         if (!target) {
-          const previous = state().tabs.at(-1)
-          if (route.data.type === "home" && previous) route.navigate({ type: "session", sessionID: previous.sessionID })
+          const previous = moveSessionTabHistory(history, state().tabs, undefined, -1)
+          history = previous.history
+          const session = previous.sessionID ?? state().tabs.at(-1)?.sessionID
+          if (route.data.type === "home" && session) route.navigate({ type: "session", sessionID: session })
           return
         }
+        const index = state().tabs.findIndex((tab) => tab.sessionID === target)
+        const tab = state().tabs[index]
+        if (tab) closedTabs = recordClosedSessionTab(closedTabs, tab, index)
         remove(target, true)
+      },
+      reopen() {
+        if (!enabled()) return
+        const result = reopenSessionTab(closedTabs, state().tabs)
+        closedTabs = result.stack
+        const tabs = result.tabs
+        if (!tabs || !result.sessionID) return
+        update((draft) => {
+          draft.tabs = tabs
+        })
+        route.navigate({ type: "session", sessionID: result.sessionID })
       },
       move(sessionID: string, index: number) {
         if (!enabled()) return
@@ -246,12 +304,6 @@ export const { use: useSessionTabs, provider: SessionTabsProvider } = createSimp
           direction,
         )
         if (tab) route.navigate({ type: "session", sessionID: tab.sessionID })
-      },
-      history(direction: 1 | -1) {
-        if (!enabled()) return
-        const next = moveSessionTabHistory(history, state().tabs, current(), direction)
-        history = next.history
-        if (next.sessionID) route.navigate({ type: "session", sessionID: next.sessionID })
       },
       selectIndex(index: number) {
         if (!enabled()) return

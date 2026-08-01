@@ -5,6 +5,8 @@ export type SessionTab = {
 
 export type SessionTabUnread = "activity" | "error"
 
+export const NEW_SESSION_TAB_TITLE = "New session"
+
 export type SessionTabHistory = {
   entries: readonly string[]
   index: number
@@ -27,13 +29,48 @@ export function openSessionTab(tabs: SessionTab[], tab: SessionTab): SessionTab[
   return tabs.map((item, position) => (position === index ? { ...item, title: tab.title } : item))
 }
 
-export function closeSessionTab(tabs: readonly SessionTab[], sessionID: string) {
+export function closeSessionTab(tabs: SessionTab[], sessionID: string) {
   const index = tabs.findIndex((tab) => tab.sessionID === sessionID)
-  if (index === -1) return { tabs: [...tabs], next: undefined }
+  // Like openSessionTab and moveSessionTab, a no-op returns the same reference so callers can
+  // detect it by identity.
+  if (index === -1) return { tabs, next: undefined }
   return {
     tabs: tabs.filter((tab) => tab.sessionID !== sessionID),
     next: tabs[index + 1]?.sessionID ?? tabs[index - 1]?.sessionID,
   }
+}
+
+export type ClosedSessionTab = {
+  tab: SessionTab
+  index: number
+}
+
+const CLOSED_SESSION_TAB_LIMIT = 10
+
+export function recordClosedSessionTab(
+  stack: readonly ClosedSessionTab[],
+  tab: SessionTab,
+  index: number,
+): ClosedSessionTab[] {
+  return [...stack.filter((entry) => entry.tab.sessionID !== tab.sessionID), { tab, index }].slice(
+    -CLOSED_SESSION_TAB_LIMIT,
+  )
+}
+
+/**
+ * Pop the most recently closed tab that is not already open and restore it at its original
+ * position. Entries for already-open sessions are consumed so repeated reopens walk the stack.
+ */
+export function reopenSessionTab(stack: readonly ClosedSessionTab[], tabs: readonly SessionTab[]) {
+  const remaining = [...stack]
+  while (remaining.length > 0) {
+    const entry = remaining.pop()!
+    if (tabs.some((tab) => tab.sessionID === entry.tab.sessionID)) continue
+    const next = [...tabs]
+    next.splice(Math.min(entry.index, tabs.length), 0, entry.tab)
+    return { stack: remaining, tabs: next, sessionID: entry.tab.sessionID }
+  }
+  return { stack: remaining, tabs: undefined, sessionID: undefined }
 }
 
 export function moveSessionTab(tabs: SessionTab[], sessionID: string, index: number): SessionTab[] {
@@ -52,9 +89,13 @@ export function cycleSessionTab(tabs: readonly SessionTab[], active: string | un
   return tabs[(start + direction + tabs.length) % tabs.length]
 }
 
+// In-memory navigation history is bounded so a long-lived TUI does not accumulate one entry per
+// session switch forever; the oldest entries fall off first.
+const SESSION_TAB_HISTORY_LIMIT = 100
+
 export function recordSessionTabHistory(history: SessionTabHistory, sessionID: string): SessionTabHistory {
   if (history.entries[history.index] === sessionID) return history
-  const entries = [...history.entries.slice(0, history.index + 1), sessionID]
+  const entries = [...history.entries.slice(0, history.index + 1), sessionID].slice(-SESSION_TAB_HISTORY_LIMIT)
   return { entries, index: entries.length - 1 }
 }
 

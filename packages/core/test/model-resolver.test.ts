@@ -1,5 +1,6 @@
 import { describe, expect } from "bun:test"
 import { LLM, Model } from "@opencode-ai/ai"
+import { OpenAIChat } from "@opencode-ai/ai/protocols"
 import { compileRequest } from "@opencode-ai/ai/route/client"
 import { Effect } from "effect"
 import { Headers } from "effect/unstable/http"
@@ -17,6 +18,7 @@ interface ModelOptions {
   readonly headers?: Info["headers"]
   readonly body?: Info["body"]
   readonly variants?: Info["variants"]
+  readonly limit?: Info["limit"]
 }
 
 const model = (packageName: string | undefined, options: ModelOptions = {}) =>
@@ -36,7 +38,7 @@ const model = (packageName: string | undefined, options: ModelOptions = {}) =>
     cost: [],
     status: "active",
     enabled: true,
-    limit: { context: 100, output: 20 },
+    limit: options.limit ?? { context: 100, output: 20 },
   })
 
 describe("ModelResolver", () => {
@@ -44,6 +46,7 @@ describe("ModelResolver", () => {
     Effect.gen(function* () {
       const catalog = model(Provider.aisdk("@ai-sdk/openai"), {
         settings: { baseURL: "https://openai.example/v1" },
+        limit: { context: 100, input: 80, output: 20 },
       })
       const resolved = yield* ModelResolver.fromCatalogModel(catalog)
 
@@ -55,7 +58,7 @@ describe("ModelResolver", () => {
         endpoint: { baseURL: "https://openai.example/v1" },
         defaults: {
           headers: { "x-test": "header" },
-          limits: { context: 100, output: 20 },
+          limits: { context: 100, input: 80, output: 20 },
           http: { body: { custom_extension: { enabled: true } } },
         },
       })
@@ -307,12 +310,12 @@ describe("ModelResolver", () => {
     }),
   )
 
-  it.effect("routes ChatGPT OAuth credentials to the codex backend", () =>
+  it.effect("applies plugin-projected OpenAI endpoint and headers", () =>
     Effect.gen(function* () {
       const resolved = yield* ModelResolver.fromCatalogModel(
-        model(Provider.aisdk("@ai-sdk/openai"), {
-          settings: { baseURL: "https://openai.example/v1" },
-          headers: {},
+        model("@opencode-ai/ai/providers/openai", {
+          settings: { baseURL: "https://chatgpt.com/backend-api/codex" },
+          headers: { "chatgpt-account-id": "acct_123" },
           body: {},
         }),
         Credential.OAuth.make({
@@ -337,37 +340,8 @@ describe("ModelResolver", () => {
         id: "openai-responses",
         endpoint: { baseURL: "https://chatgpt.com/backend-api/codex" },
       })
+      expect(resolved.route.defaults.headers).toMatchObject({ "chatgpt-account-id": "acct_123" })
       expect(headers.authorization).toBe("Bearer chatgpt-token")
-      expect(headers["chatgpt-account-id"]).toBe("acct_123")
-    }),
-  )
-
-  it.effect("routes native OpenAI provider packages with ChatGPT credentials to the codex backend", () =>
-    Effect.gen(function* () {
-      const resolved = yield* ModelResolver.fromCatalogModel(
-        model("@opencode-ai/ai/providers/openai", {
-          settings: { baseURL: "https://openai.example/v1" },
-        }),
-        Credential.OAuth.make({
-          type: "oauth",
-          methodID: Integration.MethodID.make("chatgpt-browser"),
-          access: "chatgpt-token",
-          refresh: "refresh",
-          expires: Date.now() + 60_000,
-          metadata: { accountID: "acct_123" },
-        }),
-      )
-      const headers = yield* resolved.route.auth.apply({
-        request: LLM.request({ model: resolved, prompt: "Hello" }),
-        method: "POST",
-        url: "https://chatgpt.com/backend-api/codex/responses",
-        body: "{}",
-        headers: Headers.empty,
-      })
-
-      expect(resolved.route.endpoint.baseURL).toBe("https://chatgpt.com/backend-api/codex")
-      expect(headers.authorization).toBe("Bearer chatgpt-token")
-      expect(headers["chatgpt-account-id"]).toBe("acct_123")
     }),
   )
 
@@ -404,37 +378,6 @@ describe("ModelResolver", () => {
         "OpenAI-Organization": "org_123",
         "OpenAI-Project": "proj_123",
       })
-    }),
-  )
-
-  it.effect("routes ChatGPT OAuth credentials without an account id to the codex backend", () =>
-    Effect.gen(function* () {
-      const resolved = yield* ModelResolver.fromCatalogModel(
-        model(Provider.aisdk("@ai-sdk/openai"), {
-          settings: { baseURL: "https://openai.example/v1" },
-          headers: {},
-          body: {},
-        }),
-        Credential.OAuth.make({
-          type: "oauth",
-          methodID: Integration.MethodID.make("chatgpt-headless"),
-          access: "chatgpt-token",
-          refresh: "refresh",
-          expires: Date.now() + 60_000,
-        }),
-      )
-      const request = LLM.request({ model: resolved, prompt: "Hello" })
-      const headers = yield* resolved.route.auth.apply({
-        request,
-        method: "POST",
-        url: "https://chatgpt.com/backend-api/codex/responses",
-        body: "{}",
-        headers: Headers.empty,
-      })
-
-      expect(resolved.route.endpoint.baseURL).toBe("https://chatgpt.com/backend-api/codex")
-      expect(headers.authorization).toBe("Bearer chatgpt-token")
-      expect(headers["chatgpt-account-id"]).toBeUndefined()
     }),
   )
 
@@ -546,6 +489,122 @@ describe("ModelResolver", () => {
     }),
   )
 
+  it.effect("routes supported AISDK catalog packages through native provider packages", () =>
+    Effect.gen(function* () {
+      const native = yield* ModelResolver.fromCatalogModel(model(Provider.aisdk("@ai-sdk/openai")))
+      const packages = [
+        [
+          "@ai-sdk/google",
+          "@opencode-ai/ai/providers/google",
+          { thinkingConfig: { thinkingLevel: "high" } },
+          { gemini: { thinkingConfig: { thinkingLevel: "high" } } },
+        ],
+        [
+          "@openrouter/ai-sdk-provider",
+          "@opencode-ai/ai/providers/openrouter",
+          { reasoning: { effort: "high" } },
+          { openrouter: { reasoning: { effort: "high" } } },
+        ],
+        [
+          "@ai-sdk/xai",
+          "@opencode-ai/ai/providers/xai",
+          { reasoningEffort: "high" },
+          { xai: { reasoningEffort: "high" } },
+        ],
+      ] as const
+
+      yield* Effect.forEach(packages, ([catalogPackage, nativePackage, sourceOptions, providerOptions]) =>
+        ModelResolver.fromCatalogModel(
+          model(Provider.aisdk(catalogPackage), {
+            modelID: "api-model",
+            settings: { baseURL: "https://provider.example/v1", ...sourceOptions },
+            headers: { "x-provider": "header" },
+            body: { custom: true },
+          }),
+          Credential.Key.make({ type: "key", key: "secret" }),
+          {
+            loadPackage: (specifier) => {
+              expect(specifier).toBe(nativePackage)
+              return Effect.succeed({
+                model: (modelID, settings) => {
+                  expect(modelID).toBe("api-model")
+                  expect(settings).toMatchObject({
+                    apiKey: "secret",
+                    baseURL: "https://provider.example/v1",
+                    headers: { "x-provider": "header" },
+                    body: { custom: true },
+                    limits: { context: 100, output: 20 },
+                    providerOptions,
+                  })
+                  return Model.make({ id: modelID, provider: "native-provider", route: native.route })
+                },
+              })
+            },
+            loadAISDK: () => Effect.die("AI SDK loader should not be called"),
+          },
+        ),
+      )
+    }),
+  )
+
+  it.effect("merges mapped OpenRouter headers and body with catalog overlays", () =>
+    ModelResolver.fromCatalogModel(
+      model(Provider.aisdk("@openrouter/ai-sdk-provider"), {
+        settings: {
+          appName: "OpenCode",
+          appUrl: "https://opencode.ai",
+          extraBody: { transforms: ["middle-out"], provider: { sort: "price" } },
+        },
+        headers: { "X-OpenRouter-Title": "Custom" },
+        body: { provider: { only: ["anthropic"] } },
+      }),
+      undefined,
+      {
+        loadPackage: () =>
+          Effect.succeed({
+            model: (modelID, settings) => {
+              expect(settings.headers).toEqual({
+                "HTTP-Referer": "https://opencode.ai",
+                "X-OpenRouter-Title": "Custom",
+              })
+              expect(settings.body).toEqual({
+                transforms: ["middle-out"],
+                provider: { sort: "price", only: ["anthropic"] },
+              })
+              return Model.make({ id: modelID, provider: "openrouter", route: OpenAIChat.route })
+            },
+          }),
+      },
+    ),
+  )
+
+  it.effect("loads supported AISDK catalog packages as native routes", () =>
+    Effect.gen(function* () {
+      const google = yield* ModelResolver.fromCatalogModel(
+        model(Provider.aisdk("@ai-sdk/google"), { settings: { thinkingConfig: { thinkingBudget: 1_024 } } }),
+      )
+      const openrouter = yield* ModelResolver.fromCatalogModel(
+        model(Provider.aisdk("@openrouter/ai-sdk-provider"), {
+          settings: { reasoning: { effort: "high" } },
+        }),
+      )
+      const xai = yield* ModelResolver.fromCatalogModel(
+        model(Provider.aisdk("@ai-sdk/xai"), { settings: { reasoningEffort: "high" } }),
+      )
+
+      expect(google.route.id).toBe("gemini")
+      expect(google.route.defaults.providerOptions).toEqual({
+        gemini: { thinkingConfig: { thinkingBudget: 1_024 } },
+      })
+      expect(openrouter.route.id).toBe("openrouter")
+      expect(openrouter.route.defaults.providerOptions).toEqual({ openrouter: { reasoning: { effort: "high" } } })
+      expect(xai.route.id).toBe("openai-responses")
+      expect(xai.route.defaults.providerOptions).toEqual({
+        xai: { reasoningEffort: "high", store: false },
+      })
+    }),
+  )
+
   it.effect("loads arbitrary AISDK packages through the injected AISDK loader", () =>
     Effect.gen(function* () {
       const native = yield* ModelResolver.fromCatalogModel(
@@ -554,8 +613,8 @@ describe("ModelResolver", () => {
         }),
       )
       const resolved = yield* ModelResolver.fromCatalogModel(
-        model(Provider.aisdk("@ai-sdk/google"), {
-          modelID: "gemini-api-model",
+        model(Provider.aisdk("@ai-sdk/mistral"), {
+          modelID: "mistral-api-model",
           settings: { project: "test" },
           headers: { "x-aisdk": "header" },
           body: { custom: true },
@@ -566,9 +625,9 @@ describe("ModelResolver", () => {
             Effect.sync(() => {
               expect(runtime).toMatchObject({
                 id: "test-model",
-                modelID: "gemini-api-model",
+                modelID: "mistral-api-model",
                 providerID: "test-provider",
-                package: Provider.aisdk("@ai-sdk/google"),
+                package: Provider.aisdk("@ai-sdk/mistral"),
                 settings: { project: "test", apiKey: "fallback-secret" },
                 headers: { "x-aisdk": "header" },
                 body: { custom: true },
@@ -582,15 +641,15 @@ describe("ModelResolver", () => {
         },
       )
 
-      expect(resolved).toMatchObject({ id: "gemini-api-model", provider: "test-provider" })
+      expect(resolved).toMatchObject({ id: "mistral-api-model", provider: "test-provider" })
     }),
   )
 
   it.effect("rejects AISDK packages without an available loader", () =>
     Effect.gen(function* () {
       const failure = yield* ModelResolver.fromCatalogModel(
-        model(Provider.aisdk("@ai-sdk/google"), {
-          settings: { baseURL: "https://google.example/v1" },
+        model(Provider.aisdk("@ai-sdk/mistral"), {
+          settings: { baseURL: "https://mistral.example/v1" },
         }),
       ).pipe(Effect.flip)
 
@@ -598,9 +657,9 @@ describe("ModelResolver", () => {
         _tag: "SessionRunnerModel.UnsupportedPackageError",
         providerID: "test-provider",
         modelID: "test-model",
-        package: "aisdk:@ai-sdk/google",
+        package: "aisdk:@ai-sdk/mistral",
       })
-      expect(failure.message).toBe("Unsupported package for test-provider/test-model: aisdk:@ai-sdk/google")
+      expect(failure.message).toBe("Unsupported package for test-provider/test-model: aisdk:@ai-sdk/mistral")
     }),
   )
 
@@ -612,8 +671,8 @@ describe("ModelResolver", () => {
         }),
       )
       yield* ModelResolver.fromCatalogModel(
-        model(Provider.aisdk("@ai-sdk/google"), {
-          settings: { apiKey: "", baseURL: "https://google.example/v1" },
+        model(Provider.aisdk("@ai-sdk/mistral"), {
+          settings: { apiKey: "", baseURL: "https://mistral.example/v1" },
         }),
         undefined,
         {
