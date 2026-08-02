@@ -21,6 +21,7 @@ import {
   locationQuery,
   messageIndex,
   registerSession,
+  type Blocker,
   type LocationData,
   type Store,
 } from "./store";
@@ -206,17 +207,17 @@ export function removeSession(store: Store, sessionID: string) {
   sync.invalidate(`session:${sessionID}`);
   sync.invalidate(`session.pending:${sessionID}`);
   sync.invalidate(`session.message:${sessionID}`);
-  sync.invalidate(`session.permission:${sessionID}`);
-  sync.invalidate(`session.form:${sessionID}`);
+  sync.invalidate(`session.blocker:${sessionID}`);
   delete store.session.info[sessionID];
   delete store.session.active[sessionID];
   delete store.session.message[sessionID];
   delete store.session.pending[sessionID];
   delete store.session.input[sessionID];
-  delete store.session.permission[sessionID];
-  delete store.session.form[sessionID];
+  delete store.session.blocker[sessionID];
   delete store._loadedMessages[sessionID];
   delete store._loadingMessages[sessionID];
+  delete store._loadedBlockers[sessionID];
+  delete store._loadingBlockers[sessionID];
   for (const [rootID, family] of Object.entries(store.session.family)) {
     const next = family.filter((id) => id !== sessionID);
     if (next.length === 0) delete store.session.family[rootID];
@@ -265,6 +266,61 @@ export async function loadMessages(sessionID: string) {
   });
 }
 
+export async function syncBlockers(sessionID: string) {
+  eventStore.setState((s) => {
+    s._loadingBlockers[sessionID] = true;
+  });
+  return sync.run(`session.blocker:${sessionID}`, async () => {
+    const [permissions, forms, questions] = await Promise.allSettled([
+      getClient().permission.list({ sessionID }),
+      getClient().form.list({ sessionID }),
+      getClient().question.list({ sessionID }),
+    ]);
+    const blockers: Blocker[] = [];
+    if (permissions.status === "fulfilled") {
+      for (const request of permissions.value)
+        blockers.push({ kind: "permission", request });
+    }
+    if (forms.status === "fulfilled") {
+      for (const request of forms.value)
+        blockers.push({ kind: "form", request });
+    }
+    if (questions.status === "fulfilled") {
+      for (const request of questions.value)
+        blockers.push({ kind: "question", request });
+    }
+    eventStore.setState((s) => {
+      s.session.blocker[sessionID] = blockers;
+      s._loadedBlockers[sessionID] = true;
+      s._loadingBlockers[sessionID] = false;
+    });
+  });
+}
+
+export async function syncGlobalBlockers(location: LocationRef) {
+  const key = `session.blocker:global:${locationKey(location)}`;
+  return sync.run(key, async () => {
+    const response = await getClient().form.request.list({
+      location: locationQuery(location),
+    });
+    const ref = {
+      directory: response.location.directory,
+      workspaceID: response.location.workspaceID,
+    };
+    const blockers: Blocker[] = response.data
+      .filter((request) => request.sessionID === "global")
+      .map((request) => ({
+        kind: "form",
+        request: { ...request, location: ref },
+      }));
+    eventStore.setState((s) => {
+      s.session.blocker["global"] = blockers;
+      s._loadedBlockers["global"] = true;
+      s._loadingBlockers["global"] = false;
+    });
+  });
+}
+
 export async function syncLocation() {
   const currentLoc = eventStore.getState()._defaultLocation;
   await sync.run(`location:${locationKey(currentLoc)}`, async () => {
@@ -283,6 +339,7 @@ export async function syncLocation() {
   });
   const loc = eventStore.getState()._defaultLocation;
   await Promise.all(CATALOG_FIELDS.map((field) => refreshLocation(field, loc)));
+  await syncGlobalBlockers(loc);
 }
 
 export async function syncSessionList() {

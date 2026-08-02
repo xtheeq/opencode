@@ -12,6 +12,7 @@ import type {
   PermissionRequest,
   Project,
   ProviderInfo,
+  QuestionRequest,
   ReferenceInfo,
   SessionMessageInfo,
   SessionMessageAssistant,
@@ -33,6 +34,13 @@ export const messageIDFromEvent = (eventID: string) =>
   eventID.replace(/^evt_/, "msg_");
 
 export type FormWithLocation = FormInfo & { readonly location?: LocationRef };
+
+export type Blocker =
+  | { kind: "permission"; request: PermissionRequest }
+  | { kind: "form"; request: FormWithLocation }
+  | { kind: "question"; request: QuestionRequest };
+
+export type BlockerKind = Blocker["kind"];
 
 export type LocationData = {
   info?: LocationGetOutput;
@@ -59,8 +67,7 @@ export type Store = {
     message: Record<string, SessionMessageInfo[]>;
     pending: Record<string, SessionPendingInfo[]>;
     input: Record<string, string[]>;
-    permission: Record<string, PermissionRequest[]>;
-    form: Record<string, FormWithLocation[]>;
+    blocker: Record<string, Blocker[]>;
   };
   project: {
     info: Record<string, Project>;
@@ -68,6 +75,8 @@ export type Store = {
   };
   location: Record<string, LocationData>;
   _loadedMessages: Record<string, boolean>;
+  _loadedBlockers: Record<string, boolean>;
+  _loadingBlockers: Record<string, boolean>;
   _loadedSessions: boolean;
   _defaultLocation: LocationRef;
   _loadingMessages: Record<string, boolean>;
@@ -92,14 +101,15 @@ export const eventStore = create<Store>()(
       message: {},
       pending: {},
       input: {},
-      permission: {},
-      form: {},
+      blocker: {},
     },
     project: { info: {}, permission: {} },
     location: {},
     _defaultLocation: { directory: "" },
     _loadedMessages: {},
     _loadingMessages: {},
+    _loadedBlockers: {},
+    _loadingBlockers: {},
     _loadedSessions: false,
   })),
 );
@@ -230,4 +240,44 @@ export function removePending(
   store.session.pending[sessionID] = (
     store.session.pending[sessionID] ?? []
   ).filter((item) => item.id !== inputID);
+}
+
+export function addBlocker(store: Store, sessionID: string, blocker: Blocker) {
+  const list = store.session.blocker[sessionID] ?? [];
+  if (
+    list.some(
+      (item) =>
+        item.kind === blocker.kind && item.request.id === blocker.request.id,
+    )
+  )
+    return;
+  store.session.blocker[sessionID] = [...list, blocker];
+}
+
+export function removeBlocker(
+  store: Store,
+  sessionID: string,
+  kind: BlockerKind,
+  id: string,
+) {
+  const list = store.session.blocker[sessionID];
+  if (!list) return;
+  store.session.blocker[sessionID] = list.filter(
+    (item) => !(item.kind === kind && item.request.id === id),
+  );
+}
+
+export function resolvePermissionTool(
+  store: Store,
+  request: PermissionRequest,
+): SessionMessageAssistantTool | undefined {
+  const source = request.source;
+  if (source?.type !== "tool") return;
+  const messages = store.session.message[request.sessionID];
+  if (!messages) return;
+  const assistant = messages.findLast(
+    (item): item is SessionMessageAssistant =>
+      item.type === "assistant" && item.id === source.messageID,
+  );
+  return latestTool(assistant, source.callID);
 }

@@ -2,6 +2,7 @@ import type { SessionMessageInfo, V2Event } from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
 import {
   activeAssistant,
+  addBlocker,
   addPending,
   append,
   eventStore,
@@ -14,6 +15,7 @@ import {
   latestTool,
   locationKey,
   messageIDFromEvent,
+  removeBlocker,
   removePending,
 } from "./store";
 import { loadSession, refreshLocation, removeSession, sync } from "./sync";
@@ -753,9 +755,7 @@ export function handleEvent(event: V2Event) {
             message: "Compaction failed before recording an error",
           },
           metadata:
-            current?.type === "compaction"
-              ? current.metadata
-              : event.metadata,
+            current?.type === "compaction" ? current.metadata : event.metadata,
           time:
             current?.type === "compaction"
               ? current.time
@@ -771,54 +771,61 @@ export function handleEvent(event: V2Event) {
 
     case "permission.asked":
       eventStore.setState((s) => {
-        if (
-          s.session.permission[event.data.sessionID]?.some(
-            (r) => r.id === event.data.id,
-          )
-        )
-          return;
-        s.session.permission[event.data.sessionID] = [
-          ...(s.session.permission[event.data.sessionID] ?? []),
-          event.data,
-        ];
+        addBlocker(s, event.data.sessionID, {
+          kind: "permission",
+          request: event.data,
+        });
       });
       break;
 
     case "permission.replied":
       eventStore.setState((s) => {
-        if (s.session.permission[event.data.sessionID]) {
-          s.session.permission[event.data.sessionID] = s.session.permission[
-            event.data.sessionID
-          ].filter((r) => r.id !== event.data.requestID);
-        }
+        removeBlocker(
+          s,
+          event.data.sessionID,
+          "permission",
+          event.data.requestID,
+        );
       });
       break;
 
     case "form.created":
       eventStore.setState((s) => {
-        if (
-          s.session.form[event.data.form.sessionID]?.some(
-            (f) => f.id === event.data.form.id,
-          )
-        )
-          return;
-        s.session.form[event.data.form.sessionID] = [
-          ...(s.session.form[event.data.form.sessionID] ?? []),
-          event.data.form.sessionID === "global"
-            ? { ...event.data.form, location: event.location }
-            : event.data.form,
-        ];
+        addBlocker(s, event.data.form.sessionID, {
+          kind: "form",
+          request:
+            event.data.form.sessionID === "global"
+              ? { ...event.data.form, location: event.location }
+              : event.data.form,
+        });
       });
       break;
 
     case "form.replied":
     case "form.cancelled":
       eventStore.setState((s) => {
-        if (s.session.form[event.data.sessionID]) {
-          s.session.form[event.data.sessionID] = s.session.form[
-            event.data.sessionID
-          ].filter((f) => f.id !== event.data.id);
-        }
+        removeBlocker(s, event.data.sessionID, "form", event.data.id);
+      });
+      break;
+
+    case "question.asked":
+      eventStore.setState((s) => {
+        addBlocker(s, event.data.sessionID, {
+          kind: "question",
+          request: event.data,
+        });
+      });
+      break;
+
+    case "question.replied":
+    case "question.rejected":
+      eventStore.setState((s) => {
+        removeBlocker(
+          s,
+          event.data.sessionID,
+          "question",
+          event.data.requestID,
+        );
       });
       break;
 
