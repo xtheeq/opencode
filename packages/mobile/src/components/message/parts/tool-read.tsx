@@ -10,6 +10,12 @@ function getString(value: unknown): string | undefined {
   return undefined;
 }
 
+function getPath(value: unknown): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  return getString(record.path) ?? getString(record.filePath);
+}
+
 function displayPath(path: string): string {
   return path.startsWith("/")
     ? (path.split("/").filter(Boolean).pop() ?? path)
@@ -21,32 +27,24 @@ function getFullPath(
 ): string | undefined {
   if (state.status === "streaming") {
     try {
-      const parsed = JSON.parse(state.input);
-      return (
-        getString((parsed as Record<string, unknown>).path) ??
-        getString((parsed as Record<string, unknown>).filePath)
-      );
+      return getPath(JSON.parse(state.input));
     } catch {
       return getString(state.input);
     }
   }
-  const input = state.input as Record<string, unknown>;
-  return getString(input.path) ?? getString(input.filePath);
+  return getString(state.input.path) ?? getString(state.input.filePath);
 }
 
 function getLoaded(
   state: SessionMessageAssistantTool["state"],
 ): string[] | undefined {
   if (state.status === "streaming") return undefined;
-  const meta =
-    "metadata" in state
-      ? (state as { metadata?: Record<string, unknown> }).metadata
-      : undefined;
-  if (!meta) return undefined;
-  const loaded = meta.loaded;
-  if (Array.isArray(loaded) && loaded.every((v) => typeof v === "string"))
-    return loaded;
-  return undefined;
+  const loaded = state.metadata?.["loaded"];
+  if (!Array.isArray(loaded)) return undefined;
+  const strings = loaded.filter(
+    (value): value is string => typeof value === "string",
+  );
+  return strings.length === loaded.length ? strings : undefined;
 }
 
 export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {

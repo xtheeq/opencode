@@ -66,6 +66,20 @@ function deltaFragment(event: DeltaEvent): string {
     : event.data.delta;
 }
 
+function mergeDelta(prev: DeltaEvent, next: DeltaEvent): DeltaEvent {
+  const fragment = deltaFragment(prev) + deltaFragment(next);
+  switch (next.type) {
+    case "session.compaction.delta":
+      return { ...next, data: { ...next.data, text: fragment } };
+    case "session.text.delta":
+      return { ...next, data: { ...next.data, delta: fragment } };
+    case "session.reasoning.delta":
+      return { ...next, data: { ...next.data, delta: fragment } };
+    case "session.tool.input.delta":
+      return { ...next, data: { ...next.data, delta: fragment } };
+  }
+}
+
 function coalesceEvents(events: V2Event[]): V2Event[] {
   const result: V2Event[] = [];
   for (const event of events) {
@@ -76,12 +90,7 @@ function coalesceEvents(events: V2Event[]): V2Event[] {
         isDeltaEvent(prev) &&
         deltaCoalesceKey(prev) === deltaCoalesceKey(event)
       ) {
-        const fragment = deltaFragment(prev) + deltaFragment(event);
-        const data =
-          event.type === "session.compaction.delta"
-            ? { ...event.data, text: fragment }
-            : { ...event.data, delta: fragment };
-        result[result.length - 1] = { ...event, data } as V2Event;
+        result[result.length - 1] = mergeDelta(prev, event);
         continue;
       }
     }

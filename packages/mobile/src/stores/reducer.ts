@@ -219,7 +219,7 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.instructions.updated": {
-      const instructionsMeta = (event as any).metadata?.instructions;
+      const instructionsMeta = event.metadata?.instructions;
       if (
         typeof instructionsMeta === "object" &&
         instructionsMeta !== null &&
@@ -234,7 +234,7 @@ export function handleEvent(event: V2Event) {
           id: messageIDFromEvent(event.id),
           type: "system",
           text: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
-          metadata: (event as any).metadata,
+          metadata: event.metadata,
           time: { created: event.created },
         });
       });
@@ -267,7 +267,7 @@ export function handleEvent(event: V2Event) {
           command: event.data.shell.command,
           status: event.data.shell.status,
           exit: event.data.shell.exit,
-          metadata: (event as any).metadata,
+          metadata: event.metadata,
           time: { created: event.created },
         });
       });
@@ -317,7 +317,7 @@ export function handleEvent(event: V2Event) {
           type: "assistant",
           agent: event.data.agent,
           model: event.data.model,
-          metadata: (event as any).metadata,
+          metadata: event.metadata,
           content: [],
           snapshot: event.data.snapshot
             ? { start: event.data.snapshot }
@@ -755,7 +755,7 @@ export function handleEvent(event: V2Event) {
           metadata:
             current?.type === "compaction"
               ? current.metadata
-              : (event as any).metadata,
+              : event.metadata,
           time:
             current?.type === "compaction"
               ? current.time

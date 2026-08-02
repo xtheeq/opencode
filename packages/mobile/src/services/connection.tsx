@@ -79,10 +79,10 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       if (ev.status === "connected") {
         getClient()
           .session.active()
-          .then((active: Record<string, unknown>) =>
+          .then((active) =>
             eventStore.setState((s) => {
-              for (const sessionID of Object.keys(active)) {
-                s.session.active[sessionID] = "running";
+              for (const [sessionID, session] of Object.entries(active)) {
+                s.session.active[sessionID] = session.type;
               }
             }),
           )

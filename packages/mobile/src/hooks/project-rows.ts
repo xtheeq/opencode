@@ -31,11 +31,10 @@ export function projectRows(
     ...inputs,
   ]);
 
-  const usage = turnTokens
-    ? {
-        steps: [] as SessionMessageAssistant[],
-        previousTurnCache: undefined as CacheUsage | undefined,
-      }
+  const usage:
+    | { steps: SessionMessageAssistant[]; previousTurnCache: CacheUsage | undefined }
+    | undefined = turnTokens
+    ? { steps: [], previousTurnCache: undefined }
     : undefined;
 
   return [
