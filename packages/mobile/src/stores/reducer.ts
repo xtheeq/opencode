@@ -16,12 +16,7 @@ import {
   messageIDFromEvent,
   removePending,
 } from "./store";
-import {
-  loadSession,
-  refreshLocation,
-  removeSession,
-  sync,
-} from "./sync";
+import { loadSession, refreshLocation, removeSession, sync } from "./sync";
 
 export function handleEvent(event: V2Event) {
   switch (event.type) {

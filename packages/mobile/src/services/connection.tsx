@@ -22,11 +22,7 @@ import {
 } from "@/services/server-store";
 import { eventStore } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
-import {
-  syncLocation,
-  syncSessionList,
-  syncProjectList,
-} from "@/stores/sync";
+import { syncLocation, syncSessionList, syncProjectList } from "@/stores/sync";
 
 export type ConnectionStatus =
   | "loading"

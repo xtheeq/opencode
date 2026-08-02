@@ -87,15 +87,27 @@ type CatalogField =
 type CatalogResponse =
   | { field: "agent"; location: LocationGetOutput; data: AgentInfo[] }
   | { field: "command"; location: LocationGetOutput; data: CommandInfo[] }
-  | { field: "integration"; location: LocationGetOutput; data: IntegrationInfo[] }
+  | {
+      field: "integration";
+      location: LocationGetOutput;
+      data: IntegrationInfo[];
+    }
   | { field: "mcp.server"; location: LocationGetOutput; data: McpServer[] }
-  | { field: "mcp.resource"; location: LocationGetOutput; data: McpResourceCatalog }
+  | {
+      field: "mcp.resource";
+      location: LocationGetOutput;
+      data: McpResourceCatalog;
+    }
   | { field: "model"; location: LocationGetOutput; data: ModelInfo[] }
   | { field: "provider"; location: LocationGetOutput; data: ProviderInfo[] }
   | { field: "reference"; location: LocationGetOutput; data: ReferenceInfo[] }
   | { field: "shell"; location: LocationGetOutput; data: ShellInfo[] }
   | { field: "skill"; location: LocationGetOutput; data: SkillInfo[] }
-  | { field: "websearch"; location: LocationGetOutput; data: WebSearchProvider[] };
+  | {
+      field: "websearch";
+      location: LocationGetOutput;
+      data: WebSearchProvider[];
+    };
 
 async function fetchCatalog(
   field: CatalogField,
@@ -170,9 +182,7 @@ function setLocationField(
     case "shell":
       return {
         ...base,
-        shell: Object.fromEntries(
-          response.data.map((info) => [info.id, info]),
-        ),
+        shell: Object.fromEntries(response.data.map((info) => [info.id, info])),
       };
     default:
       return { ...base, [response.field]: response.data };

@@ -172,7 +172,9 @@ export function latestText(assistant: SessionMessageAssistant | undefined) {
   );
 }
 
-export function latestReasoning(assistant: SessionMessageAssistant | undefined) {
+export function latestReasoning(
+  assistant: SessionMessageAssistant | undefined,
+) {
   return assistant?.content.findLast(
     (item): item is SessionMessageAssistantReasoning =>
       item.type === "reasoning" && !item.time?.completed,
@@ -219,7 +221,11 @@ export function addPending(store: Store, item: SessionPendingInfo) {
   ];
 }
 
-export function removePending(store: Store, sessionID: string, inputID?: string) {
+export function removePending(
+  store: Store,
+  sessionID: string,
+  inputID?: string,
+) {
   if (!inputID) return;
   store.session.pending[sessionID] = (
     store.session.pending[sessionID] ?? []
