@@ -8,6 +8,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
+import type { DrawerContentComponentProps } from "expo-router/drawer";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
@@ -16,7 +17,7 @@ import { useSessions, useSessionsLoaded } from "@/hooks/use-store";
 import { useCreateSession } from "@/hooks/use-create-session";
 import { syncSessionList } from "@/stores/sync";
 
-export function SessionList() {
+export function SessionList({ navigation }: DrawerContentComponentProps) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createSession, isCreating } = useCreateSession();
@@ -24,10 +25,15 @@ export function SessionList() {
   const loaded = useSessionsLoaded();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  function openSession(id: string) {
+    router.push({ pathname: "/session/[id]", params: { id } });
+    navigation.closeDrawer();
+  }
+
   async function handleNewSession() {
     try {
       const session = await createSession();
-      router.push({ pathname: "/session/[id]", params: { id: session.id } });
+      openSession(session.id);
     } catch (error) {
       console.error("Failed to create session", error);
     }
@@ -54,12 +60,7 @@ export function SessionList() {
       data={sessions}
       keyExtractor={(item) => item.id}
       renderItem={({ item }) => (
-        <SessionCard
-          session={item}
-          onPress={() =>
-            router.push({ pathname: "/session/[id]", params: { id: item.id } })
-          }
-        />
+        <SessionCard session={item} onPress={() => openSession(item.id)} />
       )}
       style={{ backgroundColor: colors.background }}
       refreshing={isRefreshing}
@@ -89,9 +90,9 @@ export function SessionList() {
         </View>
       }
       contentContainerStyle={[
-        styles.list,
         {
           backgroundColor: colors.background,
+          paddingTop: spacing.sm,
           paddingBottom: insets.bottom + spacing.sm,
           flexGrow: 1,
         },
@@ -117,13 +118,6 @@ const styles = StyleSheet.create({
   centered: {
     flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-  },
-  list: {
-    paddingVertical: spacing.sm,
-  },
-  footer: {
-    padding: spacing.md,
     alignItems: "center",
   },
 });
