@@ -240,7 +240,7 @@ export async function loadMessages(sessionID: string) {
   eventStore.setState((s) => {
     s._loadingMessages[sessionID] = true;
   });
-  return sync.run(`session.message:${sessionID}`, async () => {
+  await sync.run(`session.message:${sessionID}`, async () => {
     const started = new Set(
       (eventStore.getState().session.message[sessionID] ?? []).map(
         (message) => message.id,
@@ -268,6 +268,13 @@ export async function loadMessages(sessionID: string) {
       s._loadedMessages[sessionID] = true;
       s._loadingMessages[sessionID] = false;
     });
+  });
+  // session.created pre-completes this sync key, so the loader can be skipped.
+  eventStore.setState((s) => {
+    if (s._loadingMessages[sessionID]) {
+      s._loadingMessages[sessionID] = false;
+      s._loadedMessages[sessionID] = true;
+    }
   });
 }
 
