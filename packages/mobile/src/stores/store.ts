@@ -271,19 +271,21 @@ export function removeBlocker(
   );
 }
 
-// Ephemeral per-session auto-approve: see the `autoApprove` store note.
-export function setAutoApprove(store: Store, sessionID: string, enabled: boolean) {
+export function setAutoApprove(
+  store: Store,
+  sessionID: string,
+  enabled: boolean,
+) {
   if (enabled) store.session.autoApprove[sessionID] = true;
   else delete store.session.autoApprove[sessionID];
 }
 
 export function resolvePermissionTool(
-  store: Store,
+  messages: SessionMessageInfo[] | undefined,
   request: PermissionRequest,
 ): SessionMessageAssistantTool | undefined {
   const source = request.source;
   if (source?.type !== "tool") return;
-  const messages = store.session.message[request.sessionID];
   if (!messages) return;
   const assistant = messages.findLast(
     (item): item is SessionMessageAssistant =>
@@ -294,7 +296,9 @@ export function resolvePermissionTool(
 
 const BLOCKER_PRIORITY: BlockerKind[] = ["permission", "form"];
 
-export function pickBlocker(blockers: ReadonlyArray<Blocker>): Blocker | undefined {
+export function pickBlocker(
+  blockers: ReadonlyArray<Blocker>,
+): Blocker | undefined {
   for (const kind of BLOCKER_PRIORITY) {
     const blocker = blockers.find((item) => item.kind === kind);
     if (blocker) return blocker;
@@ -302,11 +306,16 @@ export function pickBlocker(blockers: ReadonlyArray<Blocker>): Blocker | undefin
 }
 
 // Root sessions surface descendant (subagent) blockers; child sessions only their own.
-export function selectBlockers(store: Pick<Store, "session">, sessionID: string): Blocker[] {
+export function selectBlockers(
+  store: Pick<Store, "session">,
+  sessionID: string,
+): Blocker[] {
   const info = store.session.info[sessionID];
   const ids = info?.parentID
     ? [sessionID]
-    : Array.from(new Set([sessionID, ...(store.session.family[sessionID] ?? [])]));
+    : Array.from(
+        new Set([sessionID, ...(store.session.family[sessionID] ?? [])]),
+      );
 
   return [
     ...ids.flatMap((id) => store.session.blocker[id] ?? []),

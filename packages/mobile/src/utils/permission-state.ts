@@ -25,6 +25,7 @@ export type PermissionBodyState = {
   selected: PermissionOption;
   message: string;
   submitting: boolean;
+  error: string;
 };
 
 export type PermissionStep = {
@@ -49,7 +50,20 @@ export function createPermissionBodyState(
     selected: "once",
     message: "",
     submitting: false,
+    error: "",
   };
+}
+
+export function permissionSetSubmitting(
+  state: PermissionBodyState,
+  submitting: boolean,
+  error = "",
+): PermissionBodyState {
+  return { ...state, submitting, error };
+}
+
+export function permissionSetError(state: PermissionBodyState, error: string): PermissionBodyState {
+  return { ...state, error, submitting: false };
 }
 
 export function permissionOptions(stage: PermissionStage): PermissionOption[] {

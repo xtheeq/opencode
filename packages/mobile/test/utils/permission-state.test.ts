@@ -8,6 +8,8 @@ import {
   permissionOptions,
   permissionReject,
   permissionRun,
+  permissionSetError,
+  permissionSetSubmitting,
   permissionShift,
 } from "@/utils/permission-state";
 
@@ -141,6 +143,17 @@ describe("permissionShift", () => {
   test("does nothing on empty option lists", () => {
     const state = { ...createPermissionBodyState(request()), stage: "reject" as const };
     expect(permissionShift(state, 1)).toBe(state);
+  });
+});
+
+describe("permissionSetSubmitting / permissionSetError", () => {
+  test("sets submitting and clears it on error", () => {
+    let state = createPermissionBodyState(request());
+    state = permissionSetSubmitting(state, true);
+    expect(state.submitting).toBe(true);
+    state = permissionSetError(state, "boom");
+    expect(state.error).toBe("boom");
+    expect(state.submitting).toBe(false);
   });
 });
 

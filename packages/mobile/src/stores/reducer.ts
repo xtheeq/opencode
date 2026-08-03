@@ -1,6 +1,6 @@
 import type { SessionMessageInfo, V2Event } from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
-import { replyPermission } from "@/services/blocker-reply";
+import { replyOnce } from "@/services/blocker-reply";
 import {
   activeAssistant,
   addBlocker,
@@ -777,15 +777,13 @@ export function handleEvent(event: V2Event) {
           request: event.data,
         });
       });
-      // Ephemeral per-session auto-approve (see store.ts). The blocker is
-      // added unconditionally so a failed auto-reply leaves the request
-      // visible; permission.replied removes it on success.
+      // The blocker is always added so a failed auto-reply stays visible.
       if (eventStore.getState().session.autoApprove[event.data.sessionID]) {
-        void replyPermission({
+        replyOnce({
           sessionID: event.data.sessionID,
           requestID: event.data.id,
           reply: "once",
-        }).catch(() => undefined);
+        });
       }
       break;
 

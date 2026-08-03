@@ -1,4 +1,5 @@
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useEffect } from "react";
+import { Keyboard, StyleSheet, TouchableOpacity, View } from "react-native";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import { DrawerActions } from "expo-router/react-navigation";
 import {
@@ -10,12 +11,19 @@ import MenuIcon from "lucide-react-native/icons/menu";
 import { spacing, useTheme } from "@/theme";
 import { MessageTimeline } from "@/components/message-timeline";
 import { PromptInput } from "@/components/prompt-input";
+import { BlockerDock } from "@/components/blockers";
+import { useSessionBlockers } from "@/hooks/use-blockers";
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const navigation = useNavigation();
+  const { blocker, blocked } = useSessionBlockers(id);
+
+  useEffect(() => {
+    if (blocked) Keyboard.dismiss();
+  }, [blocked]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -32,7 +40,11 @@ export default function SessionScreen() {
         <MessageTimeline sessionID={id} />
       </KeyboardGestureArea>
       <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
-        <PromptInput sessionID={id} />
+        {blocked && blocker ? <BlockerDock blocker={blocker} /> : null}
+        {/* Keep PromptInput mounted so a half-typed draft survives while blocked. */}
+        <View style={blocked ? styles.hidden : undefined}>
+          <PromptInput sessionID={id} />
+        </View>
       </KeyboardStickyView>
     </View>
   );
@@ -50,5 +62,8 @@ const styles = StyleSheet.create({
   },
   body: {
     flex: 1,
+  },
+  hidden: {
+    display: "none",
   },
 });

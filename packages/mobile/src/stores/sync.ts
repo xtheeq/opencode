@@ -16,6 +16,7 @@ import type {
   WebSearchProvider,
 } from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
+import { sweepAutoApproved } from "@/services/blocker-reply";
 import {
   eventStore,
   locationKey,
@@ -288,9 +289,7 @@ function reconcileMessages(
   started: Set<string>,
   localOnly: Set<string>,
 ): SessionMessageInfo[] {
-  const fetchedById = new Map(
-    fetched.map((message) => [message.id, message]),
-  );
+  const fetchedById = new Map(fetched.map((message) => [message.id, message]));
   const result: SessionMessageInfo[] = [];
   for (const message of existing) {
     const fresh = fetchedById.get(message.id);
@@ -330,6 +329,10 @@ export async function syncBlockers(sessionID: string) {
       s._loadedBlockers[sessionID] = true;
       s._loadingBlockers[sessionID] = false;
     });
+    // Auto-approve requests restored by the backfill after a reconnect.
+    if (eventStore.getState().session.autoApprove[sessionID]) {
+      sweepAutoApproved(sessionID);
+    }
   });
 }
 
