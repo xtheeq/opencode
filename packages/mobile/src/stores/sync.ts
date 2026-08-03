@@ -312,10 +312,9 @@ export async function syncBlockers(sessionID: string) {
     s._loadingBlockers[sessionID] = true;
   });
   return sync.run(`session.blocker:${sessionID}`, async () => {
-    const [permissions, forms, questions] = await Promise.allSettled([
+    const [permissions, forms] = await Promise.allSettled([
       getClient().permission.list({ sessionID }),
       getClient().form.list({ sessionID }),
-      getClient().question.list({ sessionID }),
     ]);
     const blockers: Blocker[] = [];
     if (permissions.status === "fulfilled") {
@@ -325,10 +324,6 @@ export async function syncBlockers(sessionID: string) {
     if (forms.status === "fulfilled") {
       for (const request of forms.value)
         blockers.push({ kind: "form", request });
-    }
-    if (questions.status === "fulfilled") {
-      for (const request of questions.value)
-        blockers.push({ kind: "question", request });
     }
     eventStore.setState((s) => {
       s.session.blocker[sessionID] = blockers;

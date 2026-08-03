@@ -1,4 +1,4 @@
-import type { FormAnswer, QuestionRequest } from "@opencode-ai/client/promise";
+import type { FormAnswer } from "@opencode-ai/client/promise";
 import { getClient } from "@/services/api";
 import type { FormWithLocation } from "@/stores/store";
 import type { PermissionReplyValue } from "@/utils/permission-state";
@@ -33,19 +33,4 @@ export async function cancelForm(form: FormWithLocation) {
     { sessionID: form.sessionID, formID: form.id },
     formRequestOptions(form),
   );
-}
-
-export async function replyQuestion(request: QuestionRequest, answers: string[][]) {
-  await getClient().question.reply({
-    sessionID: request.sessionID,
-    requestID: request.id,
-    answers,
-  });
-}
-
-export async function rejectQuestion(request: QuestionRequest) {
-  await getClient().question.reject({
-    sessionID: request.sessionID,
-    requestID: request.id,
-  });
 }

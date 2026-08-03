@@ -819,27 +819,6 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
-    case "question.asked":
-      eventStore.setState((s) => {
-        addBlocker(s, event.data.sessionID, {
-          kind: "question",
-          request: event.data,
-        });
-      });
-      break;
-
-    case "question.replied":
-    case "question.rejected":
-      eventStore.setState((s) => {
-        removeBlocker(
-          s,
-          event.data.sessionID,
-          "question",
-          event.data.requestID,
-        );
-      });
-      break;
-
     case "shell.created":
       eventStore.setState((s) => {
         const key = locationKey(event.location ?? s._defaultLocation);

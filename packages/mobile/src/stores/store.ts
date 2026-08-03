@@ -12,7 +12,6 @@ import type {
   PermissionRequest,
   Project,
   ProviderInfo,
-  QuestionRequest,
   ReferenceInfo,
   SessionMessageInfo,
   SessionMessageAssistant,
@@ -37,8 +36,7 @@ export type FormWithLocation = FormInfo & { readonly location?: LocationRef };
 
 export type Blocker =
   | { kind: "permission"; request: PermissionRequest }
-  | { kind: "form"; request: FormWithLocation }
-  | { kind: "question"; request: QuestionRequest };
+  | { kind: "form"; request: FormWithLocation };
 
 export type BlockerKind = Blocker["kind"];
 
@@ -294,7 +292,7 @@ export function resolvePermissionTool(
   return latestTool(assistant, source.callID);
 }
 
-const BLOCKER_PRIORITY: BlockerKind[] = ["permission", "form", "question"];
+const BLOCKER_PRIORITY: BlockerKind[] = ["permission", "form"];
 
 export function pickBlocker(blockers: ReadonlyArray<Blocker>): Blocker | undefined {
   for (const kind of BLOCKER_PRIORITY) {

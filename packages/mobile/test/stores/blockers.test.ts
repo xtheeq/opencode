@@ -30,18 +30,12 @@ describe("pickBlocker", () => {
     expect(pickBlocker([])).toBeUndefined();
   });
 
-  test("prioritizes permission over form and question", () => {
+  test("prioritizes permission over form", () => {
     const picked = pickBlocker([
-      blocker("question", "q_1"),
       blocker("form", "frm_1"),
       blocker("permission", "per_1"),
     ]);
     expect(picked?.kind).toBe("permission");
-  });
-
-  test("prefers form over question", () => {
-    const picked = pickBlocker([blocker("question", "q_1"), blocker("form", "frm_1")]);
-    expect(picked?.kind).toBe("form");
   });
 });
 
