@@ -68,6 +68,11 @@ export type Store = {
     pending: Record<string, SessionPendingInfo[]>;
     input: Record<string, string[]>;
     blocker: Record<string, Blocker[]>;
+    // Per-session, in-memory only. Auto-approve is intentionally ephemeral:
+    // mobile has no settings surface to turn it off, so it is never persisted
+    // and resets on app restart. A key present with `true` means the session's
+    // permission.asked requests are answered "once" automatically.
+    autoApprove: Record<string, boolean>;
   };
   project: {
     info: Record<string, Project>;
@@ -102,6 +107,7 @@ export const eventStore = create<Store>()(
       pending: {},
       input: {},
       blocker: {},
+      autoApprove: {},
     },
     project: { info: {}, permission: {} },
     location: {},
@@ -267,6 +273,12 @@ export function removeBlocker(
   );
 }
 
+// Ephemeral per-session auto-approve: see the `autoApprove` store note.
+export function setAutoApprove(store: Store, sessionID: string, enabled: boolean) {
+  if (enabled) store.session.autoApprove[sessionID] = true;
+  else delete store.session.autoApprove[sessionID];
+}
+
 export function resolvePermissionTool(
   store: Store,
   request: PermissionRequest,
@@ -291,20 +303,15 @@ export function pickBlocker(blockers: ReadonlyArray<Blocker>): Blocker | undefin
   }
 }
 
-// Which sessions' blockers surface in a given session screen:
-// - A subagent (child) session only shows its own blockers plus global forms.
-// - A root session shows its own blockers, its descendants' (subagent) blockers,
-//   and global forms, mirroring the TUI session route (packages/tui/src/routes/session/index.tsx).
-export function selectBlockers(store: Store, sessionID: string): Blocker[] {
+// Root sessions surface descendant (subagent) blockers; child sessions only their own.
+export function selectBlockers(store: Pick<Store, "session">, sessionID: string): Blocker[] {
   const info = store.session.info[sessionID];
   const ids = info?.parentID
     ? [sessionID]
     : Array.from(new Set([sessionID, ...(store.session.family[sessionID] ?? [])]));
 
-  const blockers: Blocker[] = [];
-  for (const id of ids) {
-    blockers.push(...(store.session.blocker[id] ?? []));
-  }
-  blockers.push(...(store.session.blocker["global"] ?? []));
-  return blockers;
+  return [
+    ...ids.flatMap((id) => store.session.blocker[id] ?? []),
+    ...(store.session.blocker["global"] ?? []),
+  ];
 }

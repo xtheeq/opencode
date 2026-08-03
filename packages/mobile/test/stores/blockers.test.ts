@@ -1,16 +1,24 @@
 import { describe, expect, test } from "bun:test";
-import { pickBlocker, selectBlockers, type Blocker, type Store } from "@/stores/store";
+import {
+  pickBlocker,
+  selectBlockers,
+  setAutoApprove,
+  type Blocker,
+  type Store,
+} from "@/stores/store";
 
 const store = (input: {
   info?: Record<string, { parentID?: string }>;
   family?: Record<string, string[]>;
   blocker?: Record<string, Blocker[]>;
-}): Store =>
+  autoApprove?: Record<string, boolean>;
+} = {}): Store =>
   ({
     session: {
       info: input.info ?? {},
       family: input.family ?? {},
       blocker: input.blocker ?? {},
+      autoApprove: input.autoApprove ?? {},
     },
   }) as unknown as Store;
 
@@ -79,5 +87,19 @@ describe("selectBlockers", () => {
       blocker: { root: [blocker("permission", "per_root")] },
     });
     expect(selectBlockers(s, "root")).toHaveLength(1);
+  });
+});
+
+describe("setAutoApprove", () => {
+  test("adds the session key when enabled", () => {
+    const s = store();
+    setAutoApprove(s, "ses_1", true);
+    expect(s.session.autoApprove["ses_1"]).toBe(true);
+  });
+
+  test("removes the session key when disabled", () => {
+    const s = store({ autoApprove: { ses_1: true } });
+    setAutoApprove(s, "ses_1", false);
+    expect(s.session.autoApprove["ses_1"]).toBeUndefined();
   });
 });
