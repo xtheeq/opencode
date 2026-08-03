@@ -34,7 +34,8 @@ export function formInitialValues(fields: ReadonlyArray<FormField>) {
           typeof field.default !== "string"
         )
           return [];
-        if (field.options.some((option) => option.value === field.default)) return [];
+        if (field.options.some((option) => option.value === field.default))
+          return [];
         return [[field.key, field.default]];
       }),
     ) as Record<string, string>,
@@ -93,7 +94,8 @@ export function formValidateValue(
   field: FormAnswerField,
   value: FormValue | undefined,
 ): string | undefined {
-  if (value === undefined) return field.required ? "Answer required" : undefined;
+  if (value === undefined)
+    return field.required ? "Answer required" : undefined;
   if (
     field.required &&
     (value === "" || (Array.isArray(value) && value.length === 0))
@@ -120,10 +122,7 @@ export function formValidateValue(
     if (field.format === "uri" && !validURL(value)) return "Expected a URL";
     if (field.format === "date" && !validDate(value))
       return "Expected a date (YYYY-MM-DD)";
-    if (
-      field.format === "date-time" &&
-      Number.isNaN(new Date(value).getTime())
-    )
+    if (field.format === "date-time" && Number.isNaN(new Date(value).getTime()))
       return "Expected a date and time";
     if (
       field.options &&
@@ -203,5 +202,7 @@ function validURL(value: string) {
 function validDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  return (
+    !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+  );
 }

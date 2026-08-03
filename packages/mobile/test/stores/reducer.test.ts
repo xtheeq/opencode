@@ -24,7 +24,10 @@ describe("reducer permission.asked", () => {
     handleEvent(permissionAsked());
     const blockers = eventStore.getState().session.blocker["ses_1"] ?? [];
     expect(blockers).toHaveLength(1);
-    expect(blockers[0]).toMatchObject({ kind: "permission", request: { id: "per_1" } });
+    expect(blockers[0]).toMatchObject({
+      kind: "permission",
+      request: { id: "per_1" },
+    });
   });
 
   test("still adds the blocker when auto-approve is enabled", () => {
@@ -39,6 +42,8 @@ describe("reducer permission.asked", () => {
   test("does not leak blockers across sessions", () => {
     reset();
     handleEvent(permissionAsked());
-    expect(eventStore.getState().session.blocker["ses_other"] ?? []).toHaveLength(0);
+    expect(
+      eventStore.getState().session.blocker["ses_other"] ?? [],
+    ).toHaveLength(0);
   });
 });

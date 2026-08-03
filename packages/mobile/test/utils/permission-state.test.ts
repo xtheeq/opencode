@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { PermissionRequest, SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type {
+  PermissionRequest,
+  SessionMessageAssistantTool,
+} from "@opencode-ai/client/promise";
 import {
   createPermissionBodyState,
   permissionCancel,
@@ -13,7 +16,9 @@ import {
   permissionShift,
 } from "@/utils/permission-state";
 
-const request = (overrides: Partial<PermissionRequest> = {}): PermissionRequest => ({
+const request = (
+  overrides: Partial<PermissionRequest> = {},
+): PermissionRequest => ({
   id: "per_1",
   sessionID: "ses_1",
   action: "shell",
@@ -21,7 +26,9 @@ const request = (overrides: Partial<PermissionRequest> = {}): PermissionRequest 
   ...overrides,
 });
 
-const tool = (state: SessionMessageAssistantTool["state"]): SessionMessageAssistantTool => ({
+const tool = (
+  state: SessionMessageAssistantTool["state"],
+): SessionMessageAssistantTool => ({
   type: "tool",
   id: "call_1",
   name: "bash",
@@ -34,7 +41,11 @@ describe("createPermissionBodyState / permissionOptions", () => {
     const state = createPermissionBodyState(request());
     expect(state.stage).toBe("permission");
     expect(state.selected).toBe("once");
-    expect(permissionOptions(state.stage)).toEqual(["once", "always", "reject"]);
+    expect(permissionOptions(state.stage)).toEqual([
+      "once",
+      "always",
+      "reject",
+    ]);
   });
 
   test("always stage offers confirm/cancel", () => {
@@ -47,7 +58,11 @@ describe("permissionRun", () => {
   test("once replies immediately", () => {
     const state = createPermissionBodyState(request());
     const step = permissionRun(state, "per_1", "once");
-    expect(step.reply).toEqual({ sessionID: "ses_1", requestID: "per_1", reply: "once" });
+    expect(step.reply).toEqual({
+      sessionID: "ses_1",
+      requestID: "per_1",
+      reply: "once",
+    });
     expect(step.state.stage).toBe("permission");
   });
 
@@ -67,7 +82,11 @@ describe("permissionRun", () => {
     let state = createPermissionBodyState(request());
     state = permissionRun(state, "per_1", "always").state;
     const confirm = permissionRun(state, "per_1", "confirm");
-    expect(confirm.reply).toEqual({ sessionID: "ses_1", requestID: "per_1", reply: "always" });
+    expect(confirm.reply).toEqual({
+      sessionID: "ses_1",
+      requestID: "per_1",
+      reply: "always",
+    });
 
     const cancel = permissionRun(state, "per_1", "cancel");
     expect(cancel.reply).toBeUndefined();
@@ -136,12 +155,17 @@ describe("permissionShift", () => {
   test("cycles the selection within the stage options", () => {
     const state = createPermissionBodyState(request());
     expect(permissionShift(state, 1).selected).toBe("always");
-    expect(permissionShift(permissionShift(state, 1), 1).selected).toBe("reject");
+    expect(permissionShift(permissionShift(state, 1), 1).selected).toBe(
+      "reject",
+    );
     expect(permissionShift(state, -1).selected).toBe("reject");
   });
 
   test("does nothing on empty option lists", () => {
-    const state = { ...createPermissionBodyState(request()), stage: "reject" as const };
+    const state = {
+      ...createPermissionBodyState(request()),
+      stage: "reject" as const,
+    };
     expect(permissionShift(state, 1)).toBe(state);
   });
 });
@@ -159,17 +183,19 @@ describe("permissionSetSubmitting / permissionSetError", () => {
 
 describe("permissionInfo", () => {
   test("pulls tool input from the tool part", () => {
-    const info = permissionInfo(
-      { ...request({ action: "shell" }), tool: tool({ status: "running", input: { command: "ls" }, metadata: {} }) },
-    );
+    const info = permissionInfo({
+      ...request({ action: "shell" }),
+      tool: tool({ status: "running", input: { command: "ls" }, metadata: {} }),
+    });
     expect(info.title).toBe("Shell command");
     expect(info.lines).toEqual(["$ ls"]);
   });
 
   test("ignores input while the tool is streaming", () => {
-    const info = permissionInfo(
-      { ...request({ action: "shell" }), tool: tool({ status: "streaming", input: "ls" }) },
-    );
+    const info = permissionInfo({
+      ...request({ action: "shell" }),
+      tool: tool({ status: "streaming", input: "ls" }),
+    });
     expect(info.lines).toEqual([]);
   });
 

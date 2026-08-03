@@ -46,12 +46,17 @@ export function permissionPresentation(
   const action = canonicalToolName(source.action);
   const input = normalizeInput(action, source.input);
   const metadata = { ...dict(source.toolMetadata), ...dict(source.metadata) };
-  const resources = source.resources.filter((item): item is string => typeof item === "string");
+  const resources = source.resources.filter(
+    (item): item is string => typeof item === "string",
+  );
 
   if (action === "edit") {
     const file = text(input.path) || resources[0] || "";
-    const first = dict(Array.isArray(metadata.files) ? metadata.files[0] : undefined);
-    const diff = text(first.patch) || text(first.diff) || text(metadata.diff) || undefined;
+    const first = dict(
+      Array.isArray(metadata.files) ? metadata.files[0] : undefined,
+    );
+    const diff =
+      text(first.patch) || text(first.diff) || text(metadata.diff) || undefined;
     return {
       icon: "→",
       title: `Edit ${formatPath(file)}`,
@@ -125,7 +130,10 @@ export function permissionPresentation(
     const operation = text(input.operation) || "request";
     const line = finiteNumber(input.line);
     const character = finiteNumber(input.character);
-    const position = line !== undefined && character !== undefined ? `${line}:${character}` : undefined;
+    const position =
+      line !== undefined && character !== undefined
+        ? `${line}:${character}`
+        : undefined;
     return {
       icon: "→",
       title: `LSP ${operation}${file ? ` ${formatPath(file)}${position ? `:${position}` : ""}` : ""}`,
@@ -138,7 +146,8 @@ export function permissionPresentation(
   }
 
   if (action === "external_directory") {
-    const raw = text(metadata.parentDir) || text(metadata.filepath) || resources[0] || "";
+    const raw =
+      text(metadata.parentDir) || text(metadata.filepath) || resources[0] || "";
     const directory = wildcardDirectory(raw);
     return {
       icon: "←",
@@ -184,7 +193,9 @@ export function permissionAlwaysLines(input: {
   ];
 }
 
-export function permissionOptionLabel(option: "once" | "always" | "reject" | "confirm" | "cancel") {
+export function permissionOptionLabel(
+  option: "once" | "always" | "reject" | "confirm" | "cancel",
+) {
   if (option === "once") return "Allow once";
   if (option === "always") return "Allow always";
   if (option === "reject") return "Reject";
@@ -198,7 +209,9 @@ function normalizeInput(action: string, value: unknown): Dict {
   const agent = text(input.agent) || text(input.subagent_type);
   return {
     ...input,
-    ...(["read", "edit", "list", "lsp"].includes(action) && path ? { path } : {}),
+    ...(["read", "edit", "list", "lsp"].includes(action) && path
+      ? { path }
+      : {}),
     ...(action === "subagent" && agent ? { agent } : {}),
   };
 }

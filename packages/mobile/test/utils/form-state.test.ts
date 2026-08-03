@@ -43,7 +43,10 @@ describe("createFormBodyState", () => {
   test("syncs to a new form by id", () => {
     const state = createFormBodyState(form([{ type: "string", key: "a" }]));
     expect(formSync(state, form([{ type: "string", key: "a" }]))).toBe(state);
-    const next = formSync(state, { ...form([{ type: "boolean", key: "b" }]), id: "frm_2" });
+    const next = formSync(state, {
+      ...form([{ type: "boolean", key: "b" }]),
+      id: "frm_2",
+    });
     expect(next.formID).toBe("frm_2");
     expect(next.field).toBe(0);
   });
@@ -54,16 +57,26 @@ describe("formUnsupported", () => {
     expect(formUnsupported(form([]))).toMatch(/no supported fields/);
     expect(
       formUnsupported(
-        form([{ type: "string", key: "a", when: [{ key: "b", op: "eq", value: "x" }] }]),
+        form([
+          {
+            type: "string",
+            key: "a",
+            when: [{ key: "b", op: "eq", value: "x" }],
+          },
+        ]),
       ),
     ).toMatch(/Conditional/);
-    expect(formUnsupported(form([{ type: "string", key: "a", pattern: "^x$" }]))).toMatch(
-      /Pattern/,
-    );
-    expect(formUnsupported(form([{ type: "date", key: "a" } as unknown as FormField]))).toMatch(
-      /not supported/,
-    );
-    expect(formUnsupported(form([{ type: "string", key: "a" }]))).toBeUndefined();
+    expect(
+      formUnsupported(form([{ type: "string", key: "a", pattern: "^x$" }])),
+    ).toMatch(/Pattern/);
+    expect(
+      formUnsupported(
+        form([{ type: "date", key: "a" } as unknown as FormField]),
+      ),
+    ).toMatch(/not supported/);
+    expect(
+      formUnsupported(form([{ type: "string", key: "a" }])),
+    ).toBeUndefined();
   });
 });
 
@@ -102,7 +115,11 @@ describe("form navigation and answering", () => {
 describe("formCommitInput", () => {
   test("commits string and number values", () => {
     let state = createFormBodyState(form([{ type: "string", key: "a" }]));
-    state = formCommitInput(state, form([{ type: "string", key: "a" }]), "  hello  ");
+    state = formCommitInput(
+      state,
+      form([{ type: "string", key: "a" }]),
+      "  hello  ",
+    );
     expect(state.answers.a).toBe("hello");
     expect(state.editing).toBe(false);
 
@@ -113,7 +130,11 @@ describe("formCommitInput", () => {
 
   test("rejects invalid input with an error", () => {
     let state = createFormBodyState(form([{ type: "number", key: "n" }]));
-    state = formCommitInput(state, form([{ type: "number", key: "n" }]), "not-a-number");
+    state = formCommitInput(
+      state,
+      form([{ type: "number", key: "n" }]),
+      "not-a-number",
+    );
     expect(state.error).toMatch(/Expected a number/);
     expect(state.answers.n).toBeUndefined();
   });
@@ -142,7 +163,11 @@ describe("form validation and reply assembly", () => {
     let state = createFormBodyState(multi);
     state = { ...state, answers: { a: "x" } };
     const reply = formReply(multi, state);
-    expect(reply).toEqual({ sessionID: "ses_1", formID: "frm_1", answer: { a: "x" } });
+    expect(reply).toEqual({
+      sessionID: "ses_1",
+      formID: "frm_1",
+      answer: { a: "x" },
+    });
     expect(formReply(multi, createFormBodyState(multi))).toBeUndefined();
   });
 });

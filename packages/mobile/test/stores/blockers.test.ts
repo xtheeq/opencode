@@ -7,12 +7,14 @@ import {
   type Store,
 } from "@/stores/store";
 
-const store = (input: {
-  info?: Record<string, { parentID?: string }>;
-  family?: Record<string, string[]>;
-  blocker?: Record<string, Blocker[]>;
-  autoApprove?: Record<string, boolean>;
-} = {}): Store =>
+const store = (
+  input: {
+    info?: Record<string, { parentID?: string }>;
+    family?: Record<string, string[]>;
+    blocker?: Record<string, Blocker[]>;
+    autoApprove?: Record<string, boolean>;
+  } = {},
+): Store =>
   ({
     session: {
       info: input.info ?? {},
@@ -52,7 +54,11 @@ describe("selectBlockers", () => {
     });
     const blockers = selectBlockers(s, "root");
     expect(blockers).toHaveLength(3);
-    expect(blockers.map((b) => b.request.id)).toEqual(["per_root", "frm_child", "frm_global"]);
+    expect(blockers.map((b) => b.request.id)).toEqual([
+      "per_root",
+      "frm_child",
+      "frm_global",
+    ]);
   });
 
   test("child session only sees its own blockers plus global", () => {
@@ -66,12 +72,19 @@ describe("selectBlockers", () => {
       },
     });
     const blockers = selectBlockers(s, "child");
-    expect(blockers.map((b) => b.request.id)).toEqual(["frm_child", "frm_global"]);
+    expect(blockers.map((b) => b.request.id)).toEqual([
+      "frm_child",
+      "frm_global",
+    ]);
   });
 
   test("surfaces global forms even with no session blockers", () => {
-    const s = store({ blocker: { global: [blocker("form", "frm_global", "global")] } });
-    expect(selectBlockers(s, "root").map((b) => b.request.id)).toEqual(["frm_global"]);
+    const s = store({
+      blocker: { global: [blocker("form", "frm_global", "global")] },
+    });
+    expect(selectBlockers(s, "root").map((b) => b.request.id)).toEqual([
+      "frm_global",
+    ]);
   });
 
   test("de-duplicates the root session id in the family", () => {

@@ -20,16 +20,25 @@ describe("permissionPresentation", () => {
   });
 
   test("read and list show the path", () => {
-    expect(permissionPresentation({ action: "read", resources: ["/a"], input: {} }).title).toBe(
-      "Read /a",
-    );
     expect(
-      permissionPresentation({ action: "list", resources: ["/a"], input: { path: "/a" } }).lines,
+      permissionPresentation({ action: "read", resources: ["/a"], input: {} })
+        .title,
+    ).toBe("Read /a");
+    expect(
+      permissionPresentation({
+        action: "list",
+        resources: ["/a"],
+        input: { path: "/a" },
+      }).lines,
     ).toEqual(["Path: /a"]);
   });
 
   test("shell shows the command", () => {
-    const info = permissionPresentation({ action: "shell", resources: [], input: { command: "ls" } });
+    const info = permissionPresentation({
+      action: "shell",
+      resources: [],
+      input: { command: "ls" },
+    });
     expect(info.title).toBe("Shell command");
     expect(info.lines).toEqual(["$ ls"]);
   });
@@ -62,7 +71,7 @@ describe("permissionPresentation", () => {
         input: { query: "q" },
         metadata: { provider: "exa" },
       }).title,
-    ).toBe("Exa Web Search \"q\"");
+    ).toBe('Exa Web Search "q"');
   });
 
   test("lsp shows operation, path, and position", () => {
@@ -72,7 +81,11 @@ describe("permissionPresentation", () => {
       input: { path: "/a.ts", operation: "rename", line: 3, character: 5 },
     });
     expect(info.title).toBe("LSP rename /a.ts:3:5");
-    expect(info.lines).toEqual(["Operation: rename", "Path: /a.ts", "Position: 3:5"]);
+    expect(info.lines).toEqual([
+      "Operation: rename",
+      "Path: /a.ts",
+      "Position: 3:5",
+    ]);
   });
 
   test("external_directory shows the wildcard base", () => {
@@ -86,7 +99,10 @@ describe("permissionPresentation", () => {
   });
 
   test("unknown action falls back to a generic call", () => {
-    const info = permissionPresentation({ action: "frobnicate", resources: [] });
+    const info = permissionPresentation({
+      action: "frobnicate",
+      resources: [],
+    });
     expect(info.title).toBe("Call tool frobnicate");
   });
 });
@@ -108,7 +124,10 @@ describe("permissionAlwaysLines", () => {
   });
 
   test("patterns are listed", () => {
-    const lines = permissionAlwaysLines({ action: "edit", save: ["src/**", "test/**"] });
+    const lines = permissionAlwaysLines({
+      action: "edit",
+      save: ["src/**", "test/**"],
+    });
     expect(lines[0]).toMatch(/following patterns/);
     expect(lines.slice(1)).toEqual(["- src/**", "- test/**"]);
   });

@@ -2,7 +2,9 @@ import { describe, expect, test } from "bun:test";
 import type { FormInfo, LocationRef } from "@opencode-ai/client/promise";
 import { formRequestOptions } from "@/services/blocker-reply";
 
-const form = (overrides: Partial<FormInfo & { location?: LocationRef }> = {}): FormInfo & {
+const form = (
+  overrides: Partial<FormInfo & { location?: LocationRef }> = {},
+): FormInfo & {
   location?: LocationRef;
 } => ({
   id: "frm_1",
@@ -15,7 +17,10 @@ const form = (overrides: Partial<FormInfo & { location?: LocationRef }> = {}): F
 describe("formRequestOptions", () => {
   test("routes global forms through directory headers", () => {
     const options = formRequestOptions(
-      form({ sessionID: "global", location: { directory: "/tmp/my project", workspaceID: "ws_1" } }),
+      form({
+        sessionID: "global",
+        location: { directory: "/tmp/my project", workspaceID: "ws_1" },
+      }),
     );
     expect(options).toEqual({
       headers: {

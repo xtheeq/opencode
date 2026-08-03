@@ -9,7 +9,12 @@ import {
 } from "./permission";
 
 export type PermissionStage = "permission" | "always" | "reject";
-export type PermissionOption = "once" | "always" | "reject" | "confirm" | "cancel";
+export type PermissionOption =
+  | "once"
+  | "always"
+  | "reject"
+  | "confirm"
+  | "cancel";
 
 export type PermissionReplyValue = {
   sessionID: string;
@@ -62,7 +67,10 @@ export function permissionSetSubmitting(
   return { ...state, submitting, error };
 }
 
-export function permissionSetError(state: PermissionBodyState, error: string): PermissionBodyState {
+export function permissionSetError(
+  state: PermissionBodyState,
+  error: string,
+): PermissionBodyState {
   return { ...state, error, submitting: false };
 }
 
@@ -209,7 +217,9 @@ export function permissionReject(
   return permissionReply(state.sessionID, requestID, "reject", state.message);
 }
 
-export function permissionCancel(state: PermissionBodyState): PermissionBodyState {
+export function permissionCancel(
+  state: PermissionBodyState,
+): PermissionBodyState {
   return {
     ...state,
     stage: "permission",
@@ -217,7 +227,9 @@ export function permissionCancel(state: PermissionBodyState): PermissionBodyStat
   };
 }
 
-export function permissionEscape(state: PermissionBodyState): PermissionBodyState {
+export function permissionEscape(
+  state: PermissionBodyState,
+): PermissionBodyState {
   if (state.stage === "always") {
     return {
       ...state,
