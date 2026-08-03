@@ -281,3 +281,30 @@ export function resolvePermissionTool(
   );
   return latestTool(assistant, source.callID);
 }
+
+const BLOCKER_PRIORITY: BlockerKind[] = ["permission", "form", "question"];
+
+export function pickBlocker(blockers: ReadonlyArray<Blocker>): Blocker | undefined {
+  for (const kind of BLOCKER_PRIORITY) {
+    const blocker = blockers.find((item) => item.kind === kind);
+    if (blocker) return blocker;
+  }
+}
+
+// Which sessions' blockers surface in a given session screen:
+// - A subagent (child) session only shows its own blockers plus global forms.
+// - A root session shows its own blockers, its descendants' (subagent) blockers,
+//   and global forms, mirroring the TUI session route (packages/tui/src/routes/session/index.tsx).
+export function selectBlockers(store: Store, sessionID: string): Blocker[] {
+  const info = store.session.info[sessionID];
+  const ids = info?.parentID
+    ? [sessionID]
+    : Array.from(new Set([sessionID, ...(store.session.family[sessionID] ?? [])]));
+
+  const blockers: Blocker[] = [];
+  for (const id of ids) {
+    blockers.push(...(store.session.blocker[id] ?? []));
+  }
+  blockers.push(...(store.session.blocker["global"] ?? []));
+  return blockers;
+}
