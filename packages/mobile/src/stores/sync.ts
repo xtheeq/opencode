@@ -10,6 +10,7 @@ import type {
   ModelInfo,
   ProviderInfo,
   ReferenceInfo,
+  SessionMessageInfo,
   ShellInfo,
   SkillInfo,
   WebSearchProvider,
@@ -240,6 +241,11 @@ export async function loadMessages(sessionID: string) {
     s._loadingMessages[sessionID] = true;
   });
   return sync.run(`session.message:${sessionID}`, async () => {
+    const started = new Set(
+      (eventStore.getState().session.message[sessionID] ?? []).map(
+        (message) => message.id,
+      ),
+    );
     const response = await getClient().message.list({
       sessionID,
       limit: 200,
@@ -247,23 +253,51 @@ export async function loadMessages(sessionID: string) {
     });
     const fetched = response.data.toReversed();
     eventStore.setState((s) => {
-      const existing = s.session.message[sessionID];
-      if (existing && existing.length > 0) {
-        const fetchedIds = new Set(fetched.map((m) => m.id));
-        const merged = [
-          ...fetched,
-          ...existing.filter((m) => !fetchedIds.has(m.id)),
-        ];
-        s.session.message[sessionID] = merged;
-        messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
-      } else {
-        s.session.message[sessionID] = fetched;
-        messageIndex.set(sessionID, new Map(fetched.map((m, i) => [m.id, i])));
-      }
+      const localOnly = new Set([
+        ...(s.session.pending[sessionID]?.map((p) => p.id) ?? []),
+        ...(s.session.input[sessionID] ?? []),
+      ]);
+      const merged = reconcileMessages(
+        fetched,
+        s.session.message[sessionID] ?? [],
+        started,
+        localOnly,
+      );
+      s.session.message[sessionID] = merged;
+      messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
       s._loadedMessages[sessionID] = true;
       s._loadingMessages[sessionID] = false;
     });
   });
+}
+
+// Server rows replace existing ones; rows the server dropped (deleted or
+// reverted during a gap) are removed. Rows that are local-only (unpromoted
+// inputs) or arrived via live events while the snapshot was in flight
+// (`started` is the pre-fetch id set) are kept so a refetch never loses them.
+function reconcileMessages(
+  fetched: SessionMessageInfo[],
+  existing: SessionMessageInfo[],
+  started: Set<string>,
+  localOnly: Set<string>,
+): SessionMessageInfo[] {
+  const fetchedById = new Map(
+    fetched.map((message) => [message.id, message]),
+  );
+  const result: SessionMessageInfo[] = [];
+  for (const message of existing) {
+    const fresh = fetchedById.get(message.id);
+    if (fresh) {
+      result.push(fresh);
+      fetchedById.delete(message.id);
+      continue;
+    }
+    if (localOnly.has(message.id) || !started.has(message.id)) {
+      result.push(message);
+    }
+  }
+  for (const fresh of fetchedById.values()) result.push(fresh);
+  return result;
 }
 
 export async function syncBlockers(sessionID: string) {
