@@ -33,8 +33,10 @@ export type ConnectionStatus =
 
 interface ConnectionValue {
   status: ConnectionStatus;
+  error: string | null;
   url: string | null;
   connect: (url: string, password?: string) => void;
+  retry: () => void;
   disconnect: () => void;
 }
 
@@ -43,6 +45,7 @@ const ConnectionContext = createContext<ConnectionValue | null>(null);
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [url, setUrl] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [eventError, setEventError] = useState<string | null>(null);
   const [eventStatus, setEventStatus] =
     useState<EventConnectionStatus>("disconnected");
 
@@ -76,6 +79,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     mgr.connect();
     const statusUnsub = mgr.onStatusChange((ev) => {
       setEventStatus(ev.status);
+      setEventError(ev.error ?? null);
       if (ev.status === "connected") {
         getClient()
           .session.active()
@@ -113,10 +117,15 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     setUrl(serverUrl);
   }, []);
 
+  const retry = useCallback(() => {
+    getEventManager().connect();
+  }, []);
+
   const disconnect = useCallback(() => {
     destroyEventManager();
     clearServerConfig().catch(console.error);
     setUrl(null);
+    setEventError(null);
     setEventStatus("disconnected");
   }, []);
 
@@ -126,15 +135,20 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       ? "idle"
       : eventStatus === "connected"
         ? "connected"
-        : eventStatus === "connecting" ||
-            eventStatus === "reconnecting" ||
-            eventStatus === "disconnected"
+        : eventStatus === "connecting" || eventStatus === "reconnecting"
           ? "checking"
           : "error";
 
   return (
     <ConnectionContext.Provider
-      value={{ status: derivedStatus, url, connect, disconnect }}
+      value={{
+        status: derivedStatus,
+        error: eventError,
+        url,
+        connect,
+        retry,
+        disconnect,
+      }}
     >
       {children}
     </ConnectionContext.Provider>

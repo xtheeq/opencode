@@ -1,5 +1,9 @@
 import { AppState, type AppStateStatus } from "react-native";
-import type { OpenCodeClient, V2Event } from "@opencode-ai/client/promise";
+import {
+  ClientError,
+  type OpenCodeClient,
+  type V2Event,
+} from "@opencode-ai/client/promise";
 
 type EventMap = { [K in V2Event["type"]]: Extract<V2Event, { type: K }> };
 
@@ -22,9 +26,49 @@ export type TransportReconnect = (
 
 const BASE_DELAY = 1_000;
 const MAX_DELAY = 30_000;
+const MAX_RECONNECT_ATTEMPTS = 6;
 const CONNECT_TIMEOUT = 2_000;
 const CONNECTION_HISTORY_LIMIT = 50;
 const FLUSH_INTERVAL_MS = 16;
+
+const TRANSIENT_MESSAGES = [
+  // Mirrors @opencode-ai/core/util/retry.ts;
+  "load failed",
+  "network connection was lost",
+  "network request failed",
+  "failed to fetch",
+  "econnreset",
+  "econnrefused",
+  "enotfound",
+  "getaddrinfo",
+  "etimedout",
+  "socket hang up",
+  "timed out connecting to server",
+  "event stream disconnected",
+  "event stream did not start with server.connected",
+];
+
+function isTransientError(error: unknown): boolean {
+  if (!error) return false;
+  if (error instanceof ClientError) {
+    switch (error.reason) {
+      case "Transport":
+        return isTransientError(error.cause);
+      case "UnexpectedStatus": {
+        const status = (error.cause as { status?: number } | undefined)?.status;
+        return status !== undefined && status >= 500;
+      }
+      case "UnsupportedContentType":
+      case "MalformedResponse":
+      case "SseEventTooLarge":
+        return false;
+    }
+  }
+  const message = String(
+    error instanceof Error ? error.message : error,
+  ).toLowerCase();
+  return TRANSIENT_MESSAGES.some((m) => message.includes(m));
+}
 
 type DeltaEvent = Extract<
   V2Event,
@@ -399,6 +443,13 @@ class EventManager {
         });
         this.setStatus("reconnecting", errorMessage);
 
+        // Hard errors (wrong endpoint, auth, content type) won't heal by
+        // waiting; surface them instead of retrying.
+        if (!isTransientError(result.error)) {
+          this.giveUp(errorMessage);
+          return;
+        }
+
         // Re-resolve the transport so the client can pick up a new address
         // if the server restarted on a different port.
         if (this.reconnect) {
@@ -419,6 +470,13 @@ class EventManager {
           }
         }
 
+        // Bounded backoff: keep retrying a down server but never hide a bad
+        // address behind endless retries.
+        if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+          this.giveUp(errorMessage);
+          return;
+        }
+
         const delay = Math.min(BASE_DELAY * 2 ** (attempt - 1), MAX_DELAY);
         await new Promise<void>((resolve) => {
           const timer = setTimeout(resolve, delay);
@@ -436,6 +494,11 @@ class EventManager {
     };
 
     loop();
+  }
+
+  private giveUp(error: string) {
+    this.isActive = false;
+    this.setStatus("disconnected", error);
   }
 }
 
