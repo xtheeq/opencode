@@ -81,6 +81,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       setEventStatus(ev.status);
       setEventError(ev.error ?? null);
       if (ev.status === "connected") {
+        // The event feed is live-only, so re-arm session backfills on every
+        // connect; sessions that were loaded refetch missed events.
+        eventStore.setState((s) => {
+          for (const sessionID of Object.keys(s._loadedMessages)) {
+            s._loadedMessages[sessionID] = false;
+          }
+          for (const sessionID of Object.keys(s._loadedBlockers)) {
+            s._loadedBlockers[sessionID] = false;
+          }
+        });
         getClient()
           .session.active()
           .then((active) =>
