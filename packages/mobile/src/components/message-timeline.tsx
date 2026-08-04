@@ -17,7 +17,12 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
 
   if (!loaded && loading) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background.default }]}>
+      <View
+        style={[
+          styles.centered,
+          { backgroundColor: colors.background.default },
+        ]}
+      >
         <ActivityIndicator size="large" color={colors.text.primary} />
       </View>
     );

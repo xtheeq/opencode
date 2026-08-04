@@ -64,7 +64,6 @@ export interface ThemeColors {
     info: string;
     infoBackground: string;
   };
-
 }
 
 export interface ThemeElevation {

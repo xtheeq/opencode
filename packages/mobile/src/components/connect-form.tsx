@@ -13,7 +13,9 @@ export function ConnectForm() {
   const disabled = status === "checking" || !inputUrl.trim();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background.default }]}
+    >
       <Text variant="title" style={styles.textCenter}>
         OpenCode
       </Text>

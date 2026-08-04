@@ -8,8 +8,8 @@ mock.module("react-native", () => ({
   },
 }));
 
-let createEventManager: typeof import("@/services/event-manager")["createEventManager"];
-let destroyEventManager: typeof import("@/services/event-manager")["destroyEventManager"];
+let createEventManager: (typeof import("@/services/event-manager"))["createEventManager"];
+let destroyEventManager: (typeof import("@/services/event-manager"))["destroyEventManager"];
 
 beforeAll(async () => {
   const module = await import("@/services/event-manager");
@@ -58,7 +58,9 @@ function createFeed() {
 }
 
 function client(feed: Feed): OpenCodeClient {
-  return { event: { subscribe: () => feed.stream } } as unknown as OpenCodeClient;
+  return {
+    event: { subscribe: () => feed.stream },
+  } as unknown as OpenCodeClient;
 }
 
 const connected = (): V2Event =>
@@ -145,7 +147,9 @@ describe("EventManager hydration window", () => {
     await mgr.runHydrated(async () => {
       feed.push(renamed());
       await sleep(10);
-      expect(dispatched.map((event) => event.type)).toEqual(["server.connected"]);
+      expect(dispatched.map((event) => event.type)).toEqual([
+        "server.connected",
+      ]);
       order.push("window");
     });
     order.push("after");

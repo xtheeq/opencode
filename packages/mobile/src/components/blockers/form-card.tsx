@@ -208,7 +208,7 @@ export function FormCard({ form }: { form: FormWithLocation }) {
                 {external.url}
               </Text>
             </Pressable>
-              <Text variant="caption" color="secondary">
+            <Text variant="caption" color="secondary">
               {state.answers[external.key] === true
                 ? "✓ Acknowledged"
                 : state.externalReady[external.key]
@@ -285,9 +285,7 @@ export function FormCard({ form }: { form: FormWithLocation }) {
                     <Text
                       variant="caption"
                       color={
-                        state.selected === rows.length
-                          ? "primary"
-                          : "secondary"
+                        state.selected === rows.length ? "primary" : "secondary"
                       }
                     >
                       {multi ? "[ ] " : `${rows.length + 1}. `}Type your own

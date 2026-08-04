@@ -49,8 +49,13 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
 
   if (!loaded) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background.default }]}>
-          <ActivityIndicator size="large" color={colors.text.primary} />
+      <View
+        style={[
+          styles.centered,
+          { backgroundColor: colors.background.default },
+        ]}
+      >
+        <ActivityIndicator size="large" color={colors.text.primary} />
       </View>
     );
   }

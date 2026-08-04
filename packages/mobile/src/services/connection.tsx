@@ -103,8 +103,8 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
               }
             });
             await Promise.all([
-              ...Object.keys(eventStore.getState()._hydration).map((sessionID) =>
-                hydrateSession(sessionID),
+              ...Object.keys(eventStore.getState()._hydration).map(
+                (sessionID) => hydrateSession(sessionID),
               ),
               syncLocation(),
               syncSessionList(),

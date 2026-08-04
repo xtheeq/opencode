@@ -136,10 +136,10 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
     <View
       style={[
         styles.card,
-          {
-            backgroundColor: colors.background.surface,
-            borderColor: colors.border.default,
-          },
+        {
+          backgroundColor: colors.background.surface,
+          borderColor: colors.border.default,
+        },
       ]}
     >
       <View style={styles.header}>

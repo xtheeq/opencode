@@ -67,13 +67,9 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
       {loaded?.map((filepath, i) => (
         <View key={i} style={styles.loadedRow}>
           <View style={styles.iconWrap}>
-          <CornerDownRight size={12} color={colors.text.secondary} />
+            <CornerDownRight size={12} color={colors.text.secondary} />
           </View>
-          <Text
-            variant="caption"
-            color="secondary"
-            style={styles.loadedText}
-          >
+          <Text variant="caption" color="secondary" style={styles.loadedText}>
             Loaded {displayPath(filepath)}
           </Text>
         </View>

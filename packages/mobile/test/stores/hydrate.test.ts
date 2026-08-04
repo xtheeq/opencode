@@ -1,7 +1,15 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { SessionMessageInfo, SessionPendingInfo } from "@opencode-ai/client/promise";
+import type {
+  SessionMessageInfo,
+  SessionPendingInfo,
+} from "@opencode-ai/client/promise";
 
-const calls = { sessionGet: 0, messageList: 0, pendingList: 0, permissionList: 0 };
+const calls = {
+  sessionGet: 0,
+  messageList: 0,
+  pendingList: 0,
+  permissionList: 0,
+};
 
 const sessionInfo = (sessionID: string) => ({
   id: sessionID,
@@ -44,9 +52,9 @@ mock.module("@/services/api", () => ({
   createClient: () => fakeClient,
 }));
 
-let hydrateSession: typeof import("@/stores/sync")["hydrateSession"];
-let sync: typeof import("@/stores/sync")["sync"];
-let eventStore: typeof import("@/stores/store")["eventStore"];
+let hydrateSession: (typeof import("@/stores/sync"))["hydrateSession"];
+let sync: (typeof import("@/stores/sync"))["sync"];
+let eventStore: (typeof import("@/stores/store"))["eventStore"];
 
 beforeEach(async () => {
   const syncModule = await import("@/stores/sync");
@@ -102,7 +110,12 @@ describe("hydrateSession", () => {
     expect(store.session.message["ses_1"]).toEqual([]);
     expect(store.session.pending["ses_1"]).toEqual([]);
     expect(store.session.blocker["ses_1"]).toEqual([]);
-    expect(calls).toEqual({ sessionGet: 1, messageList: 1, pendingList: 1, permissionList: 1 });
+    expect(calls).toEqual({
+      sessionGet: 1,
+      messageList: 1,
+      pendingList: 1,
+      permissionList: 1,
+    });
   });
 
   test("keeps optimistic unpromoted inputs across a refetch", async () => {
@@ -147,7 +160,9 @@ describe("hydrateSession", () => {
 
     const store = eventStore.getState();
     expect(store._hydration["ses_1"]).toBe("loaded");
-    expect(store.session.message["ses_1"]).toEqual([cachedMessage("msg_cached")]);
+    expect(store.session.message["ses_1"]).toEqual([
+      cachedMessage("msg_cached"),
+    ]);
   });
 });
 
