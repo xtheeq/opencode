@@ -6,19 +6,19 @@ type TypographyKey = keyof typeof typography;
 
 export interface TextProps extends RNTextProps {
   variant?: TypographyKey;
-  color?: keyof ThemeColors;
+  color?: keyof ThemeColors["text"];
 }
 
 export function Text({
   variant = "body",
-  color = "text",
+  color = "primary",
   style,
   ...props
 }: TextProps) {
   const { colors } = useTheme();
   return (
     <RNText
-      style={[typography[variant], { color: colors[color] }, style]}
+      style={[typography[variant], { color: colors.text[color] }, style]}
       {...props}
     />
   );

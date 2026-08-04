@@ -10,7 +10,7 @@ export function SwitchMessage({ message }: { message: SwitchMessage }) {
   switch (message.type) {
     case "agent-switched":
       return (
-        <Text variant="caption" color="textSecondary">
+        <Text variant="caption" color="secondary">
           Switched agent to {message.agent}
         </Text>
       );
@@ -29,7 +29,7 @@ export function SwitchMessage({ message }: { message: SwitchMessage }) {
         : `Switched model to ${modelLabel}`;
 
       return (
-        <Text variant="caption" color="textSecondary">
+        <Text variant="caption" color="secondary">
           {label}
         </Text>
       );

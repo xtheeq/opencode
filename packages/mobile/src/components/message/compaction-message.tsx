@@ -15,8 +15,8 @@ export function CompactionMessage({
       const label = message.summary ?? "Compacting...";
       return (
         <View style={styles.row}>
-          <ActivityIndicator size="small" color={colors.textSecondary} />
-          <Text variant="caption" color="textSecondary" style={styles.label}>
+          <ActivityIndicator size="small" color={colors.text.secondary} />
+          <Text variant="caption" color="secondary" style={styles.label}>
             {label}
           </Text>
         </View>
@@ -25,11 +25,11 @@ export function CompactionMessage({
     case "completed":
       return (
         <>
-          <Text variant="caption" color="textSecondary" style={styles.summary}>
+          <Text variant="caption" color="secondary" style={styles.summary}>
             {message.summary ?? "Compact"}
           </Text>
           {message.recent && (
-            <Text variant="caption" color="textSecondary">
+            <Text variant="caption" color="secondary">
               {message.recent}
             </Text>
           )}

@@ -13,11 +13,11 @@ export function ConnectForm() {
   const disabled = status === "checking" || !inputUrl.trim();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
       <Text variant="title" style={styles.textCenter}>
         OpenCode
       </Text>
-      <Text variant="body" color="textSecondary" style={styles.subtitle}>
+      <Text variant="body" color="secondary" style={styles.subtitle}>
         Connect to your server
       </Text>
       <TextInput

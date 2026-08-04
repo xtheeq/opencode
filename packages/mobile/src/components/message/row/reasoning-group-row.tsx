@@ -75,13 +75,13 @@ export function ReasoningGroupRow({
           {completed ? (
             <View style={styles.headerRow}>
               {expanded ? (
-                <ChevronDown size={12} color={colors.textSecondary} />
+                <ChevronDown size={12} color={colors.text.secondary} />
               ) : (
-                <ChevronRight size={12} color={colors.textSecondary} />
+                <ChevronRight size={12} color={colors.text.secondary} />
               )}
               <Text
                 variant="caption"
-                color="textSecondary"
+                color="secondary"
                 style={styles.headerText}
               >
                 Thought{title ? `: ${title}` : ""}
@@ -90,10 +90,10 @@ export function ReasoningGroupRow({
             </View>
           ) : (
             <View style={styles.headerRow}>
-              <ActivityIndicator size="small" color={colors.textSecondary} />
+              <ActivityIndicator size="small" color={colors.text.secondary} />
               <Text
                 variant="caption"
-                color="textSecondary"
+                color="secondary"
                 style={styles.headerText}
               >
                 Thinking{title ? `: ${title}` : ""}...
@@ -103,7 +103,7 @@ export function ReasoningGroupRow({
         </TouchableOpacity>
         {expanded && (
           <View
-            style={[styles.content, { borderLeftColor: colors.textSecondary }]}
+            style={[styles.content, { borderLeftColor: colors.border.default }]}
           >
             <MarkdownPart
               text={text}

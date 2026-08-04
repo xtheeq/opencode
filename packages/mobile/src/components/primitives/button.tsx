@@ -24,16 +24,19 @@ export function Button({
     <TouchableOpacity
       style={[
         styles.button,
-        { backgroundColor: colors.primary, opacity: disabled ? 0.5 : 1 },
+        {
+          backgroundColor: colors.action.primary,
+          opacity: disabled ? 0.5 : 1,
+        },
         style,
       ]}
       disabled={disabled}
       {...props}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={colors.onPrimary} />
+        <ActivityIndicator size="small" color={colors.action.primaryText} />
       ) : (
-        <RNText style={[styles.text, { color: colors.onPrimary }]}>
+        <RNText style={[styles.text, { color: colors.action.primaryText }]}>
           {title}
         </RNText>
       )}

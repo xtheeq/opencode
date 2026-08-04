@@ -24,7 +24,7 @@ function RootNavigator() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: colors.background.default },
       }}
     >
       <Stack.Protected guard={appReady}>

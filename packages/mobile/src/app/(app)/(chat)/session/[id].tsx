@@ -26,14 +26,14 @@ export default function SessionScreen() {
   }, [blocked]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
           accessibilityLabel="Open sessions"
           hitSlop={8}
         >
-          <MenuIcon size={20} color={colors.text} />
+          <MenuIcon size={20} color={colors.icon.default} />
         </TouchableOpacity>
       </View>
       <KeyboardGestureArea interpolator="ios" style={styles.body}>

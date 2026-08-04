@@ -6,10 +6,10 @@ import { Text } from "@/components/primitives";
 export default function NotFoundScreen() {
   const { colors } = useTheme();
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
       <Text variant="heading">This screen doesn&apos;t exist.</Text>
       <Link href="/" style={styles.link}>
-        <Text color="primary">Go to home screen</Text>
+        <Text color="accent">Go to home screen</Text>
       </Link>
     </View>
   );

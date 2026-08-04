@@ -29,7 +29,7 @@ export default function HomeScreen() {
     <View
       style={[
         styles.connectedContainer,
-        { backgroundColor: colors.background },
+        { backgroundColor: colors.background.default },
       ]}
     >
       <View style={styles.header}>
@@ -38,7 +38,7 @@ export default function HomeScreen() {
           accessibilityLabel="Open sessions"
           hitSlop={8}
         >
-          <MenuIcon size={20} color={colors.text} />
+          <MenuIcon size={20} color={colors.icon.default} />
         </TouchableOpacity>
       </View>
 

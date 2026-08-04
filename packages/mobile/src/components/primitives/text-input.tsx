@@ -13,13 +13,13 @@ export function TextInput({ style, ...props }: TextInputProps) {
         styles.base,
         typography.body,
         {
-          color: colors.text,
-          borderColor: colors.border,
-          backgroundColor: colors.surface,
+          color: colors.text.primary,
+          borderColor: colors.border.default,
+          backgroundColor: colors.background.surface,
         },
         style,
       ]}
-      placeholderTextColor={colors.textSecondary}
+      placeholderTextColor={colors.text.secondary}
       {...props}
     />
   );

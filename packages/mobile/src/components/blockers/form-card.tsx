@@ -144,13 +144,16 @@ export function FormCard({ form }: { form: FormWithLocation }) {
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+        {
+          backgroundColor: colors.background.surface,
+          borderColor: colors.border.default,
+        },
       ]}
     >
       <View style={styles.header}>
         <Text variant="heading">{form.title}</Text>
         {!single && (
-          <Text variant="caption" color="textSecondary">
+          <Text variant="caption" color="secondary">
             {confirm
               ? "Review"
               : `Field ${state.field + 1} of ${form.fields.length}`}{" "}
@@ -176,7 +179,7 @@ export function FormCard({ form }: { form: FormWithLocation }) {
                 <Text
                   key={item.key}
                   variant="caption"
-                  color={missing ? "error" : "textSecondary"}
+                  color={missing ? "error" : "secondary"}
                 >
                   {formLabel(item)}:{" "}
                   {item.type === "external"
@@ -194,18 +197,18 @@ export function FormCard({ form }: { form: FormWithLocation }) {
           </View>
         ) : external ? (
           <View style={styles.lines}>
-            <Text color="textSecondary">{external.title ?? external.key}</Text>
+            <Text color="secondary">{external.title ?? external.key}</Text>
             {external.description ? (
-              <Text variant="caption" color="textSecondary">
+              <Text variant="caption" color="secondary">
                 {external.description}
               </Text>
             ) : null}
             <Pressable onPress={openExternal} disabled={state.submitting}>
-              <Text variant="caption" color="primary">
+              <Text variant="caption" color="accent">
                 {external.url}
               </Text>
             </Pressable>
-            <Text variant="caption" color="textSecondary">
+              <Text variant="caption" color="secondary">
               {state.answers[external.key] === true
                 ? "✓ Acknowledged"
                 : state.externalReady[external.key]
@@ -215,7 +218,7 @@ export function FormCard({ form }: { form: FormWithLocation }) {
           </View>
         ) : (
           <View style={styles.lines}>
-            <Text color="textSecondary">
+            <Text color="secondary">
               {field?.description ?? formLabel(field)}
             </Text>
             {textual ? (
@@ -256,13 +259,13 @@ export function FormCard({ form }: { form: FormWithLocation }) {
                     >
                       <Text
                         variant="caption"
-                        color={picked ? "primary" : "textSecondary"}
+                        color={picked ? "primary" : "secondary"}
                       >
                         {multi ? `[${picked ? "✓" : " "}] ` : `${index + 1}. `}
                         {row.label}
                       </Text>
                       {row.description ? (
-                        <Text variant="caption" color="textSecondary">
+                        <Text variant="caption" color="secondary">
                           {row.description}
                         </Text>
                       ) : null}
@@ -284,7 +287,7 @@ export function FormCard({ form }: { form: FormWithLocation }) {
                       color={
                         state.selected === rows.length
                           ? "primary"
-                          : "textSecondary"
+                          : "secondary"
                       }
                     >
                       {multi ? "[ ] " : `${rows.length + 1}. `}Type your own

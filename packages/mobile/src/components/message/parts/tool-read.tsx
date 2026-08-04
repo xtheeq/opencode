@@ -58,20 +58,20 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.iconWrap}>
-          <ArrowRight size={12} color={colors.textSecondary} />
+          <ArrowRight size={12} color={colors.text.secondary} />
         </View>
-        <Text variant="mono" color="textSecondary" style={styles.headerText}>
+        <Text variant="mono" color="secondary" style={styles.headerText}>
           Read {displayPath(fullPath)}
         </Text>
       </View>
       {loaded?.map((filepath, i) => (
         <View key={i} style={styles.loadedRow}>
           <View style={styles.iconWrap}>
-            <CornerDownRight size={12} color={colors.textSecondary} />
+          <CornerDownRight size={12} color={colors.text.secondary} />
           </View>
           <Text
             variant="caption"
-            color="textSecondary"
+            color="secondary"
             style={styles.loadedText}
           >
             Loaded {displayPath(filepath)}

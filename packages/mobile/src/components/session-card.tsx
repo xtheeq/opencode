@@ -25,7 +25,7 @@ export function SessionCard({
   session: SessionInfo;
   onPress?: () => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, effects } = useTheme();
 
   const formattedCost = formatCost(session.cost);
 
@@ -34,30 +34,34 @@ export function SessionCard({
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          {
+            backgroundColor: colors.background.surface,
+            borderColor: colors.border.default,
+            ...effects.elevation.raised,
+          },
         ]}
       >
         <View style={styles.header}>
           <Text variant="body" numberOfLines={1} style={styles.title}>
             {session.title || "Untitled"}
           </Text>
-          <Text variant="caption" color="textSecondary">
+          <Text variant="caption" color="secondary">
             {formatTime(session.time.created)}
           </Text>
         </View>
         <View style={styles.meta}>
           {session.agent && (
-            <Text variant="caption" color="textSecondary">
+            <Text variant="caption" color="secondary">
               {session.agent}
             </Text>
           )}
           {session.model && (
-            <Text variant="caption" color="textSecondary">
+            <Text variant="caption" color="secondary">
               {session.model.id}
             </Text>
           )}
           {formattedCost && (
-            <Text variant="caption" color="textSecondary">
+            <Text variant="caption" color="secondary">
               {formattedCost}
             </Text>
           )}

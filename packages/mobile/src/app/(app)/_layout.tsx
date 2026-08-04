@@ -10,7 +10,7 @@ export default function AppLayout() {
       defaultStatus="closed"
       screenOptions={{
         headerShown: false,
-        sceneStyle: { backgroundColor: colors.background },
+        sceneStyle: { backgroundColor: colors.background.default },
       }}
     />
   );

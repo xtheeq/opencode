@@ -17,8 +17,8 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
 
   if (!loaded && loading) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.text} />
+      <View style={[styles.centered, { backgroundColor: colors.background.default }]}>
+        <ActivityIndicator size="large" color={colors.text.primary} />
       </View>
     );
   }
@@ -31,7 +31,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
         <RowRenderer row={item} messages={messageMap} />
       )}
       recycleItems
-      style={{ backgroundColor: colors.background, flex: 1 }}
+      style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
       maintainScrollAtEnd
       maintainVisibleContentPosition

@@ -11,9 +11,9 @@ export function UserMessageRow({ message }: { message: SessionMessageUser }) {
       style={{
         maxWidth: "85%",
         padding: spacing.sm,
-        backgroundColor: colors.surface,
+        backgroundColor: colors.background.surface,
         borderWidth: 1,
-        borderColor: colors.border,
+        borderColor: colors.border.default,
         borderRadius: br.lg,
         borderBottomRightRadius: br.sm,
       }}

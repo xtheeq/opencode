@@ -65,13 +65,16 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          {
+            backgroundColor: colors.background.surface,
+            borderColor: colors.border.default,
+          },
         ]}
       >
         <Text variant="heading" color="warning">
           Always allow?
         </Text>
-        <Text color="textSecondary">
+        <Text color="secondary">
           {permissionAlwaysLines(request).join("\n")}
         </Text>
         <View style={styles.row}>
@@ -96,13 +99,16 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
       <View
         style={[
           styles.card,
-          { backgroundColor: colors.surface, borderColor: colors.border },
+          {
+            backgroundColor: colors.background.surface,
+            borderColor: colors.border.default,
+          },
         ]}
       >
         <Text variant="heading" color="error">
           Reject permission
         </Text>
-        <Text color="textSecondary">Tell OpenCode what to do differently</Text>
+        <Text color="secondary">Tell OpenCode what to do differently</Text>
         <TextInput
           multiline
           value={state.message}
@@ -130,17 +136,20 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
     <View
       style={[
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border },
+          {
+            backgroundColor: colors.background.surface,
+            borderColor: colors.border.default,
+          },
       ]}
     >
       <View style={styles.header}>
         <Text variant="heading">{info.icon} Permission required</Text>
-        <Text color="textSecondary">{info.title}</Text>
+        <Text color="secondary">{info.title}</Text>
       </View>
       {info.lines.length > 0 && (
         <View style={styles.lines}>
           {info.lines.map((line, index) => (
-            <Text key={index} variant="caption" color="textSecondary">
+            <Text key={index} variant="caption" color="secondary">
               {line}
             </Text>
           ))}
@@ -159,7 +168,7 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
         ))}
       </View>
       <Pressable onPress={toggleAutoApprove} disabled={state.submitting}>
-        <Text variant="caption" color="textSecondary">
+        <Text variant="caption" color="secondary">
           {autoApproved
             ? "✓ Auto-approving this session"
             : "Auto-approve this session"}

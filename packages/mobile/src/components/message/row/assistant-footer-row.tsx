@@ -16,7 +16,7 @@ export function AssistantFooterRow({
   const duration = formatDuration(message.time.created, message.time.completed);
 
   return (
-    <Text variant="caption" color="textSecondary">
+    <Text variant="caption" color="secondary">
       {message.agent} · {message.model.id}
       {message.model.variant ? ` (${message.model.variant})` : ""} ·{" "}
       {message.model.providerID}

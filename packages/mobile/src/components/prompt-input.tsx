@@ -19,7 +19,7 @@ export function PromptInput({
   onSubmit?: (text: string) => Promise<void>;
   placeholder?: string;
 }) {
-  const { colors } = useTheme();
+  const { colors, effects } = useTheme();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -49,24 +49,29 @@ export function PromptInput({
   const canSend = text.trim().length > 0 && !sending;
 
   const isActive = canSend || sending;
-  const buttonBg = isActive ? colors.primary : colors.border;
-  const iconColor = isActive ? colors.onPrimary : colors.textSecondary;
+  const buttonBg = isActive
+    ? colors.action.primary
+    : colors.action.disabled;
+  const iconColor = isActive
+    ? colors.action.primaryText
+    : colors.icon.muted;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
       <View
         style={[
           styles.inputWrapper,
           {
-            backgroundColor: colors.surface,
-            borderColor: colors.border,
+            backgroundColor: colors.background.surface,
+            borderColor: colors.border.default,
+            ...effects.elevation.raised,
           },
         ]}
       >
         <TextInput
-          style={[styles.input, typography.body, { color: colors.text }]}
+          style={[styles.input, typography.body, { color: colors.text.primary }]}
           placeholder={placeholder}
-          placeholderTextColor={colors.textSecondary}
+          placeholderTextColor={colors.text.secondary}
           value={text}
           onChangeText={(v) => {
             if (!sending) setText(v);
@@ -81,7 +86,7 @@ export function PromptInput({
           disabled={!canSend}
         >
           {sending ? (
-            <ActivityIndicator size="small" color={colors.onPrimary} />
+              <ActivityIndicator size="small" color={colors.action.primaryText} />
           ) : (
             <ArrowUp size={18} color={iconColor} />
           )}

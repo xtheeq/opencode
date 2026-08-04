@@ -31,8 +31,8 @@ export function MarkdownPart({
       flavor="github"
       streamingAnimation
       selectable
-      selectionHandleColor={colors.primary}
-      selectionColor={colors.primary + "33"}
+      selectionHandleColor={colors.action.primary}
+      selectionColor={colors.action.primary + "33"}
       maxFontSizeMultiplier={1.5}
       spoilerOverlay="solid"
       selectionMenuConfig={SELECTION_MENU_CONFIG}

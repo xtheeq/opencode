@@ -7,7 +7,7 @@ export default function ChatLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: colors.background },
+        contentStyle: { backgroundColor: colors.background.default },
       }}
     />
   );

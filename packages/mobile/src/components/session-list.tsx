@@ -49,8 +49,8 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
 
   if (!loaded) {
     return (
-      <View style={[styles.centered, { backgroundColor: colors.background }]}>
-        <ActivityIndicator size="large" color={colors.text} />
+      <View style={[styles.centered, { backgroundColor: colors.background.default }]}>
+          <ActivityIndicator size="large" color={colors.text.primary} />
       </View>
     );
   }
@@ -62,7 +62,7 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
       renderItem={({ item }) => (
         <SessionCard session={item} onPress={() => openSession(item.id)} />
       )}
-      style={{ backgroundColor: colors.background }}
+      style={{ backgroundColor: colors.background.default }}
       refreshing={isRefreshing}
       onRefresh={handleRefresh}
       ListHeaderComponent={
@@ -71,14 +71,17 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
           disabled={isCreating}
           style={[
             styles.newSession,
-            { borderColor: colors.border, opacity: isCreating ? 0.6 : 1 },
+            {
+              borderColor: colors.border.default,
+              opacity: isCreating ? 0.6 : 1,
+            },
           ]}
         >
           {isCreating ? (
-            <ActivityIndicator size="small" color={colors.text} />
+            <ActivityIndicator size="small" color={colors.text.primary} />
           ) : (
             <View style={styles.newSessionRow}>
-              <Plus size={18} color={colors.text} />
+              <Plus size={18} color={colors.icon.default} />
               <Text variant="body">New session</Text>
             </View>
           )}
@@ -86,12 +89,12 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
       }
       ListEmptyComponent={
         <View style={styles.centered}>
-          <Text color="textSecondary">No sessions yet</Text>
+          <Text color="secondary">No sessions yet</Text>
         </View>
       }
       contentContainerStyle={[
         {
-          backgroundColor: colors.background,
+          backgroundColor: colors.background.default,
           paddingTop: spacing.sm,
           paddingBottom: insets.bottom + spacing.sm,
           flexGrow: 1,
