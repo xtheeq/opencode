@@ -22,7 +22,13 @@ import {
 } from "@/services/server-store";
 import { eventStore } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
-import { syncLocation, syncSessionList, syncProjectList } from "@/stores/sync";
+import {
+  hydrateSession,
+  sync,
+  syncLocation,
+  syncSessionList,
+  syncProjectList,
+} from "@/stores/sync";
 
 export type ConnectionStatus =
   | "loading"
@@ -81,35 +87,33 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       setEventStatus(ev.status);
       setEventError(ev.error ?? null);
       if (ev.status === "connected") {
-        // The event feed is live-only, so re-arm session backfills on every
-        // connect; sessions that were loaded refetch missed events.
-        eventStore.setState((s) => {
-          for (const sessionID of Object.keys(s._loadedMessages)) {
-            s._loadedMessages[sessionID] = false;
-          }
-          for (const sessionID of Object.keys(s._loadedBlockers)) {
-            s._loadedBlockers[sessionID] = false;
-          }
-        });
-        getClient()
-          .session.active()
-          .then((active) =>
+        // The event feed is live-only, so recovery is a rehydration of every
+        // previously-loaded session's projection. The event manager buffers
+        // live events during the refetch and replays them in order once the
+        // projection lands, so the store is never a mix of a stale snapshot
+        // and overlapping live mutations. The global sync cache is cleared so
+        // the eager catalog/session/project refetches actually run.
+        sync.invalidate();
+        void mgr
+          .runHydrated(async () => {
+            const active = await getClient().session.active();
             eventStore.setState((s) => {
               for (const [sessionID, session] of Object.entries(active)) {
                 s.session.active[sessionID] = session.type;
               }
-            }),
-          )
-          .catch(() => {});
-        syncLocation().catch((e) =>
-          console.error("Failed to preload location", e),
-        );
-        syncSessionList().catch((e) =>
-          console.error("Failed to preload sessions", e),
-        );
-        syncProjectList().catch((e) =>
-          console.error("Failed to preload projects", e),
-        );
+            });
+            await Promise.all([
+              ...Object.keys(eventStore.getState()._hydration).map((sessionID) =>
+                hydrateSession(sessionID),
+              ),
+              syncLocation(),
+              syncSessionList(),
+              syncProjectList(),
+            ]);
+          })
+          .catch((error) =>
+            console.error("Failed to recover after reconnect", error),
+          );
       }
     });
     return () => {

@@ -29,6 +29,8 @@ import { immer } from "zustand/middleware/immer";
 
 export type DataSessionStatus = "idle" | "running";
 
+export type HydrationStatus = "loading" | "loaded";
+
 export const messageIDFromEvent = (eventID: string) =>
   eventID.replace(/^evt_/, "msg_");
 
@@ -77,12 +79,12 @@ export type Store = {
     permission: Record<string, PermissionSavedInfo[]>;
   };
   location: Record<string, LocationData>;
-  _loadedMessages: Record<string, boolean>;
-  _loadedBlockers: Record<string, boolean>;
-  _loadingBlockers: Record<string, boolean>;
+  // Per-session projection state. Absence means "never hydrated"; "loading"
+  // and "loaded" are the two stages. Reconnect recovery hydrates every
+  // session that has a key here.
+  _hydration: Record<string, HydrationStatus>;
   _loadedSessions: boolean;
   _defaultLocation: LocationRef;
-  _loadingMessages: Record<string, boolean>;
 };
 
 export function locationKey(location: LocationRef) {
@@ -110,10 +112,7 @@ export const eventStore = create<Store>()(
     project: { info: {}, permission: {} },
     location: {},
     _defaultLocation: { directory: "" },
-    _loadedMessages: {},
-    _loadingMessages: {},
-    _loadedBlockers: {},
-    _loadingBlockers: {},
+    _hydration: {},
     _loadedSessions: false,
   })),
 );

@@ -30,6 +30,9 @@ const MAX_RECONNECT_ATTEMPTS = 6;
 const CONNECT_TIMEOUT = 2_000;
 const CONNECTION_HISTORY_LIMIT = 50;
 const FLUSH_INTERVAL_MS = 16;
+// Bounds how long a hydration window may hold live events before the UI
+// unblocks; a hung projection fetch must never freeze event dispatch.
+const HYDRATION_TIMEOUT_MS = 10_000;
 
 const TRANSIENT_MESSAGES = [
   // Mirrors @opencode-ai/core/util/retry.ts;
@@ -184,6 +187,7 @@ class EventManager {
   private history: ConnectionStatusEvent[] = [];
   private pending: V2Event[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
+  private hydrating = false;
 
   private onReconnected?: () => void;
   private reconnect?: TransportReconnect;
@@ -260,7 +264,7 @@ class EventManager {
 
   private emit(event: V2Event) {
     this.pending.push(event);
-    if (this.flushTimer) return;
+    if (this.flushTimer || this.hydrating) return;
     this.flushTimer = setTimeout(() => this.flushEvents(), FLUSH_INTERVAL_MS);
   }
 
@@ -269,10 +273,35 @@ class EventManager {
       clearTimeout(this.flushTimer);
       this.flushTimer = undefined;
     }
+    if (this.hydrating) return;
     const events = this.pending;
     this.pending = [];
     const coalesced = coalesceEvents(events);
     for (const event of coalesced) this.dispatch(event);
+  }
+
+  // Runs a refetch with event dispatch suspended: live events accumulate in
+  // order and replay after the projection lands, so the store is always a
+  // clean fold of the hydrated projection plus events since it started.
+  // A failed or timed-out hydration still releases buffered events.
+  async runHydrated(fn: () => Promise<void>): Promise<void> {
+    if (this.hydrating) {
+      await fn();
+      return;
+    }
+    this.hydrating = true;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        const timer = setTimeout(() => {
+          clearTimeout(timer);
+          reject(new Error("Hydration timed out"));
+        }, HYDRATION_TIMEOUT_MS);
+      });
+      await Promise.race([fn(), timeout]);
+    } finally {
+      this.hydrating = false;
+      this.flushEvents();
+    }
   }
 
   private dispatch(event: V2Event) {

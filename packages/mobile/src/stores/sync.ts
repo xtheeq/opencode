@@ -207,19 +207,13 @@ export function refreshLocation(field: CatalogField, location: LocationRef) {
 export function removeSession(store: Store, sessionID: string) {
   messageIndex.delete(sessionID);
   sync.invalidate(`session:${sessionID}`);
-  sync.invalidate(`session.pending:${sessionID}`);
-  sync.invalidate(`session.message:${sessionID}`);
-  sync.invalidate(`session.blocker:${sessionID}`);
   delete store.session.info[sessionID];
   delete store.session.active[sessionID];
   delete store.session.message[sessionID];
   delete store.session.pending[sessionID];
   delete store.session.input[sessionID];
   delete store.session.blocker[sessionID];
-  delete store._loadedMessages[sessionID];
-  delete store._loadingMessages[sessionID];
-  delete store._loadedBlockers[sessionID];
-  delete store._loadingBlockers[sessionID];
+  delete store._hydration[sessionID];
   for (const [rootID, family] of Object.entries(store.session.family)) {
     const next = family.filter((id) => id !== sessionID);
     if (next.length === 0) delete store.session.family[rootID];
@@ -237,52 +231,12 @@ export function loadSession(sessionID: string) {
   });
 }
 
-export async function loadMessages(sessionID: string) {
-  eventStore.setState((s) => {
-    s._loadingMessages[sessionID] = true;
-  });
-  await sync.run(`session.message:${sessionID}`, async () => {
-    const started = new Set(
-      (eventStore.getState().session.message[sessionID] ?? []).map(
-        (message) => message.id,
-      ),
-    );
-    const response = await getClient().message.list({
-      sessionID,
-      limit: 200,
-      order: "desc",
-    });
-    const fetched = response.data.toReversed();
-    eventStore.setState((s) => {
-      const localOnly = new Set([
-        ...(s.session.pending[sessionID]?.map((p) => p.id) ?? []),
-        ...(s.session.input[sessionID] ?? []),
-      ]);
-      const merged = reconcileMessages(
-        fetched,
-        s.session.message[sessionID] ?? [],
-        started,
-        localOnly,
-      );
-      s.session.message[sessionID] = merged;
-      messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
-      s._loadedMessages[sessionID] = true;
-      s._loadingMessages[sessionID] = false;
-    });
-  });
-  // session.created pre-completes this sync key, so the loader can be skipped.
-  eventStore.setState((s) => {
-    if (s._loadingMessages[sessionID]) {
-      s._loadingMessages[sessionID] = false;
-      s._loadedMessages[sessionID] = true;
-    }
-  });
-}
-
-// Server rows replace existing ones; rows the server dropped (deleted or
-// reverted during a gap) are removed. Rows that are local-only (unpromoted
-// inputs) or arrived via live events while the snapshot was in flight
-// (`started` is the pre-fetch id set) are kept so a refetch never loses them.
+// Reconciles a fresh server projection with the local rows. Server rows
+// replace existing ones; rows the server dropped are removed. Rows that are
+// local-only (unpromoted inputs) or arrived via live events while the
+// snapshot was in flight (`started` is the pre-fetch id set) are kept so a
+// refetch never loses them. During the buffered reconnect hydration no live
+// events interleave, so the `started` protection is inert there.
 function reconcileMessages(
   fetched: SessionMessageInfo[],
   existing: SessionMessageInfo[],
@@ -306,34 +260,74 @@ function reconcileMessages(
   return result;
 }
 
-export async function syncBlockers(sessionID: string) {
-  eventStore.setState((s) => {
-    s._loadingBlockers[sessionID] = true;
+const hydrating = new Map<string, Promise<void>>();
+
+export function hydrateSession(sessionID: string): Promise<void> {
+  const active = hydrating.get(sessionID);
+  if (active) return active;
+  const pending = doHydrate(sessionID).finally(() => {
+    if (hydrating.get(sessionID) === pending) hydrating.delete(sessionID);
   });
-  return sync.run(`session.blocker:${sessionID}`, async () => {
+  hydrating.set(sessionID, pending);
+  return pending;
+}
+
+async function doHydrate(sessionID: string) {
+  eventStore.setState((s) => {
+    s._hydration[sessionID] = "loading";
+  });
+  try {
+    const [session, messages, pending] = await Promise.all([
+      getClient().session.get({ sessionID }),
+      getClient().message.list({ sessionID, limit: 200, order: "desc" }),
+      getClient().session.pending.list({ sessionID }),
+    ]);
     const [permissions, forms] = await Promise.allSettled([
       getClient().permission.list({ sessionID }),
       getClient().form.list({ sessionID }),
     ]);
-    const blockers: Blocker[] = [];
-    if (permissions.status === "fulfilled") {
-      for (const request of permissions.value)
-        blockers.push({ kind: "permission", request });
-    }
-    if (forms.status === "fulfilled") {
-      for (const request of forms.value)
-        blockers.push({ kind: "form", request });
-    }
     eventStore.setState((s) => {
+      const started = new Set(
+        (s.session.message[sessionID] ?? []).map((message) => message.id),
+      );
+      s.session.info[sessionID] = session;
+      registerSession(s, sessionID);
+      const localOnly = new Set([
+        ...(s.session.pending[sessionID]?.map((p) => p.id) ?? []),
+        ...(s.session.input[sessionID] ?? []),
+      ]);
+      const merged = reconcileMessages(
+        messages.data.toReversed(),
+        s.session.message[sessionID] ?? [],
+        started,
+        localOnly,
+      );
+      s.session.message[sessionID] = merged;
+      messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
+      s.session.pending[sessionID] = pending;
+      const blockers: Blocker[] = [];
+      if (permissions.status === "fulfilled") {
+        for (const request of permissions.value)
+          blockers.push({ kind: "permission", request });
+      }
+      if (forms.status === "fulfilled") {
+        for (const request of forms.value)
+          blockers.push({ kind: "form", request });
+      }
       s.session.blocker[sessionID] = blockers;
-      s._loadedBlockers[sessionID] = true;
-      s._loadingBlockers[sessionID] = false;
+      s._hydration[sessionID] = "loaded";
     });
     // Auto-approve requests restored by the backfill after a reconnect.
     if (eventStore.getState().session.autoApprove[sessionID]) {
       sweepAutoApproved(sessionID);
     }
-  });
+  } catch (error) {
+    console.error("Failed to hydrate session", sessionID, error);
+    // Show whatever is cached; the next reconnect re-hydrates.
+    eventStore.setState((s) => {
+      s._hydration[sessionID] = "loaded";
+    });
+  }
 }
 
 export async function syncGlobalBlockers(location: LocationRef) {
@@ -354,8 +348,6 @@ export async function syncGlobalBlockers(location: LocationRef) {
       }));
     eventStore.setState((s) => {
       s.session.blocker["global"] = blockers;
-      s._loadedBlockers["global"] = true;
-      s._loadingBlockers["global"] = false;
     });
   });
 }

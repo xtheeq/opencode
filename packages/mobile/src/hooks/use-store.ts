@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { eventStore } from "@/stores/store";
-import { loadMessages } from "@/stores/sync";
+import { hydrateSession } from "@/stores/sync";
 import type {
   SessionInfo,
   SessionMessageInfo,
@@ -34,15 +34,18 @@ export function useSessionActive(sessionID: string) {
 export function useSessionMessages(sessionID: string) {
   const state = eventStore(
     useShallow((s) => ({
-      loaded: s._loadedMessages[sessionID] ?? false,
-      loading: s._loadingMessages[sessionID] ?? false,
+      hydration: s._hydration[sessionID],
       messages: s.session.message[sessionID] ?? EMPTY_MESSAGES,
     })),
   );
   useEffect(() => {
-    if (!state.loaded) loadMessages(sessionID);
-  }, [sessionID, state.loaded]);
-  return state;
+    if (state.hydration !== "loaded") void hydrateSession(sessionID);
+  }, [sessionID, state.hydration]);
+  return {
+    messages: state.messages,
+    loaded: state.hydration === "loaded",
+    loading: state.hydration === "loading",
+  };
 }
 
 export type { SessionInfo, SessionMessageInfo };

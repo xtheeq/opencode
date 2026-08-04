@@ -26,8 +26,6 @@ export function handleEvent(event: V2Event) {
     case "session.created":
       sync.invalidate(`session:${event.data.sessionID}`);
       loadSession(event.data.sessionID);
-      sync.complete(`session.pending:${event.data.sessionID}`);
-      sync.complete(`session.message:${event.data.sessionID}`);
       break;
 
     case "session.deleted":
