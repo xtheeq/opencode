@@ -1,10 +1,9 @@
-import { StyleSheet, TouchableOpacity, View } from "react-native";
-import { router, useNavigation } from "expo-router";
-import { DrawerActions } from "expo-router/react-navigation";
+import { StyleSheet, View } from "react-native";
+import { router } from "expo-router";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { spacing, useTheme } from "@/theme";
-import MenuIcon from "lucide-react-native/icons/menu";
+import { useTheme } from "@/theme";
+import { AppHeader } from "@/components/app-header";
 import { PromptInput } from "@/components/prompt-input";
 import { useCreateSession } from "@/hooks/use-create-session";
 import { getClient } from "@/services/api";
@@ -13,7 +12,6 @@ export default function HomeScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createSession } = useCreateSession();
-  const navigation = useNavigation();
 
   async function handleInitialSend(text: string) {
     const session = await createSession();
@@ -32,15 +30,7 @@ export default function HomeScreen() {
         { backgroundColor: colors.background.default },
       ]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          accessibilityLabel="Open sessions"
-          hitSlop={8}
-        >
-          <MenuIcon size={20} color={colors.icon.default} />
-        </TouchableOpacity>
-      </View>
+      <AppHeader />
 
       <View style={{ flex: 1 }} />
 
@@ -57,11 +47,5 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   connectedContainer: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
   },
 });

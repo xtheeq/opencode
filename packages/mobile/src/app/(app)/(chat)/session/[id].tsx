@@ -1,14 +1,10 @@
 import { useEffect } from "react";
-import { Keyboard, StyleSheet, TouchableOpacity, View } from "react-native";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import { DrawerActions } from "expo-router/react-navigation";
-import {
-  KeyboardGestureArea,
-  KeyboardStickyView,
-} from "react-native-keyboard-controller";
+import { Keyboard, StyleSheet, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
+import { KeyboardGestureArea, KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import MenuIcon from "lucide-react-native/icons/menu";
-import { spacing, useTheme } from "@/theme";
+import { useTheme } from "@/theme";
+import { AppHeader } from "@/components/app-header";
 import { MessageTimeline } from "@/components/message-timeline";
 import { PromptInput } from "@/components/prompt-input";
 import { BlockerDock } from "@/components/blockers";
@@ -18,7 +14,6 @@ export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const navigation = useNavigation();
   const { blocker, blocked } = useSessionBlockers(id);
 
   useEffect(() => {
@@ -29,15 +24,7 @@ export default function SessionScreen() {
     <View
       style={[styles.container, { backgroundColor: colors.background.default }]}
     >
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
-          accessibilityLabel="Open sessions"
-          hitSlop={8}
-        >
-          <MenuIcon size={20} color={colors.icon.default} />
-        </TouchableOpacity>
-      </View>
+      <AppHeader />
       <KeyboardGestureArea interpolator="ios" style={styles.body}>
         <MessageTimeline sessionID={id} />
       </KeyboardGestureArea>
@@ -55,12 +42,6 @@ export default function SessionScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.md,
   },
   body: {
     flex: 1,
