@@ -171,11 +171,11 @@ export function findRunningCompaction(messages: SessionMessageInfo[]) {
 
 export function latestTool(
   assistant: SessionMessageAssistant | undefined,
-  callID?: string,
+  id?: string,
 ) {
   return assistant?.content.findLast(
     (item): item is SessionMessageAssistantTool =>
-      item.type === "tool" && (callID === undefined || item.id === callID),
+      item.type === "tool" && (id === undefined || item.id === id),
   );
 }
 
@@ -290,7 +290,7 @@ export function resolvePermissionTool(
     (item): item is SessionMessageAssistant =>
       item.type === "assistant" && item.id === source.messageID,
   );
-  return latestTool(assistant, source.callID);
+  return latestTool(assistant, source.id);
 }
 
 const BLOCKER_PRIORITY: BlockerKind[] = ["permission", "form"];

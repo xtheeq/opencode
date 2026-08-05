@@ -421,7 +421,7 @@ export function handleEvent(event: V2Event) {
           event.data.assistantMessageID,
         )?.content.push({
           type: "tool",
-          id: event.data.callID,
+          id: event.data.id,
           name: event.data.name,
           time: { created: event.created },
           state: { status: "streaming", input: "" },
@@ -436,7 +436,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (match?.state.status === "streaming")
           match.state.input += event.data.delta;
@@ -450,7 +450,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (match?.state.status === "streaming")
           match.state.input = event.data.text;
@@ -464,7 +464,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (!match) return;
         match.time.ran = event.created;
@@ -485,7 +485,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (match?.state.status !== "running") return;
         match.state.metadata = event.data.metadata;
@@ -499,7 +499,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (match?.state.status !== "running") return;
         match.state = {
@@ -521,7 +521,7 @@ export function handleEvent(event: V2Event) {
         if (!messages) return;
         const match = latestTool(
           findAssistant(messages, idx, event.data.assistantMessageID),
-          event.data.callID,
+          event.data.id,
         );
         if (
           !match ||

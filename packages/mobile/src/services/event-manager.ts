@@ -101,7 +101,7 @@ function deltaCoalesceKey(event: DeltaEvent): string {
     case "session.reasoning.delta":
       return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.ordinal}`;
     case "session.tool.input.delta":
-      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.callID}`;
+      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.id}`;
     case "session.compaction.delta":
       return `${event.type}:${event.data.sessionID}`;
   }
