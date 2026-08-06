@@ -1,9 +1,10 @@
 import { AppState, type AppStateStatus } from "react-native";
 import {
-  ClientError,
   type OpenCodeClient,
   type V2Event,
 } from "@opencode-ai/client/promise";
+import { isTransientError } from "@/services/transient-error";
+import { coalesceEvents } from "@/services/event-coalesce";
 
 type EventMap = { [K in V2Event["type"]]: Extract<V2Event, { type: K }> };
 
@@ -33,118 +34,6 @@ const FLUSH_INTERVAL_MS = 16;
 // Bounds how long a hydration window may hold live events before the UI
 // unblocks; a hung projection fetch must never freeze event dispatch.
 const HYDRATION_TIMEOUT_MS = 10_000;
-
-const TRANSIENT_MESSAGES = [
-  // Mirrors @opencode-ai/core/util/retry.ts;
-  "load failed",
-  "network connection was lost",
-  "network request failed",
-  "failed to fetch",
-  "econnreset",
-  "econnrefused",
-  "enotfound",
-  "getaddrinfo",
-  "etimedout",
-  "socket hang up",
-  "timed out connecting to server",
-  "event stream disconnected",
-  "event stream did not start with server.connected",
-];
-
-function isTransientError(error: unknown): boolean {
-  if (!error) return false;
-  if (error instanceof ClientError) {
-    switch (error.reason) {
-      case "Transport":
-        return isTransientError(error.cause);
-      case "UnexpectedStatus": {
-        const status = (error.cause as { status?: number } | undefined)?.status;
-        return status !== undefined && status >= 500;
-      }
-      case "UnsupportedContentType":
-      case "MalformedResponse":
-      case "SseEventTooLarge":
-        return false;
-    }
-  }
-  const message = String(
-    error instanceof Error ? error.message : error,
-  ).toLowerCase();
-  return TRANSIENT_MESSAGES.some((m) => message.includes(m));
-}
-
-type DeltaEvent = Extract<
-  V2Event,
-  {
-    type:
-      | "session.text.delta"
-      | "session.reasoning.delta"
-      | "session.tool.input.delta"
-      | "session.compaction.delta";
-  }
->;
-
-const DELTA_TYPES = new Set([
-  "session.text.delta",
-  "session.reasoning.delta",
-  "session.tool.input.delta",
-  "session.compaction.delta",
-]);
-
-function isDeltaEvent(event: V2Event): event is DeltaEvent {
-  return DELTA_TYPES.has(event.type);
-}
-
-function deltaCoalesceKey(event: DeltaEvent): string {
-  switch (event.type) {
-    case "session.text.delta":
-    case "session.reasoning.delta":
-      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.ordinal}`;
-    case "session.tool.input.delta":
-      return `${event.type}:${event.data.sessionID}:${event.data.assistantMessageID}:${event.data.id}`;
-    case "session.compaction.delta":
-      return `${event.type}:${event.data.sessionID}`;
-  }
-}
-
-function deltaFragment(event: DeltaEvent): string {
-  return event.type === "session.compaction.delta"
-    ? event.data.text
-    : event.data.delta;
-}
-
-function mergeDelta(prev: DeltaEvent, next: DeltaEvent): DeltaEvent {
-  const fragment = deltaFragment(prev) + deltaFragment(next);
-  switch (next.type) {
-    case "session.compaction.delta":
-      return { ...next, data: { ...next.data, text: fragment } };
-    case "session.text.delta":
-      return { ...next, data: { ...next.data, delta: fragment } };
-    case "session.reasoning.delta":
-      return { ...next, data: { ...next.data, delta: fragment } };
-    case "session.tool.input.delta":
-      return { ...next, data: { ...next.data, delta: fragment } };
-  }
-}
-
-function coalesceEvents(events: V2Event[]): V2Event[] {
-  const result: V2Event[] = [];
-  for (const event of events) {
-    if (isDeltaEvent(event)) {
-      const prev = result[result.length - 1];
-      if (
-        prev &&
-        isDeltaEvent(prev) &&
-        deltaCoalesceKey(prev) === deltaCoalesceKey(event)
-      ) {
-        result[result.length - 1] = mergeDelta(prev, event);
-        continue;
-      }
-    }
-    result.push(event);
-  }
-  return result;
-}
 
 let instance: EventManager | null = null;
 
