@@ -1,7 +1,10 @@
 import { useEffect } from "react";
 import { Keyboard, StyleSheet, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import { KeyboardGestureArea, KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  KeyboardGestureArea,
+  KeyboardStickyView,
+} from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
 import { AppHeader } from "@/components/app-header";

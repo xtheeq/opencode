@@ -410,9 +410,9 @@ export async function syncProjectList() {
 // lands, so the store is never a mix of a stale snapshot and overlapping
 // live mutations. The global sync cache is cleared so the eager
 // catalog/session/project refetches actually run.
-export async function recoverConnection(
-  mgr: { runHydrated(fn: () => Promise<void>): Promise<void> },
-): Promise<void> {
+export async function recoverConnection(mgr: {
+  runHydrated(fn: () => Promise<void>): Promise<void>;
+}): Promise<void> {
   sync.invalidate();
   await mgr.runHydrated(async () => {
     const active = await getClient().session.active();

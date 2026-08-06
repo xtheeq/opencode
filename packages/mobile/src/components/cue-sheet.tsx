@@ -1,5 +1,11 @@
 import { useEffect } from "react";
-import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import X from "lucide-react-native/icons/x";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { BottomSheet, Button, Text } from "@/components/primitives";

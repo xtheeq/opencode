@@ -32,12 +32,11 @@ export function CueIndicator({ onPress }: { onPress: () => void }) {
           <Icon size={20} color={cueTint(foreground.kind, colors)} />
           {cues.length > 1 ? (
             <View
-              style={[
-                styles.badge,
-                { backgroundColor: colors.action.primary },
-              ]}
+              style={[styles.badge, { backgroundColor: colors.action.primary }]}
             >
-              <RNText style={[styles.badgeText, { color: colors.action.primaryText }]}>
+              <RNText
+                style={[styles.badgeText, { color: colors.action.primaryText }]}
+              >
                 {cues.length}
               </RNText>
             </View>

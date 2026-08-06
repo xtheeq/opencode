@@ -1,5 +1,9 @@
 import { Pressable, StyleSheet, View } from "react-native";
-import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  ReduceMotion,
+} from "react-native-reanimated";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { CUE_ICON, cueTint } from "@/components/cue-style";
@@ -21,7 +25,11 @@ export function CueSlot({
   if (!foreground) {
     return (
       <View style={styles.slot}>
-        <Animated.View entering={entering} exiting={exiting} style={styles.content}>
+        <Animated.View
+          entering={entering}
+          exiting={exiting}
+          style={styles.content}
+        >
           {title ? (
             <Text variant="label" numberOfLines={1}>
               {title}

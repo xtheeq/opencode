@@ -41,7 +41,9 @@ export function BottomSheet({
       handleComponent={showDragIndicator ? undefined : null}
       onClose={onClose}
     >
-      <View style={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}>
+      <View
+        style={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}
+      >
         {title || showCloseButton ? (
           <View style={styles.header}>
             <View style={styles.headerText}>

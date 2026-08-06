@@ -77,7 +77,11 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
     mgr.connect();
     const statusUnsub = mgr.onStatusChange((ev) => {
       eventStore.setState((s) => {
-        s.connection = { status: ev.status, attempt: ev.attempt, error: ev.error };
+        s.connection = {
+          status: ev.status,
+          attempt: ev.attempt,
+          error: ev.error,
+        };
       });
       if (ev.status === "connected") {
         void recoverConnection(mgr).catch((error) =>
