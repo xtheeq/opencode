@@ -19,6 +19,7 @@ import {
   setServerPassword,
   clearServerConfig,
 } from "@/services/server-store";
+import { useConnectionStatus } from "@/hooks/use-store";
 import { eventStore, getClient } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
 import {
@@ -50,7 +51,7 @@ const ConnectionContext = createContext<ConnectionValue | null>(null);
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [url, setUrl] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const connection = eventStore((s) => s.connection);
+  const connection = useConnectionStatus();
 
   // Load stored credentials from SecureStore on mount
   useEffect(() => {

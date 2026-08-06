@@ -9,6 +9,10 @@ import type {
 
 const EMPTY_MESSAGES: never[] = [];
 
+export function useConnectionStatus() {
+  return eventStore((s) => s.connection);
+}
+
 export function useSessions() {
   return eventStore(
     useShallow((s) =>
@@ -29,6 +33,10 @@ export function useSessionInfo(sessionID: string) {
 
 export function useSessionActive(sessionID: string) {
   return eventStore((s) => s.session.active[sessionID] ?? "idle");
+}
+
+export function useSessionMessagesRaw(sessionID: string) {
+  return eventStore((s) => s.session.message[sessionID]);
 }
 
 export function useSessionMessages(sessionID: string) {

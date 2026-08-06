@@ -3,7 +3,7 @@ import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { CUE_ICON, cueTint } from "@/components/cue-style";
-import { cueStore, selectForeground } from "@/stores/cues";
+import { selectForeground, useCues } from "@/stores/cues";
 
 export function CueSlot({
   title,
@@ -13,7 +13,7 @@ export function CueSlot({
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
-  const cues = cueStore((s) => s.cues);
+  const cues = useCues();
   const foreground = selectForeground(cues);
   const entering = FadeIn.duration(200).reduceMotion(ReduceMotion.System);
   const exiting = FadeOut.duration(150).reduceMotion(ReduceMotion.System);

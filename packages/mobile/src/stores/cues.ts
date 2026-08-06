@@ -35,6 +35,10 @@ export const cueStore = create<{ cues: Cue[] }>()(
   })),
 );
 
+export function useCues() {
+  return cueStore((s) => s.cues);
+}
+
 export function raiseCue(input: CueInput): string {
   const kind = input.kind ?? "info";
   const id = nextID();

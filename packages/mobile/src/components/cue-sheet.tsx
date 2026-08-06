@@ -3,7 +3,7 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "re
 import X from "lucide-react-native/icons/x";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { BottomSheet, Button, Text } from "@/components/primitives";
-import { cueStore, dismissAllCues, dismissCue } from "@/stores/cues";
+import { dismissAllCues, dismissCue, useCues } from "@/stores/cues";
 import { CUE_ICON, cueTint } from "@/components/cue-style";
 import type { Cue } from "@/types/cue";
 
@@ -15,7 +15,7 @@ export function CueSheet({
   onClose: () => void;
 }) {
   const { height } = useWindowDimensions();
-  const cues = cueStore((s) => s.cues);
+  const cues = useCues();
 
   useEffect(() => {
     if (visible && cues.length === 0) onClose();

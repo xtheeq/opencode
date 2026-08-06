@@ -3,8 +3,9 @@ import { Pressable, StyleSheet, View } from "react-native";
 import type { PermissionRequest } from "@opencode-ai/client/promise";
 import { Button, Text, TextInput } from "@/components/primitives";
 import { useAutoApprove } from "@/hooks/use-auto-approve";
+import { useSessionMessagesRaw } from "@/hooks/use-store";
 import { replyPermission } from "@/services/blocker-reply";
-import { eventStore, resolvePermissionTool } from "@/stores/store";
+import { resolvePermissionTool } from "@/stores/store";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import {
   createPermissionBodyState,
@@ -27,7 +28,7 @@ export function PermissionCard({ request }: { request: PermissionRequest }) {
   const { enabled: autoApproved, toggle: toggleAutoApprove } = useAutoApprove(
     request.sessionID,
   );
-  const messages = eventStore((s) => s.session.message[request.sessionID]);
+  const messages = useSessionMessagesRaw(request.sessionID);
   const tool = resolvePermissionTool(messages, request);
   const info = permissionInfo({ ...request, tool });
   const [state, setState] = useState(() => createPermissionBodyState(request));

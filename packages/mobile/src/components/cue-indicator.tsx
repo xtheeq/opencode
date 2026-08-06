@@ -5,12 +5,12 @@ import Animated, {
   SlideInRight,
 } from "react-native-reanimated";
 import { useTheme } from "@/theme";
-import { cueStore, selectForeground } from "@/stores/cues";
+import { selectForeground, useCues } from "@/stores/cues";
 import { CUE_ICON, cueTint } from "@/components/cue-style";
 
 export function CueIndicator({ onPress }: { onPress: () => void }) {
   const { colors } = useTheme();
-  const cues = cueStore((s) => s.cues);
+  const cues = useCues();
   const foreground = selectForeground(cues);
   const entering = SlideInRight.duration(200).reduceMotion(ReduceMotion.System);
   const exiting = FadeOut.duration(150).reduceMotion(ReduceMotion.System);
