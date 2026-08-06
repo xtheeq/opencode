@@ -6,7 +6,7 @@ import { useTheme } from "@/theme";
 import { AppHeader } from "@/components/app-header";
 import { PromptInput } from "@/components/prompt-input";
 import { useCreateSession } from "@/hooks/use-create-session";
-import { getClient } from "@/services/api";
+import { getClient } from "@/stores/store";
 
 export default function HomeScreen() {
   const { colors } = useTheme();

@@ -8,6 +8,7 @@ import type {
   McpResource,
   McpServer,
   ModelInfo,
+  OpenCodeClient,
   PermissionSavedInfo,
   PermissionRequest,
   Project,
@@ -85,6 +86,9 @@ export type Store = {
   _hydration: Record<string, HydrationStatus>;
   _loadedSessions: boolean;
   _defaultLocation: LocationRef;
+  // The live API client, owned by the store so every consumer (store, hooks,
+  // components) reads the same instance and tests can seed it directly.
+  _client: OpenCodeClient | null;
 };
 
 export function locationKey(location: LocationRef) {
@@ -114,8 +118,15 @@ export const eventStore = create<Store>()(
     _defaultLocation: { directory: "" },
     _hydration: {},
     _loadedSessions: false,
+    _client: null,
   })),
 );
+
+export function getClient(): OpenCodeClient {
+  const client = eventStore.getState()._client;
+  if (!client) throw new Error("Client not initialized");
+  return client;
+}
 
 export const messageIndex = new Map<string, Map<string, number>>();
 

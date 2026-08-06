@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import ArrowUp from "lucide-react-native/icons/arrow-up";
 import { spacing, borderRadius, typography, useTheme } from "@/theme";
-import { getClient } from "@/services/api";
+import { getClient } from "@/stores/store";
 
 export function PromptInput({
   sessionID,

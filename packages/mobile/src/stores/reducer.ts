@@ -1,5 +1,5 @@
 import type { SessionMessageInfo, V2Event } from "@opencode-ai/client/promise";
-import { getClient } from "@/services/api";
+import { getClient } from "@/stores/store";
 import { replyOnce } from "@/services/blocker-reply";
 import {
   activeAssistant,

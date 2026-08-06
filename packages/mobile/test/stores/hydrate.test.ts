@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type {
+  OpenCodeClient,
   SessionMessageInfo,
   SessionPendingInfo,
 } from "@opencode-ai/client/promise";
@@ -47,11 +48,6 @@ const fakeClient = {
   },
 };
 
-mock.module("@/services/api", () => ({
-  getClient: () => fakeClient,
-  createClient: () => fakeClient,
-}));
-
 let hydrateSession: (typeof import("@/stores/sync"))["hydrateSession"];
 let sync: (typeof import("@/stores/sync"))["sync"];
 let eventStore: (typeof import("@/stores/store"))["eventStore"];
@@ -78,6 +74,7 @@ beforeEach(async () => {
       autoApprove: {},
     };
     s._hydration = {};
+    s._client = fakeClient as unknown as OpenCodeClient;
   });
 });
 
@@ -149,10 +146,15 @@ describe("hydrateSession", () => {
   });
 
   test("a failed hydration keeps cached rows and still settles loaded", async () => {
-    fakeClient.message.list = async () => {
-      throw new Error("network connection was lost");
-    };
     eventStore.setState((s) => {
+      s._client = {
+        ...fakeClient,
+        message: {
+          list: async () => {
+            throw new Error("network connection was lost");
+          },
+        },
+      } as unknown as OpenCodeClient;
       s.session.message["ses_1"] = [cachedMessage("msg_cached")];
     });
 

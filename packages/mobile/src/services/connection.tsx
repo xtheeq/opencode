@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { createClient, getClient } from "@/services/api";
+import { createClient } from "@/services/api";
 import {
   createEventManager,
   destroyEventManager,
@@ -20,7 +20,7 @@ import {
   setServerPassword,
   clearServerConfig,
 } from "@/services/server-store";
-import { eventStore } from "@/stores/store";
+import { eventStore, getClient } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
 import {
   hydrateSession,
@@ -65,7 +65,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       ]);
       if (cancelled) return;
       if (storedUrl) {
-        createClient(storedUrl, storedPassword ?? undefined);
+        eventStore.setState((s) => {
+          s._client = createClient(storedUrl, storedPassword ?? undefined);
+        });
         createEventManager(getClient());
         setUrl(storedUrl);
       }
@@ -124,7 +126,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   }, [url]);
 
   const connect = useCallback((serverUrl: string, password?: string) => {
-    createClient(serverUrl, password);
+    eventStore.setState((s) => {
+      s._client = createClient(serverUrl, password);
+    });
     createEventManager(getClient());
     setServerUrl(serverUrl).catch(console.error);
     if (password) setServerPassword(password).catch(console.error);
@@ -138,6 +142,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
   const disconnect = useCallback(() => {
     destroyEventManager();
     clearServerConfig().catch(console.error);
+    eventStore.setState((s) => {
+      s._client = null;
+    });
     setUrl(null);
     setEventError(null);
     setEventStatus("disconnected");

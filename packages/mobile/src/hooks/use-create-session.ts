@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { getClient } from "@/services/api";
+import { getClient } from "@/stores/store";
 
 export function useCreateSession() {
   const [isCreating, setIsCreating] = useState(false);
