@@ -1,17 +1,15 @@
 import { Pressable, StyleSheet, Text as RNText, View } from "react-native";
 import Bell from "lucide-react-native/icons/bell";
 import { useTheme } from "@/theme";
-import { selectForeground, signalStore } from "@/stores/signals";
-import { SIGNAL_ICON, signalTint } from "@/components/signal-style";
+import { cueStore, selectForeground } from "@/stores/cues";
+import { CUE_ICON, cueTint } from "@/components/cue-style";
 
-export function SignalIndicator({ onPress }: { onPress: () => void }) {
+export function CueIndicator({ onPress }: { onPress: () => void }) {
   const { colors } = useTheme();
-  const signals = signalStore((s) => s.signals);
-  const foreground = selectForeground(signals);
-  const Icon = foreground ? SIGNAL_ICON[foreground.kind] : Bell;
-  const tint = foreground
-    ? signalTint(foreground.kind, colors)
-    : colors.icon.muted;
+  const cues = cueStore((s) => s.cues);
+  const foreground = selectForeground(cues);
+  const Icon = foreground ? CUE_ICON[foreground.kind] : Bell;
+  const tint = foreground ? cueTint(foreground.kind, colors) : colors.icon.muted;
 
   return (
     <Pressable
@@ -23,7 +21,7 @@ export function SignalIndicator({ onPress }: { onPress: () => void }) {
     >
       <View>
         <Icon size={20} color={tint} />
-        {signals.length > 1 ? (
+        {cues.length > 1 ? (
           <View
             style={[
               styles.badge,
@@ -31,7 +29,7 @@ export function SignalIndicator({ onPress }: { onPress: () => void }) {
             ]}
           >
             <RNText style={[styles.badgeText, { color: colors.action.primaryText }]}>
-              {signals.length}
+              {cues.length}
             </RNText>
           </View>
         ) : null}

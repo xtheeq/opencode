@@ -2,10 +2,10 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
-import { SIGNAL_ICON, signalTint } from "@/components/signal-style";
-import { selectForeground, signalStore } from "@/stores/signals";
+import { CUE_ICON, cueTint } from "@/components/cue-style";
+import { cueStore, selectForeground } from "@/stores/cues";
 
-export function SignalSlot({
+export function CueSlot({
   title,
   onPress,
 }: {
@@ -13,8 +13,8 @@ export function SignalSlot({
   onPress?: () => void;
 }) {
   const { colors } = useTheme();
-  const signals = signalStore((s) => s.signals);
-  const foreground = selectForeground(signals);
+  const cues = cueStore((s) => s.cues);
+  const foreground = selectForeground(cues);
   const entering = FadeIn.duration(200).reduceMotion(ReduceMotion.System);
   const exiting = FadeOut.duration(150).reduceMotion(ReduceMotion.System);
 
@@ -32,7 +32,7 @@ export function SignalSlot({
     );
   }
 
-  const Icon = SIGNAL_ICON[foreground.kind];
+  const Icon = CUE_ICON[foreground.kind];
   return (
     <Pressable
       onPress={onPress}
@@ -46,7 +46,7 @@ export function SignalSlot({
         exiting={exiting}
         style={styles.content}
       >
-        <Icon size={16} color={signalTint(foreground.kind, colors)} />
+        <Icon size={16} color={cueTint(foreground.kind, colors)} />
         <Text variant="label" numberOfLines={1} style={styles.message}>
           {foreground.title}
         </Text>

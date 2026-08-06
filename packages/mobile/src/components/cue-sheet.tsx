@@ -3,11 +3,11 @@ import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "re
 import X from "lucide-react-native/icons/x";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { BottomSheet, Button, Text } from "@/components/primitives";
-import { dismissAllSignals, dismissSignal, signalStore } from "@/stores/signals";
-import { SIGNAL_ICON, signalTint } from "@/components/signal-style";
-import type { Signal } from "@/types/signal";
+import { cueStore, dismissAllCues, dismissCue } from "@/stores/cues";
+import { CUE_ICON, cueTint } from "@/components/cue-style";
+import type { Cue } from "@/types/cue";
 
-export function SignalSheet({
+export function CueSheet({
   visible,
   onClose,
 }: {
@@ -15,11 +15,11 @@ export function SignalSheet({
   onClose: () => void;
 }) {
   const { height } = useWindowDimensions();
-  const signals = signalStore((s) => s.signals);
+  const cues = cueStore((s) => s.cues);
 
   useEffect(() => {
-    if (visible && signals.length === 0) onClose();
-  }, [visible, signals.length, onClose]);
+    if (visible && cues.length === 0) onClose();
+  }, [visible, cues.length, onClose]);
 
   return (
     <BottomSheet visible={visible} onClose={onClose} title="Alerts">
@@ -27,15 +27,15 @@ export function SignalSheet({
         style={[styles.list, { maxHeight: height * 0.7 }]}
         showsVerticalScrollIndicator={false}
       >
-        {signals.map((signal) => (
-          <SignalRow key={signal.id} signal={signal} />
+        {cues.map((cue) => (
+          <CueRow key={cue.id} cue={cue} />
         ))}
       </ScrollView>
-      {signals.length > 1 ? (
+      {cues.length > 1 ? (
         <Button
           title="Dismiss all"
           onPress={() => {
-            dismissAllSignals();
+            dismissAllCues();
             onClose();
           }}
           style={styles.dismissAll}
@@ -45,9 +45,9 @@ export function SignalSheet({
   );
 }
 
-function SignalRow({ signal }: { signal: Signal }) {
+function CueRow({ cue }: { cue: Cue }) {
   const { colors } = useTheme();
-  const Icon = SIGNAL_ICON[signal.kind];
+  const Icon = CUE_ICON[cue.kind];
 
   return (
     <View
@@ -59,19 +59,19 @@ function SignalRow({ signal }: { signal: Signal }) {
         },
       ]}
     >
-      <Icon size={18} color={signalTint(signal.kind, colors)} />
+      <Icon size={18} color={cueTint(cue.kind, colors)} />
       <View style={styles.rowContent}>
         <Text variant="body" numberOfLines={2}>
-          {signal.title}
+          {cue.title}
         </Text>
-        {signal.description ? (
+        {cue.description ? (
           <Text variant="caption" color="secondary" numberOfLines={3}>
-            {signal.description}
+            {cue.description}
           </Text>
         ) : null}
-        {signal.actions?.length ? (
+        {cue.actions?.length ? (
           <View style={styles.rowActions}>
-            {signal.actions.map((action, index) => (
+            {cue.actions.map((action, index) => (
               <Pressable
                 key={index}
                 onPress={action.onPress}
@@ -88,7 +88,7 @@ function SignalRow({ signal }: { signal: Signal }) {
         ) : null}
       </View>
       <Pressable
-        onPress={() => dismissSignal(signal.id)}
+        onPress={() => dismissCue(cue.id)}
         hitSlop={8}
         accessibilityLabel="Dismiss alert"
       >
