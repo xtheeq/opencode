@@ -1,10 +1,8 @@
 import { useEffect } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
-import Animated, { SlideInDown } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import X from "lucide-react-native/icons/x";
 import { borderRadius, spacing, useTheme } from "@/theme";
-import { Button, Text } from "@/components/primitives";
+import { BottomSheet, Button, Text } from "@/components/primitives";
 import { dismissAllSignals, dismissSignal, signalStore } from "@/stores/signals";
 import { SIGNAL_ICON, signalTint } from "@/components/signal-style";
 import type { Signal } from "@/types/signal";
@@ -16,8 +14,7 @@ export function SignalSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const { colors, effects } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const signals = signalStore((s) => s.signals);
 
   useEffect(() => {
@@ -25,57 +22,26 @@ export function SignalSheet({
   }, [visible, signals.length, onClose]);
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      onRequestClose={onClose}
-      animationType="fade"
-      statusBarTranslucent
-    >
-      <View style={styles.container}>
-        <Pressable
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: effects.overlay.scrim },
-          ]}
-          onPress={onClose}
-          accessibilityLabel="Close alerts"
+    <BottomSheet visible={visible} onClose={onClose} title="Alerts">
+      <ScrollView
+        style={[styles.list, { maxHeight: height * 0.7 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {signals.map((signal) => (
+          <SignalRow key={signal.id} signal={signal} />
+        ))}
+      </ScrollView>
+      {signals.length > 1 ? (
+        <Button
+          title="Dismiss all"
+          onPress={() => {
+            dismissAllSignals();
+            onClose();
+          }}
+          style={styles.dismissAll}
         />
-        <Animated.View
-          entering={SlideInDown}
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.background.elevated,
-              paddingBottom: insets.bottom + spacing.md,
-            },
-          ]}
-          onStartShouldSetResponder={() => true}
-        >
-          <View style={styles.header}>
-            <Text variant="label">Alerts</Text>
-            <Pressable onPress={onClose} hitSlop={8} accessibilityLabel="Close">
-              <X size={18} color={colors.icon.default} />
-            </Pressable>
-          </View>
-          <ScrollView style={styles.list}>
-            {signals.map((signal) => (
-              <SignalRow key={signal.id} signal={signal} />
-            ))}
-          </ScrollView>
-          {signals.length > 1 ? (
-            <Button
-              title="Dismiss all"
-              onPress={() => {
-                dismissAllSignals();
-                onClose();
-              }}
-              style={styles.dismissAll}
-            />
-          ) : null}
-        </Animated.View>
-      </View>
-    </Modal>
+      ) : null}
+    </BottomSheet>
   );
 }
 
@@ -133,23 +99,6 @@ function SignalRow({ signal }: { signal: Signal }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sheet: {
-    borderTopLeftRadius: borderRadius.xxl,
-    borderTopRightRadius: borderRadius.xxl,
-    paddingTop: spacing.md,
-    paddingHorizontal: spacing.md,
-    maxHeight: "70%",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingBottom: spacing.sm,
-  },
   list: {
     flexGrow: 0,
   },

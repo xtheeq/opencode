@@ -12,6 +12,7 @@
     "typecheck": "tsgo --noEmit"
   },
   "dependencies": {
+    "@expo/ui": "57.0.8",
     "@legendapp/list": "3.3.3",
     "@opencode-ai/client": "workspace:*",
     "expo": "~57.0.7",
