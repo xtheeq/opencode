@@ -9,9 +9,11 @@ import { MessageTimeline } from "@/components/message-timeline";
 import { PromptInput } from "@/components/prompt-input";
 import { BlockerDock } from "@/components/blockers";
 import { useSessionBlockers } from "@/hooks/use-blockers";
+import { useSessionInfo } from "@/hooks/use-store";
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const session = useSessionInfo(id);
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const { blocker, blocked } = useSessionBlockers(id);
@@ -24,7 +26,7 @@ export default function SessionScreen() {
     <View
       style={[styles.container, { backgroundColor: colors.background.default }]}
     >
-      <AppHeader />
+      <AppHeader title={session?.title || "Untitled"} />
       <KeyboardGestureArea interpolator="ios" style={styles.body}>
         <MessageTimeline sessionID={id} />
       </KeyboardGestureArea>
