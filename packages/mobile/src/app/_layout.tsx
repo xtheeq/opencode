@@ -3,13 +3,14 @@ import { SplashScreen, Stack } from "expo-router";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeProvider, useTheme } from "@/theme";
-import { ConnectionProvider, useConnection } from "@/services/connection";
+import { ConnectionManager } from "@/services/connection";
+import { useConnectionState } from "@/hooks/use-store";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 SplashScreen.preventAutoHideAsync();
 
 function SplashScreenController() {
-  const { status } = useConnection();
+  const status = useConnectionState();
   useEffect(() => {
     if (status !== "loading") SplashScreen.hide();
   }, [status]);
@@ -18,7 +19,7 @@ function SplashScreenController() {
 
 function RootNavigator() {
   const { colors } = useTheme();
-  const { status } = useConnection();
+  const status = useConnectionState();
   const appReady = status !== "idle" && status !== "loading";
   return (
     <Stack
@@ -41,14 +42,14 @@ export default function RootLayout() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <ConnectionProvider>
+        <ConnectionManager>
           <KeyboardProvider>
             <SplashScreenController />
             <SafeAreaView style={{ flex: 1 }}>
               <RootNavigator />
             </SafeAreaView>
           </KeyboardProvider>
-        </ConnectionProvider>
+        </ConnectionManager>
       </ThemeProvider>
     </ErrorBoundary>
   );

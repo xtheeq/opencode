@@ -98,11 +98,8 @@ export type Store = {
   _hydration: Record<string, HydrationStatus>;
   _loadedSessions: boolean;
   _defaultLocation: LocationRef;
-  // The live API client, owned by the store so every consumer (store, hooks,
-  // components) reads the same instance and tests can seed it directly.
   _client: OpenCodeClient | null;
-  // Published transport state. The EventManager owns the transition machine;
-  // this slice is the single value consumers read.
+  _serverConfigLoaded: boolean;
   connection: ConnectionSlice;
 };
 
@@ -134,6 +131,7 @@ export const eventStore = create<Store>()(
     _hydration: {},
     _loadedSessions: false,
     _client: null,
+    _serverConfigLoaded: false,
     connection: { status: "disconnected", attempt: 0 },
   })),
 );

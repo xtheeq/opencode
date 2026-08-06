@@ -107,3 +107,40 @@ describe("recoverConnection", () => {
     ).rejects.toThrow("hydration window failed");
   });
 });
+
+describe("connection status invalidation", () => {
+  test("a transition to connected keeps the cache valid", async () => {
+    let loads = 0;
+    await sync.run("key", async () => {
+      loads += 1;
+    });
+
+    eventStore.setState((s) => {
+      s.connection = { status: "connected", attempt: 0 };
+    });
+
+    await sync.run("key", async () => {
+      loads += 1;
+    });
+    expect(loads).toBe(1);
+  });
+
+  test("a status change away from connected invalidates cached reads", async () => {
+    let loads = 0;
+    await sync.run("key", async () => {
+      loads += 1;
+    });
+
+    eventStore.setState((s) => {
+      s.connection = { status: "connected", attempt: 0 };
+    });
+    eventStore.setState((s) => {
+      s.connection = { status: "reconnecting", attempt: 1 };
+    });
+
+    await sync.run("key", async () => {
+      loads += 1;
+    });
+    expect(loads).toBe(2);
+  });
+});

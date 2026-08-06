@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { StyleSheet, View } from "react-native";
-import { useConnection } from "@/services/connection";
+import { connect } from "@/services/connection";
+import { useConnectionState } from "@/hooks/use-store";
 import { spacing, useTheme } from "@/theme";
 import { Button, Text, TextInput } from "@/components/primitives";
 
 export function ConnectForm() {
   const { colors } = useTheme();
-  const { connect, status } = useConnection();
+  const status = useConnectionState();
   const [inputUrl, setInputUrl] = useState("http://");
   const [password, setPassword] = useState("");
 

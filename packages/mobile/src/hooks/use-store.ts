@@ -9,8 +9,34 @@ import type {
 
 const EMPTY_MESSAGES: never[] = [];
 
+export function useClient() {
+  return eventStore((s) => s._client);
+}
+
 export function useConnectionStatus() {
   return eventStore((s) => s.connection);
+}
+
+export type ConnectionState =
+  | "loading"
+  | "idle"
+  | "checking"
+  | "connected"
+  | "error";
+
+export function useConnectionState(): ConnectionState {
+  const initialized = eventStore((s) => s._serverConfigLoaded);
+  const hasServer = eventStore((s) => s._client !== null);
+  const connection = useConnectionStatus();
+  if (!initialized) return "loading";
+  if (!hasServer) return "idle";
+  if (connection.status === "connected") return "connected";
+  if (
+    connection.status === "connecting" ||
+    connection.status === "reconnecting"
+  )
+    return "checking";
+  return "error";
 }
 
 export function useSessions() {

@@ -431,3 +431,13 @@ export async function recoverConnection(
     ]);
   });
 }
+
+// While the connection is down, cached reads may be stale: any refetch issued
+// during the outage should hit the server rather than serve a completed cache
+// entry. Invalidate whenever the transport status leaves "connected"; the
+// reconnect path (recoverConnection) already invalidates on the way back in.
+eventStore.subscribe((state, prev) => {
+  if (state.connection.status === prev.connection.status) return;
+  if (state.connection.status === "connected") return;
+  sync.invalidate();
+});

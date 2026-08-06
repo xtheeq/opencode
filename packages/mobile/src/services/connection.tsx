@@ -1,11 +1,4 @@
-import {
-  createContext,
-  type ReactNode,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { type ReactNode, useEffect } from "react";
 import { createClient } from "@/services/api";
 import {
   createEventManager,
@@ -19,34 +12,36 @@ import {
   setServerPassword,
   clearServerConfig,
 } from "@/services/server-store";
-import { useConnectionStatus } from "@/hooks/use-store";
+import { useClient } from "@/hooks/use-store";
 import { eventStore, getClient } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
 import { recoverConnection } from "@/stores/sync";
 
-export type ConnectionStatus =
-  | "loading"
-  | "idle"
-  | "checking"
-  | "connected"
-  | "error";
-
-interface ConnectionValue {
-  status: ConnectionStatus;
-  error: string | null;
-  url: string | null;
-  connect: (url: string, password?: string) => void;
-  retry: () => void;
-  disconnect: () => void;
+export function connect(serverUrl: string, password?: string) {
+  eventStore.setState((s) => {
+    s._client = createClient(serverUrl, password);
+  });
+  createEventManager(getClient());
+  setServerUrl(serverUrl).catch(console.error);
+  if (password) setServerPassword(password).catch(console.error);
 }
 
-const ConnectionContext = createContext<ConnectionValue | null>(null);
+export function retry() {
+  getEventManager().connect();
+}
 
-export function ConnectionProvider({ children }: { children: ReactNode }) {
-  const [url, setUrl] = useState<string | null>(null);
-  const [initialized, setInitialized] = useState(false);
-  const connection = useConnectionStatus();
+export function disconnect() {
+  destroyEventManager();
+  clearServerConfig().catch(console.error);
+  eventStore.setState((s) => {
+    s._client = null;
+  });
+}
 
+// Mounts the connection lifecycle: loads stored credentials, then wires the
+// event stream once a server is configured. Client and status live in the
+// store; consumers read them through use-store hooks.
+export function ConnectionManager({ children }: { children: ReactNode }) {
   // Load stored credentials from SecureStore on mount
   useEffect(() => {
     let cancelled = false;
@@ -61,18 +56,21 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
           s._client = createClient(storedUrl, storedPassword ?? undefined);
         });
         createEventManager(getClient());
-        setUrl(storedUrl);
       }
-      setInitialized(true);
+      eventStore.setState((s) => {
+        s._serverConfigLoaded = true;
+      });
     })();
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Connect/disconnect the EventManager SSE stream when url changes
+  const client = useClient();
+
+  // Connect/disconnect the EventManager SSE stream when a server is configured
   useEffect(() => {
-    if (!url) return;
+    if (!client) return;
     const mgr = getEventManager();
 
     const eventUnsub = mgr.onAny(handleEvent);
@@ -92,61 +90,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       statusUnsub();
       mgr.disconnect();
     };
-  }, [url]);
+  }, [client]);
 
-  const connect = useCallback((serverUrl: string, password?: string) => {
-    eventStore.setState((s) => {
-      s._client = createClient(serverUrl, password);
-    });
-    createEventManager(getClient());
-    setServerUrl(serverUrl).catch(console.error);
-    if (password) setServerPassword(password).catch(console.error);
-    setUrl(serverUrl);
-  }, []);
-
-  const retry = useCallback(() => {
-    getEventManager().connect();
-  }, []);
-
-  const disconnect = useCallback(() => {
-    destroyEventManager();
-    clearServerConfig().catch(console.error);
-    eventStore.setState((s) => {
-      s._client = null;
-    });
-    setUrl(null);
-  }, []);
-
-  const derivedStatus: ConnectionStatus = !initialized
-    ? "loading"
-    : !url
-      ? "idle"
-      : connection.status === "connected"
-        ? "connected"
-        : connection.status === "connecting" ||
-            connection.status === "reconnecting"
-          ? "checking"
-          : "error";
-
-  return (
-    <ConnectionContext.Provider
-      value={{
-        status: derivedStatus,
-        error: connection.error ?? null,
-        url,
-        connect,
-        retry,
-        disconnect,
-      }}
-    >
-      {children}
-    </ConnectionContext.Provider>
-  );
-}
-
-export function useConnection(): ConnectionValue {
-  const ctx = useContext(ConnectionContext);
-  if (!ctx)
-    throw new Error("useConnection must be used within ConnectionProvider");
-  return ctx;
+  return <>{children}</>;
 }
