@@ -11,7 +11,6 @@ import {
   createEventManager,
   destroyEventManager,
   getEventManager,
-  type ConnectionStatus as EventConnectionStatus,
 } from "@/services/event-manager";
 import {
   getServerUrl,
@@ -51,9 +50,7 @@ const ConnectionContext = createContext<ConnectionValue | null>(null);
 export function ConnectionProvider({ children }: { children: ReactNode }) {
   const [url, setUrl] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
-  const [eventError, setEventError] = useState<string | null>(null);
-  const [eventStatus, setEventStatus] =
-    useState<EventConnectionStatus>("disconnected");
+  const connection = eventStore((s) => s.connection);
 
   // Load stored credentials from SecureStore on mount
   useEffect(() => {
@@ -86,8 +83,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     const eventUnsub = mgr.onAny(handleEvent);
     mgr.connect();
     const statusUnsub = mgr.onStatusChange((ev) => {
-      setEventStatus(ev.status);
-      setEventError(ev.error ?? null);
+      eventStore.setState((s) => {
+        s.connection = { status: ev.status, attempt: ev.attempt, error: ev.error };
+      });
       if (ev.status === "connected") {
         // The event feed is live-only, so recovery is a rehydration of every
         // previously-loaded session's projection. The event manager buffers
@@ -146,17 +144,16 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
       s._client = null;
     });
     setUrl(null);
-    setEventError(null);
-    setEventStatus("disconnected");
   }, []);
 
   const derivedStatus: ConnectionStatus = !initialized
     ? "loading"
     : !url
       ? "idle"
-      : eventStatus === "connected"
+      : connection.status === "connected"
         ? "connected"
-        : eventStatus === "connecting" || eventStatus === "reconnecting"
+        : connection.status === "connecting" ||
+            connection.status === "reconnecting"
           ? "checking"
           : "error";
 
@@ -164,7 +161,7 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
     <ConnectionContext.Provider
       value={{
         status: derivedStatus,
-        error: eventError,
+        error: connection.error ?? null,
         url,
         connect,
         retry,

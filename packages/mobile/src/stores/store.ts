@@ -32,6 +32,18 @@ export type DataSessionStatus = "idle" | "running";
 
 export type HydrationStatus = "loading" | "loaded";
 
+export type ConnectionStatus =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "disconnected";
+
+export type ConnectionSlice = {
+  status: ConnectionStatus;
+  attempt: number;
+  error?: string;
+};
+
 export const messageIDFromEvent = (eventID: string) =>
   eventID.replace(/^evt_/, "msg_");
 
@@ -89,6 +101,9 @@ export type Store = {
   // The live API client, owned by the store so every consumer (store, hooks,
   // components) reads the same instance and tests can seed it directly.
   _client: OpenCodeClient | null;
+  // Published transport state. The EventManager owns the transition machine;
+  // this slice is the single value consumers read.
+  connection: ConnectionSlice;
 };
 
 export function locationKey(location: LocationRef) {
@@ -119,6 +134,7 @@ export const eventStore = create<Store>()(
     _hydration: {},
     _loadedSessions: false,
     _client: null,
+    connection: { status: "disconnected", attempt: 0 },
   })),
 );
 
