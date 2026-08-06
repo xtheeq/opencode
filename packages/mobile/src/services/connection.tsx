@@ -22,13 +22,7 @@ import {
 import { useConnectionStatus } from "@/hooks/use-store";
 import { eventStore, getClient } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
-import {
-  hydrateSession,
-  sync,
-  syncLocation,
-  syncSessionList,
-  syncProjectList,
-} from "@/stores/sync";
+import { recoverConnection } from "@/stores/sync";
 
 export type ConnectionStatus =
   | "loading"
@@ -88,33 +82,9 @@ export function ConnectionProvider({ children }: { children: ReactNode }) {
         s.connection = { status: ev.status, attempt: ev.attempt, error: ev.error };
       });
       if (ev.status === "connected") {
-        // The event feed is live-only, so recovery is a rehydration of every
-        // previously-loaded session's projection. The event manager buffers
-        // live events during the refetch and replays them in order once the
-        // projection lands, so the store is never a mix of a stale snapshot
-        // and overlapping live mutations. The global sync cache is cleared so
-        // the eager catalog/session/project refetches actually run.
-        sync.invalidate();
-        void mgr
-          .runHydrated(async () => {
-            const active = await getClient().session.active();
-            eventStore.setState((s) => {
-              for (const [sessionID, session] of Object.entries(active)) {
-                s.session.active[sessionID] = session.type;
-              }
-            });
-            await Promise.all([
-              ...Object.keys(eventStore.getState()._hydration).map(
-                (sessionID) => hydrateSession(sessionID),
-              ),
-              syncLocation(),
-              syncSessionList(),
-              syncProjectList(),
-            ]);
-          })
-          .catch((error) =>
-            console.error("Failed to recover after reconnect", error),
-          );
+        void recoverConnection(mgr).catch((error) =>
+          console.error("Failed to recover after reconnect", error),
+        );
       }
     });
     return () => {
