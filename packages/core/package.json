@@ -9,13 +9,16 @@
     "db": "bun drizzle-kit",
     "migration": "bun run script/migration.ts",
     "fix-node-pty": "bun run script/fix-node-pty.ts",
+    "benchmark:location": "bun run script/benchmark-location.ts",
     "test": "bun test --only-failures",
-    "typecheck": "tsgo --noEmit"
+    "typecheck": "tsgo -b tsconfig.json tsconfig.tests.json"
   },
   "bin": {
     "opencode": "./bin/opencode"
   },
   "exports": {
+    "./environment": "./src/environment/index.ts",
+    "./testing/environment-conformance": "./test/lib/environment-conformance.ts",
     "./session/runner": "./src/session/runner/index.ts",
     "./instructions": "./src/instructions/index.ts",
     "./*": "./src/*.ts"
@@ -116,6 +119,7 @@
     "immer": "11.1.4",
     "ignore": "7.0.5",
     "jsonc-parser": "3.3.1",
+    "mime-types": "3.0.2",
     "turndown": "7.2.0",
     "tree-sitter-bash": "0.25.0",
     "tree-sitter-powershell": "0.25.10",

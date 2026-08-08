@@ -1,14 +1,4 @@
-import type {
-  Config,
-  Path,
-  PermissionRequest,
-  Project,
-  ProviderAuthResponse,
-  QuestionRequest,
-  ReferenceInfo,
-  Session,
-} from "@/types"
-import type { LegacyCapabilities } from "@/utils/server-compat"
+import type { Config, Path, Project, ProviderAuthResponse } from "@/types"
 import type {
   AgentListInput,
   AgentListOutput,
@@ -18,12 +8,16 @@ import type {
   CommandListOutput,
   LocationGetInput,
   LocationGetOutput,
+  PermissionRequest,
   ProjectCurrentInput,
   ProjectCurrentOutput,
   ProjectListOutput,
   ReferenceListInput,
   ReferenceListOutput,
+  ReferenceInfo,
+  QuestionRequest,
   SessionApi,
+  SessionInfo,
 } from "@opencode-ai/client/promise"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@opencode-ai/core/util/path"
@@ -32,20 +26,12 @@ import { batch } from "solid-js"
 import { produce, reconcile, type SetStoreFunction, type Store } from "solid-js/store"
 import type { State, VcsCache } from "./types"
 import type { ServerSession } from "../server-session"
-import {
-  cmp,
-  normalizeAgentList,
-  normalizePermissionRequest,
-  normalizeProjectInfo,
-  normalizeProviderList,
-} from "./utils"
+import { cmp, normalizeAgentList, normalizeProjectInfo, normalizeProviderList } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import { ScopedKey, type ServerScope } from "@/utils/server-scope"
-import { normalizeSessionInfo } from "@/utils/session"
-import type { ServerProtocol } from "@/utils/server-protocol"
 import type { ServerApi } from "@/utils/server"
 
 type GlobalStore = {
@@ -107,11 +93,11 @@ function showErrors(input: {
   })
 }
 
-export const loadGlobalConfigQuery = (scope: ServerScope, legacy: LegacyCapabilities, enabled = true) =>
+export const loadGlobalConfigQuery = (scope: ServerScope) =>
   queryOptions({
     queryKey: [scope, "config"],
-    queryFn: () => retry(() => legacy.config.global()),
-    enabled,
+    // TODO: Restore config loading when the V2 client exposes a config API.
+    queryFn: async (): Promise<Config> => ({}),
   })
 
 type ProjectApi = {
@@ -142,9 +128,7 @@ export const loadProjectsQuery = (scope: ServerScope, api: ProjectApi) =>
   })
 
 export async function bootstrapGlobal(input: {
-  legacy: LegacyCapabilities
   serverAPI: CatalogApi & { readonly location: LocationApi; readonly project: ProjectApi }
-  protocol?: Promise<ServerProtocol>
   scope: ServerScope
   requestFailedTitle: string
   translate: (key: string, vars?: Record<string, string | number>) => string
@@ -152,22 +136,15 @@ export async function bootstrapGlobal(input: {
   setGlobalStore: SetStoreFunction<GlobalStore>
   queryClient: QueryClient
 }) {
-  const protocol = await input.protocol
   const slow = [
-    protocol === "v1" && (() => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.legacy))),
-    () =>
-      input.queryClient.fetchQuery(
-        loadProvidersQuery(input.scope, null, input.serverAPI),
-      ),
-    () =>
-      input.queryClient.fetchQuery(
-        loadPathQuery(input.scope, null, input.serverAPI.location),
-      ),
+    () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope)),
+    () => input.queryClient.fetchQuery(loadProvidersQuery(input.scope, null, input.serverAPI)),
+    () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverAPI.location)),
     () =>
       input.queryClient
         .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
         .then((data) => input.setGlobalStore("project", data)),
-  ].filter(Boolean) as Array<() => Promise<unknown>>
+  ]
   await runAll(slow)
   // showErrors({
   //   errors: errors(),
@@ -191,7 +168,7 @@ function projectID(directory: string, projects: Project[]) {
   return projects.find((project) => project.worktree === directory || project.sandboxes?.includes(directory))?.id
 }
 
-function mergeSession(setStore: SetStoreFunction<State>, session: Session) {
+function mergeSession(setStore: SetStoreFunction<State>, session: SessionInfo) {
   setStore("session", (list) => {
     const next = list.slice()
     const idx = next.findIndex((item) => item.id >= session.id)
@@ -216,18 +193,12 @@ function warmSessions(input: {
   if (ids.length === 0) return Promise.resolve()
   return Promise.all(
     ids.map((sessionID) =>
-      retry(() => input.api.get({ sessionID })).then((session) =>
-        mergeSession(input.setStore, normalizeSessionInfo(session)),
-      ),
+      retry(() => input.api.get({ sessionID })).then((session) => mergeSession(input.setStore, session)),
     ),
   ).then(() => undefined)
 }
 
-export const loadProvidersQuery = (
-  scope: ServerScope,
-  directory: string | null,
-  sdk: CatalogApi,
-) =>
+export const loadProvidersQuery = (scope: ServerScope, directory: string | null, sdk: CatalogApi) =>
   queryOptions({
     queryKey: [scope, directory, "providers"],
     queryFn: () =>
@@ -254,32 +225,20 @@ type ReferenceListApi = {
   readonly list: (input?: ReferenceListInput) => Promise<ReferenceListOutput>
 }
 
-export const loadAgentsQuery = (
-  scope: ServerScope,
-  directory: string,
-  sdk: AgentListApi,
-) =>
+export const loadAgentsQuery = (scope: ServerScope, directory: string, sdk: AgentListApi) =>
   queryOptions({
     queryKey: [scope, directory, "agents"],
-    queryFn: () =>
-      retry(() => sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))),
+    queryFn: () => retry(() => sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))),
   })
 
-export const loadCommands = (
-  directory: string,
-  api: CommandListApi,
-): Promise<CommandInfo[]> =>
+export const loadCommands = (directory: string, api: CommandListApi): Promise<CommandInfo[]> =>
   retry(() => api.list({ location: { directory } }).then((result) => result.data))
 
-export const loadPathQuery = (
-  scope: ServerScope,
-  directory: string | null,
-  api: LocationApi,
-) =>
+export const loadPathQuery = (scope: ServerScope, directory: string | null, api: LocationApi) =>
   queryOptions<Path>({
     queryKey: [scope, directory, "path"],
     queryFn: () =>
-      retry(() => api.get(directory ? { location: { directory } } : undefined)).then((location) => ({
+      api.get(directory ? { location: { directory } } : undefined).then((location) => ({
         state: "",
         config: "",
         worktree: location.project.directory,
@@ -288,15 +247,10 @@ export const loadPathQuery = (
       })),
   })
 
-export const loadReferencesQuery = (
-  scope: ServerScope,
-  directory: string,
-  api: ReferenceListApi,
-) =>
+export const loadReferencesQuery = (scope: ServerScope, directory: string, api: ReferenceListApi) =>
   queryOptions<ReferenceInfo[]>({
     queryKey: [scope, directory, "references"] as const,
-    queryFn: () =>
-      retry(() => api.list({ location: { directory } }).then((result) => result.data)).catch(() => []),
+    queryFn: () => retry(() => api.list({ location: { directory } }).then((result) => result.data)).catch(() => []),
     placeholderData: [],
   })
 
@@ -304,7 +258,6 @@ export async function bootstrapDirectory(input: {
   directory: string
   scope: ServerScope
   mcp: boolean
-  legacy: LegacyCapabilities
   api: CatalogApi & {
     readonly agent: AgentListApi
     readonly command: CommandListApi
@@ -330,7 +283,6 @@ export async function bootstrapDirectory(input: {
   }
   queryClient: QueryClient
   session?: ServerSession
-  protocol?: Promise<ServerProtocol>
 }) {
   const loading = input.store.status !== "complete"
   const seededProject = projectID(input.directory, input.global.project)
@@ -352,13 +304,6 @@ export async function bootstrapDirectory(input: {
         input.queryClient
           .ensureQueryData(loadAgentsQuery(input.scope, input.directory, input.api.agent))
           .then((data) => input.setStore("agent", data)),
-      (await input.protocol) === "v1" &&
-        (() =>
-          retry(() =>
-            input.legacy.config
-              .directory(input.directory)
-              .then((config) => input.setStore("config", reconcile(config, { merge: false }))),
-          )),
       !seededProject &&
         (() =>
           retry(() => input.api.project.current({ location: { directory: input.directory } })).then((project) =>
@@ -367,55 +312,48 @@ export async function bootstrapDirectory(input: {
       !seededPath &&
         (() =>
           input.queryClient
-            .ensureQueryData(
-              loadPathQuery(input.scope, input.directory, input.api.location),
-            )
+            .ensureQueryData(loadPathQuery(input.scope, input.directory, input.api.location))
             .then((data) => {
               const next = projectID(data.directory ?? input.directory, input.global.project)
               if (next) input.setStore("project", next)
             })),
       input.mcp &&
         (() =>
-          loadCommands(input.directory, input.api.command).then((commands) =>
-            input.setStore("command", commands),
-          )),
-      () =>
-        input.queryClient.fetchQuery(
-          loadReferencesQuery(input.scope, input.directory, input.api.reference),
-        ),
+          loadCommands(input.directory, input.api.command).then((commands) => input.setStore("command", commands))),
+      () => input.queryClient.fetchQuery(loadReferencesQuery(input.scope, input.directory, input.api.reference)),
       () =>
         retry(() =>
           input.api.permission.request
             .list({ location: { directory: input.directory } })
-            .then((result) => result.data.map(normalizePermissionRequest))
+            .then((result) => result.data)
             .then((permissions) => {
-            const ids = permissions.map((permission) => permission.sessionID)
-            const grouped = groupBySession(
-              permissions.filter((permission) => !!permission.id && !!permission.sessionID),
-            )
-            const warm = input.session
-              ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
-              : warmSessions({ ids, store: input.store, setStore: input.setStore, api: input.api.session })
-            return warm.then(() =>
-              batch(() => {
-                const current = input.session?.data.permission ?? input.store.permission
-                for (const sessionID of Object.keys(current)) {
-                  if (grouped[sessionID]) continue
-                  if (input.session?.get(sessionID)?.directory !== input.directory) continue
-                  if (input.session) input.session.set("permission", sessionID, [])
-                  if (!input.session) input.setStore("permission", sessionID, [])
-                }
-                for (const [sessionID, permissions] of Object.entries(grouped)) {
-                  const value = reconcile(
-                    permissions.filter((p) => !!p?.id).sort((a, b) => cmp(a.id, b.id)),
-                    { key: "id" },
-                  )
-                  if (input.session) input.session.set("permission", sessionID, value)
-                  if (!input.session) input.setStore("permission", sessionID, value)
-                }
-              }),
-            )
-          }),
+              const ids = permissions.map((permission) => permission.sessionID)
+              const grouped = groupBySession(
+                permissions.filter((permission) => !!permission.id && !!permission.sessionID),
+              )
+              const warm = input.session
+                ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
+                : warmSessions({ ids, store: input.store, setStore: input.setStore, api: input.api.session })
+              return warm.then(() =>
+                batch(() => {
+                  const current = input.session?.data.permission ?? input.store.permission
+                  for (const sessionID of Object.keys(current)) {
+                    if (grouped[sessionID]) continue
+                    if (input.session?.get(sessionID)?.location.directory !== input.directory) continue
+                    if (input.session) input.session.set("permission", sessionID, [])
+                    if (!input.session) input.setStore("permission", sessionID, [])
+                  }
+                  for (const [sessionID, permissions] of Object.entries(grouped)) {
+                    const value = reconcile(
+                      permissions.filter((p) => !!p?.id).sort((a, b) => cmp(a.id, b.id)),
+                      { key: "id" },
+                    )
+                    if (input.session) input.session.set("permission", sessionID, value)
+                    if (!input.session) input.setStore("permission", sessionID, value)
+                  }
+                }),
+              )
+            }),
         ),
       () =>
         retry(() =>
@@ -423,56 +361,47 @@ export async function bootstrapDirectory(input: {
             .list({ location: { directory: input.directory } })
             .then((result) => result.data)
             .then((questions) => {
-            const ids = questions.map((question) => question.sessionID)
-            const grouped = groupBySession(
-              questions.filter((question) => !!question.id && !!question.sessionID) as QuestionRequest[],
-            )
-            const warm = input.session
-              ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
-              : warmSessions({ ids, store: input.store, setStore: input.setStore, api: input.api.session })
-            return warm.then(() =>
-              batch(() => {
-                const current = input.session?.data.question ?? input.store.question
-                for (const sessionID of Object.keys(current)) {
-                  if (grouped[sessionID]) continue
-                  if (input.session?.get(sessionID)?.directory !== input.directory) continue
-                  if (input.session) input.session.set("question", sessionID, [])
-                  if (!input.session) input.setStore("question", sessionID, [])
-                }
-                for (const [sessionID, questions] of Object.entries(grouped)) {
-                  const value = reconcile(
-                    questions.filter((q) => !!q?.id).sort((a, b) => cmp(a.id, b.id)),
-                    { key: "id" },
-                  )
-                  if (input.session) input.session.set("question", sessionID, value)
-                  if (!input.session) input.setStore("question", sessionID, value)
-                }
-              }),
-            )
-          }),
+              const ids = questions.map((question) => question.sessionID)
+              const grouped = groupBySession(
+                questions.filter((question) => !!question.id && !!question.sessionID) as QuestionRequest[],
+              )
+              const warm = input.session
+                ? Promise.all(ids.map((sessionID) => input.session!.resolve(sessionID))).then(() => undefined)
+                : warmSessions({ ids, store: input.store, setStore: input.setStore, api: input.api.session })
+              return warm.then(() =>
+                batch(() => {
+                  const current = input.session?.data.question ?? input.store.question
+                  for (const sessionID of Object.keys(current)) {
+                    if (grouped[sessionID]) continue
+                    if (input.session?.get(sessionID)?.location.directory !== input.directory) continue
+                    if (input.session) input.session.set("question", sessionID, [])
+                    if (!input.session) input.setStore("question", sessionID, [])
+                  }
+                  for (const [sessionID, questions] of Object.entries(grouped)) {
+                    const value = reconcile(
+                      questions.filter((q) => !!q?.id).sort((a, b) => cmp(a.id, b.id)),
+                      { key: "id" },
+                    )
+                    if (input.session) input.session.set("question", sessionID, value)
+                    if (!input.session) input.setStore("question", sessionID, value)
+                  }
+                }),
+              )
+            }),
         ),
       () => Promise.resolve(input.loadSessions(input.directory)),
+      input.mcp && (() => input.queryClient.fetchQuery(loadMcpQuery(input.scope, input.directory, input.api.mcp))),
       input.mcp &&
-        (() =>
-          input.queryClient.fetchQuery(
-            loadMcpQuery(input.scope, input.directory, input.api.mcp),
-          )),
-      input.mcp &&
-        (() =>
-          input.queryClient.fetchQuery(
-            loadMcpResourcesQuery(input.scope, input.directory, input.api.mcp),
-          )),
+        (() => input.queryClient.fetchQuery(loadMcpResourcesQuery(input.scope, input.directory, input.api.mcp))),
       () =>
-        input.queryClient
-          .fetchQuery(loadProvidersQuery(input.scope, input.directory, input.api))
-          .catch((err) => {
-            const project = getFilename(input.directory)
-            showToast({
-              variant: "error",
-              title: input.translate("toast.project.reloadFailed.title", { project }),
-              description: formatServerError(err, input.translate),
-            })
-          }),
+        input.queryClient.fetchQuery(loadProvidersQuery(input.scope, input.directory, input.api)).catch((err) => {
+          const project = getFilename(input.directory)
+          showToast({
+            variant: "error",
+            title: input.translate("toast.project.reloadFailed.title", { project }),
+            description: formatServerError(err, input.translate),
+          })
+        }),
     ].filter(Boolean) as (() => Promise<any>)[]
 
     await waitForPaint()

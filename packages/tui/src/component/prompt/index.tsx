@@ -29,6 +29,7 @@ import { parseSlashHead } from "../../prompt/parse"
 import { stringWidth } from "../../util/string-width"
 import { createStore, produce, unwrap } from "solid-js/store"
 import { emptyPrompt, usePromptHistory, type PromptInfo, type PromptPartRef } from "../../prompt/history"
+import { Skill } from "@opencode-ai/schema/skill"
 import { computePromptTraits } from "../../prompt/traits"
 import { expandPastedTextPlaceholders, expandTrackedPastedText } from "../../prompt/part"
 import { usePromptStash } from "../../prompt/stash"
@@ -53,12 +54,14 @@ import { useLocation } from "../../context/location"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { abbreviateHome } from "../../runtime"
 import { PluginSlot } from "../../plugin/render"
+import type { SessionPending } from "@opencode-ai/schema/session-pending"
 
 export type PromptProps = {
   sessionID?: string
   visible?: boolean
   disabled?: boolean
   onSubmit?: () => void
+  onEmptySubmit?: () => boolean | Promise<boolean>
   ref?: (ref: PromptRef | undefined) => void
   hint?: JSX.Element
   right?: JSX.Element
@@ -257,7 +260,7 @@ export function Prompt(props: PromptProps) {
   function promptModelWarning() {
     toast.show({
       variant: "warning",
-      message: "Connect a provider to send prompts",
+      message: "Connect an integration to send prompts",
       duration: 3000,
     })
     if (!connected()) {
@@ -271,6 +274,7 @@ export function Prompt(props: PromptProps) {
   }
   const fileStyleId = syntax().getStyleId("extmark.file")!
   const agentStyleId = syntax().getStyleId("extmark.agent")!
+  const skillStyleId = syntax().getStyleId("extmark.skill")!
   const pasteStyleId = syntax().getStyleId("extmark.paste")!
   let promptPartTypeId = 0
   const event = useEvent()
@@ -327,10 +331,6 @@ export function Prompt(props: PromptProps) {
     if (!session) return
     const agent = session.agent && local.agent.list().find((agent) => agent.id === session.agent)
     if (agent && !args.agent) local.agent.set(agent.id)
-    if (session.model) {
-      local.model.set({ providerID: session.model.providerID, modelID: session.model.id })
-      local.model.variant.set(session.model.variant)
-    }
     syncedSessionID = sessionID
   })
 
@@ -358,6 +358,20 @@ export function Prompt(props: PromptProps) {
           const handled = await submit()
           if (!handled) return
 
+          dialog.clear()
+        },
+      },
+      {
+        title: "Queue prompt",
+        name: "prompt.queue",
+        category: "Prompt",
+        palette: undefined,
+        run: async (_input: string | undefined, event?: KeyEvent) => {
+          event?.preventDefault()
+          event?.stopPropagation()
+          if (!input.focused) return
+          const handled = await submit("queue")
+          if (!handled) return
           dialog.clear()
         },
       },
@@ -481,12 +495,29 @@ export function Prompt(props: PromptProps) {
             <DialogSkill
               location={currentLocation.current}
               onSelect={(skill) => {
-                input.setText(`/${skill} `)
-                setStore("prompt", {
-                  ...emptyPrompt(),
-                  text: `/${skill} `,
+                if (store.prompt.skills?.some((item) => item.id === skill)) return
+                const text = `/${skill}`
+                const start = input.cursorOffset
+                input.insertText(text + " ")
+                const extmarkId = input.extmarks.create({
+                  start,
+                  end: start + promptOffsetWidth(text),
+                  virtual: true,
+                  styleId: skillStyleId,
+                  typeId: promptPartTypeId,
                 })
-                input.gotoBufferEnd()
+                setStore(
+                  produce((draft) => {
+                    draft.prompt.text = input.plainText
+                    const skills = (draft.prompt.skills ??= [])
+                    const index = skills.length
+                    skills.push({
+                      id: Skill.ID.make(skill),
+                      mention: { start, end: start + promptOffsetWidth(text), text },
+                    })
+                    draft.extmarkToPart.set(extmarkId, { type: "skill", index })
+                  }),
+                )
               }}
             />
           ))
@@ -517,6 +548,11 @@ export function Prompt(props: PromptProps) {
   Keymap.createLayer(() => ({
     mode: "global",
     commands: promptCommands(),
+  }))
+
+  Keymap.createLayer(() => ({
+    priority: 1,
+    bindings: ["prompt.queue"],
   }))
 
   Keymap.createLayer(() => ({
@@ -622,6 +658,11 @@ export function Prompt(props: PromptProps) {
         ref: { type: "agent" as const, index },
         styleId: agentStyleId,
       })),
+      ...(prompt.skills ?? []).map((part, index) => ({
+        mention: part.mention,
+        ref: { type: "skill" as const, index },
+        styleId: skillStyleId,
+      })),
       ...prompt.pasted.map((part, index) => ({
         mention: part.source,
         ref: { type: "pasted" as const, index },
@@ -654,6 +695,7 @@ export function Prompt(props: PromptProps) {
         const newMap = new Map<number, PromptPartRef>()
         const files: NonNullable<PromptInfo["files"]> = []
         const agents: NonNullable<PromptInfo["agents"]> = []
+        const skills: NonNullable<PromptInfo["skills"]> = []
         const pasted: PromptInfo["pasted"] = []
 
         for (const extmark of allExtmarks) {
@@ -679,6 +721,16 @@ export function Prompt(props: PromptProps) {
             newMap.set(extmark.id, { type: "agent", index })
             continue
           }
+          if (ref.type === "skill") {
+            const part = draft.prompt.skills?.[ref.index]
+            if (!part?.mention) continue
+            part.mention.start = extmark.start
+            part.mention.end = extmark.end
+            const index = skills.length
+            skills.push(part)
+            newMap.set(extmark.id, { type: "skill", index })
+            continue
+          }
           const part = draft.prompt.pasted[ref.index]
           if (!part) continue
           part.source.start = extmark.start
@@ -691,6 +743,7 @@ export function Prompt(props: PromptProps) {
         draft.extmarkToPart = newMap
         draft.prompt.files = files
         draft.prompt.agents = agents
+        draft.prompt.skills = skills
         draft.prompt.pasted = pasted
       }),
     )
@@ -904,7 +957,7 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
-  async function submit() {
+  async function submit(delivery: SessionPending.Delivery = "steer") {
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
     // a second call slips past the empty-input check before the first call
@@ -914,13 +967,13 @@ export function Prompt(props: PromptProps) {
     if (submitting) return false
     submitting = true
     try {
-      return await submitInner()
+      return await submitInner(delivery)
     } finally {
       submitting = false
     }
   }
 
-  async function submitInner() {
+  async function submitInner(delivery: SessionPending.Delivery) {
     // IME: double-defer may fire before onContentChange flushes the last
     // composed character (e.g. Korean hangul) to the store, so read
     // plainText directly and sync before any downstream reads.
@@ -931,27 +984,77 @@ export function Prompt(props: PromptProps) {
     if (props.disabled) return false
     if (move.creating()) return false
     if (auto()?.visible) return false
-    if (!store.prompt.text) return false
     const trimmed = store.prompt.text.trim()
+    if (!trimmed) return delivery === "steer" ? (await props.onEmptySubmit?.()) === true : false
+    if (
+      delivery === "queue" &&
+      (store.mode === "shell" || trimmed === "exit" || trimmed === "quit" || trimmed === ":q")
+    ) {
+      toast.show({ message: "This prompt cannot be queued", variant: "warning" })
+      return false
+    }
     if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
       void exit()
       return true
     }
     const slash = argumentSlash(store.prompt.text, keymapCommands())
     if (slash) {
+      if (delivery === "queue") {
+        toast.show({ message: "This prompt cannot be queued", variant: "warning" })
+        return false
+      }
       clearPrompt()
       await slash.command.run(slash.input)
       return true
     }
+    const inputText = expandTrackedPastedText(
+      store.prompt.text,
+      input.extmarks.getAllForTypeId(promptPartTypeId).flatMap((extmark) => {
+        const ref = store.extmarkToPart.get(extmark.id)
+        if (ref?.type !== "pasted") return []
+        const part = store.prompt.pasted[ref.index]
+        if (!part) return []
+        return [{ start: extmark.start, end: extmark.end, text: part.text }]
+      }),
+    )
+    const slashHead = parseSlashHead(inputText, /\s/)
+    const isSkill =
+      !(store.prompt.skills?.length ?? 0) &&
+      slashHead !== undefined &&
+      (data.location.skill.list(currentLocation.ref) ?? []).some(
+        (skill) => skill.slash === true && skill.id === slashHead.name,
+      )
+    const isCommand =
+      slashHead !== undefined &&
+      (data.location.command.list(currentLocation.ref) ?? []).some((command) => command.name === slashHead.name)
+    if (delivery === "queue" && isSkill) {
+      toast.show({ message: "Skills cannot be queued", variant: "warning" })
+      return false
+    }
+    const editorSelection = editorContext()
+    const pendingEditorSelection = editorSelection && editor.labelState() === "pending" ? editorSelection : undefined
+    if (delivery === "queue" && pendingEditorSelection) {
+      toast.show({ message: "Editor context cannot be queued", variant: "warning" })
+      return false
+    }
     const agent = local.agent.current()
     if (!agent) return false
-    const selectedModel = local.model.current()
-    if (!selectedModel) {
+    const selection = local.model.selection()
+    if (!selection) {
       void promptModelWarning()
       return false
     }
+    const usesModel = !props.sessionID || (store.mode !== "shell" && !isSkill)
+    if (usesModel && !local.model.available(selection)) {
+      toast.show({
+        title: "Model unavailable",
+        message: `${selection.providerID}/${selection.modelID} is not available in this session's location`,
+        variant: "warning",
+      })
+      return false
+    }
 
-    const variant = local.model.variant.current()
+    const variant = selection.variant
     let sessionID = props.sessionID
     let session = sessionID ? data.session.get(sessionID) : undefined
     let finishMoveProgress = false
@@ -969,8 +1072,8 @@ export function Prompt(props: PromptProps) {
           location: directory ? { directory } : location,
           agent: agent.id,
           model: {
-            providerID: selectedModel.providerID,
-            id: selectedModel.modelID,
+            providerID: selection.providerID,
+            id: selection.modelID,
             variant,
           },
         })
@@ -990,21 +1093,8 @@ export function Prompt(props: PromptProps) {
       session = created
     }
 
-    const inputText = expandTrackedPastedText(
-      store.prompt.text,
-      input.extmarks.getAllForTypeId(promptPartTypeId).flatMap((extmark) => {
-        const ref = store.extmarkToPart.get(extmark.id)
-        if (ref?.type !== "pasted") return []
-        const part = store.prompt.pasted[ref.index]
-        if (!part) return []
-        return [{ start: extmark.start, end: extmark.end, text: part.text }]
-      }),
-    )
-
     // Capture mode before it gets reset
     const currentMode = store.mode
-    const editorSelection = editorContext()
-    const pendingEditorSelection = editorSelection && editor.labelState() === "pending" ? editorSelection : undefined
 
     if (store.mode === "shell") {
       move.startSubmit()
@@ -1013,43 +1103,32 @@ export function Prompt(props: PromptProps) {
         command: inputText,
       })
       setStore("mode", "normal")
-    } else if (
-      inputText.startsWith("/") &&
-      (data.location.command.list(currentLocation.current) ?? []).some(
-        (command) => command.name === inputText.split("\n")[0].split(" ")[0].slice(1),
-      )
-    ) {
+    } else if (slashHead && isCommand) {
       move.startSubmit()
-      // Parse command from first line, preserve multi-line content in arguments
-      const firstLineEnd = inputText.indexOf("\n")
-      const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
-      const [command, ...firstLineArgs] = firstLine.split(" ")
-      const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
-      const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
+      const model = { providerID: selection.providerID, id: selection.modelID, variant }
+      const cancelCommit = local.model.trackSessionCommit(sessionID, model)
 
       void client.api.session
         .command({
           sessionID,
-          command: command.slice(1),
-          arguments: args,
+          command: slashHead.name,
+          arguments: slashHead.arguments,
           agent: agent.id,
-          model: { providerID: selectedModel.providerID, id: selectedModel.modelID, variant },
+          model,
           files: store.prompt.files,
           agents: store.prompt.agents,
+          skills: store.prompt.skills?.length ? store.prompt.skills : undefined,
+          delivery,
         })
         .catch((error) => {
+          cancelCommit()
           toast.show({ title: "Failed to run command", message: errorMessage(error), variant: "error" })
         })
-    } else if (
-      inputText.startsWith("/") &&
-      (data.location.skill.list(currentLocation.current) ?? []).some(
-        (skill) => skill.slash === true && skill.id === inputText.split("\n")[0].split(" ")[0].slice(1),
-      )
-    ) {
+    } else if (isSkill) {
       move.startSubmit()
       void client.api.session.skill({
         sessionID,
-        skill: inputText.split("\n")[0].split(" ")[0].slice(1),
+        skill: slashHead.name,
       })
     } else {
       move.startSubmit()
@@ -1061,13 +1140,15 @@ export function Prompt(props: PromptProps) {
         await client.api.session.switchAgent({ sessionID, agent: agent.id })
       }
       if (
-        session?.model?.providerID !== selectedModel.providerID ||
-        session.model.id !== selectedModel.modelID ||
+        session?.model?.providerID !== selection.providerID ||
+        session.model.id !== selection.modelID ||
         (session.model.variant ?? "default") !== (variant ?? "default")
       ) {
-        await client.api.session.switchModel({
-          sessionID,
-          model: { providerID: selectedModel.providerID, id: selectedModel.modelID, variant },
+        const model = { providerID: selection.providerID, id: selection.modelID, variant }
+        const cancelCommit = local.model.trackSessionCommit(sessionID, model)
+        await client.api.session.switchModel({ sessionID, model }).catch((error) => {
+          cancelCommit()
+          throw error
         })
       }
       if (session?.revert) {
@@ -1103,6 +1184,8 @@ export function Prompt(props: PromptProps) {
           text: inputText,
           files: store.prompt.files,
           agents: store.prompt.agents,
+          skills: store.prompt.skills?.length ? store.prompt.skills : undefined,
+          delivery,
         })
         .then(
           () => undefined,
@@ -1320,10 +1403,7 @@ export function Prompt(props: PromptProps) {
       return `Ask anything... "${list()[store.placeholder % list().length]}"`
     })()
     if (!value) return undefined
-    const width =
-      dimensions().width < 44
-        ? dimensions().width - 5
-        : Math.min(75, dimensions().width - 4) - 5
+    const width = dimensions().width < 44 ? dimensions().width - 5 : Math.min(75, dimensions().width - 4) - 5
     return Locale.takeWidth(value, Math.max(1, width)).trimEnd()
   })
   const locationLabel = createMemo(() => {
@@ -1644,6 +1724,8 @@ export function Prompt(props: PromptProps) {
         value={store.prompt.text}
         fileStyleId={fileStyleId}
         agentStyleId={agentStyleId}
+        skillStyleId={skillStyleId}
+        hasSkill={(id) => store.prompt.skills?.some((skill) => skill.id === id) ?? false}
         promptPartTypeId={() => promptPartTypeId}
       />
     </>

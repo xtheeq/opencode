@@ -2,7 +2,6 @@ export * as SessionModelRequest from "./model-request"
 
 import { LLM, Message, SystemPart, type LLMRequest } from "@opencode-ai/ai"
 import type { StreamOptions } from "@opencode-ai/ai/route"
-import type { SessionHttpHandler, SessionHttpMiddleware } from "@opencode-ai/plugin/effect/session"
 import type { Content } from "@opencode-ai/schema/tool"
 import { SessionError } from "@opencode-ai/schema/session-error"
 import { Cause, Config, Context, Effect, Layer, Result, Stream } from "effect"
@@ -16,6 +15,7 @@ import { QuestionTool } from "../tool/plugin/question"
 import { Tool } from "../tool"
 import { SessionContext } from "./context"
 import { SessionModelHeaders } from "./model-headers"
+import { SessionPromptCacheKey } from "./prompt-cache-key"
 import { PromptCacheDiagnostics } from "./prompt-cache-diagnostics"
 import { MAX_STEPS_PROMPT } from "./runner/max-steps"
 import PROMPT_DEFAULT from "./runner/prompt/base.txt"
@@ -182,7 +182,6 @@ export const layer = Layer.effect(
       // The final Step keeps definitions available to protocols with native "none",
       // preserving their prompt cache prefix. Calls are still rejected at execution.
       const tools = input.context.tools
-      const promptCacheKey = /^ses_[0-9a-f]{64}$/.test(session.id) ? session.id.slice(4) : session.id
       const system = [agent.info.system ? agent.info.system : PROMPT_DEFAULT, input.context.initial]
         .filter((part) => part.length > 0)
         .map(SystemPart.make)
@@ -221,7 +220,7 @@ export const layer = Layer.effect(
         http: {
           headers: SessionModelHeaders.make(session, app),
         },
-        providerOptions: { [providerMetadataKey]: { promptCacheKey } },
+        promptCacheKey: SessionPromptCacheKey.make(session.id),
         system: context.system,
         messages: boundImages(unsupportedParts(context.messages, resolved.capabilities)),
         tools: Array.from(hooked, ([name, tool]) => ({ ...tool, name })),
@@ -230,44 +229,33 @@ export const layer = Layer.effect(
       const options: StreamOptions = {
         http: (request, handler) =>
           Effect.gen(function* () {
-            let latest = request
-            const origins = new WeakMap<Response, HttpClientRequest.HttpClientRequest>()
-            const middlewares: SessionHttpMiddleware[] = []
-            const web = yield* HttpClientRequest.toWeb(request)
-            yield* hooks.trigger("session", "http", {
+            const before = yield* hooks.trigger("session", "http.request", {
               sessionID: session.id,
               agent: agent.id,
               model: resolved.ref,
-              use: (item) =>
-                Effect.sync(() => {
-                  middlewares.push(item)
-                }),
+              request: yield* HttpClientRequest.toWeb(request),
             })
-            const send = (input: Request) =>
-              Effect.gen(function* () {
-                let sent = HttpClientRequest.fromWeb(input)
-                if (input.body)
-                  sent = HttpClientRequest.bodyUint8Array(
-                    sent,
-                    new Uint8Array(yield* Effect.promise(() => input.clone().arrayBuffer())),
-                    input.headers.get("content-type") ?? undefined,
-                  )
-                latest = sent
-                const response = yield* handler(sent)
-                const body = [204, 205, 304].includes(response.status)
+            let sent = HttpClientRequest.fromWeb(before.request)
+            if (before.request.body)
+              sent = HttpClientRequest.bodyUint8Array(
+                sent,
+                new Uint8Array(yield* Effect.promise(() => before.request.clone().arrayBuffer())),
+                before.request.headers.get("content-type") ?? undefined,
+              )
+            const response = yield* handler(sent)
+            const after = yield* hooks.trigger("session", "http.response", {
+              sessionID: session.id,
+              agent: agent.id,
+              model: resolved.ref,
+              request: before.request,
+              response: new Response(
+                [204, 205, 304].includes(response.status)
                   ? null
-                  : yield* Stream.toReadableStreamEffect(response.stream)
-                const output = new Response(body, { status: response.status, headers: response.headers })
-                origins.set(output, sent)
-                return output
-              })
-            const dispatch = middlewares.reduce<SessionHttpHandler>(
-              (next, item) => (input: Request) => item(input, next),
-              send,
-            )
-            const response = yield* dispatch(web)
-            const origin = origins.get(response) ?? latest
-            return HttpClientResponse.fromWeb(origin, response)
+                  : yield* Stream.toReadableStreamEffect(response.stream),
+                { status: response.status, headers: response.headers },
+              ),
+            })
+            return HttpClientResponse.fromWeb(sent, after.response)
           }).pipe(Effect.mapError((cause) => (cause instanceof Error ? cause : new Error(String(cause))))),
       }
       if (promptCacheSnapshots) {
@@ -288,8 +276,7 @@ export const layer = Layer.effect(
         )
       }
       const executeTool: Prepared["executeTool"] = (input) => {
-        if (stepLimitReached)
-          return new Tool.Error({ message: "Tools are disabled after the maximum agent steps" })
+        if (stepLimitReached) return new Tool.Error({ message: "Tools are disabled after the maximum agent steps" })
         const tool = hooked.get(input.call.name)
         // A registered tool absent from the hooked set was removed or renamed by a hook.
         if (!tool && registry.has(input.call.name))
