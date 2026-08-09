@@ -12,8 +12,7 @@ import { BubbleContainer } from "../bubble-container";
 import { Text } from "@/components/primitives";
 import { MarkdownPart } from "@/components/markdown";
 import { spacing, typography, useTheme } from "@/theme";
-import { resolvePart } from "@/hooks/project-rows";
-import type { PartRef } from "@/types/rows";
+import type { ReasoningPart } from "@/types/rows";
 
 function extractTitle(text: string): string | undefined {
   const bold = text.match(/^\s*\*\*(.+?)\*\*/);
@@ -35,26 +34,16 @@ function formatDuration(completed: number, created: number): string {
 
 export function ReasoningGroupRow({
   message,
-  refs,
+  parts,
   completed,
 }: {
   message: SessionMessageAssistant;
-  refs: PartRef[];
+  parts: ReasoningPart[];
   completed: boolean;
 }) {
   const { colors } = useTheme();
   const [expanded, setExpanded] = useState(!completed);
 
-  const parts = refs
-    .map((ref) => resolvePart(message, ref.partID))
-    .filter(
-      (
-        p,
-      ): p is SessionMessageAssistant["content"][number] & {
-        type: "reasoning";
-        text: string;
-      } => p?.type === "reasoning",
-    );
   const text = sanitize(parts.map((p) => p.text).join("\n"));
   const title = extractTitle(text);
   const duration =

@@ -1,7 +1,17 @@
-export type PartRef = {
-  messageID: string;
-  partID: string;
-};
+import type {
+  SessionMessageAgentSelected,
+  SessionMessageAssistant,
+  SessionMessageAssistantReasoning,
+  SessionMessageAssistantText,
+  SessionMessageAssistantTool,
+  SessionMessageCompaction,
+  SessionMessageModelSelected,
+  SessionMessageShell,
+  SessionMessageSkill,
+  SessionMessageSynthetic,
+  SessionMessageSystem,
+  SessionMessageUser,
+} from "@opencode-ai/client/promise";
 
 export type CacheUsage = {
   read: number;
@@ -14,44 +24,69 @@ export function isExploration(name: string) {
   return EXPLORATION_TOOLS.has(name.toLowerCase());
 }
 
+export type AssistantContentPart =
+  | SessionMessageAssistantText
+  | SessionMessageAssistantReasoning
+  | SessionMessageAssistantTool;
+
+export type ReasoningPart = SessionMessageAssistantReasoning;
+
+export type ToolPart = SessionMessageAssistantTool;
+
+export type Systemish =
+  | SessionMessageAgentSelected
+  | SessionMessageModelSelected
+  | SessionMessageSynthetic
+  | SessionMessageSystem
+  | SessionMessageSkill;
+
+// Rows are self-contained projections: each carries the resolved message (and
+// part) it renders, so RowRenderer needs no lookup map and unchanged messages
+// keep the same row object identity across renders.
 export type SessionRow =
-  | { type: "user-message"; messageID: string }
-  | { type: "assistant-part"; ref: PartRef }
-  | { type: "reasoning-group"; refs: PartRef[]; completed: boolean }
+  | { type: "user-message"; message: SessionMessageUser }
   | {
-      type: "exploration-group";
-      refs: PartRef[];
-      pending: string[];
+      type: "assistant-part";
+      message: SessionMessageAssistant;
+      part: AssistantContentPart;
+      partID: string;
+    }
+  | {
+      type: "reasoning-group";
+      message: SessionMessageAssistant;
+      parts: ReasoningPart[];
+      firstPartID: string;
       completed: boolean;
     }
-  | { type: "assistant-footer"; messageID: string }
+  | { type: "exploration-group"; parts: ToolPart[] }
+  | { type: "assistant-footer"; message: SessionMessageAssistant }
   | {
       type: "turn-usage";
       messageIDs: string[];
       previousCache?: CacheUsage;
     }
-  | { type: "system-message"; messageID: string }
-  | { type: "shell-message"; messageID: string }
-  | { type: "compaction-message"; messageID: string };
+  | { type: "system-message"; message: Systemish }
+  | { type: "shell-message"; message: SessionMessageShell }
+  | { type: "compaction-message"; message: SessionMessageCompaction };
 
 export function rowKey(row: SessionRow): string {
   switch (row.type) {
     case "user-message":
-      return `user:${row.messageID}`;
+      return `user:${row.message.id}`;
     case "assistant-part":
-      return `part:${row.ref.messageID}:${row.ref.partID}`;
+      return `part:${row.message.id}:${row.partID}`;
     case "reasoning-group":
-      return `reasoning:${row.refs[0].messageID}`;
+      return `reasoning:${row.message.id}:${row.firstPartID}`;
     case "exploration-group":
-      return `exploration:${row.refs[0].messageID}`;
+      return `exploration:${row.parts[0].id}`;
     case "assistant-footer":
-      return `footer:${row.messageID}`;
+      return `footer:${row.message.id}`;
     case "system-message":
-      return `system:${row.messageID}`;
+      return `system:${row.message.id}`;
     case "shell-message":
-      return `shell:${row.messageID}`;
+      return `shell:${row.message.id}`;
     case "compaction-message":
-      return `compaction:${row.messageID}`;
+      return `compaction:${row.message.id}`;
     case "turn-usage":
       return `usage:${row.messageIDs[0]}`;
   }

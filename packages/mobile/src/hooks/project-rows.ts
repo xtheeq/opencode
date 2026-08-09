@@ -1,14 +1,25 @@
 import type {
-  SessionMessageInfo,
   SessionMessageAssistant,
+  SessionMessageAssistantReasoning,
+  SessionMessageAssistantTool,
+  SessionMessageInfo,
   TokenUsageInfo,
 } from "@opencode-ai/client/promise";
 import {
   isExploration,
   type CacheUsage,
-  type PartRef,
   type SessionRow,
 } from "../types/rows";
+
+// Each message's projected rows are cached by message object identity. immer
+// preserves identity for unchanged messages, so a re-projection only rebuilds
+// rows for messages that actually changed, and unchanged rows keep their object
+// references across renders. LegendList then skips re-rendering untouched rows
+// (dataProp[i] === previousData[i]) instead of re-invoking renderItem for the
+// whole visible timeline on every streaming delta.
+const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
+
+type NonAssistantMessage = Exclude<SessionMessageInfo, SessionMessageAssistant>;
 
 export function projectRows(
   messages: SessionMessageInfo[],
@@ -31,71 +42,98 @@ export function projectRows(
     ...inputs,
   ]);
 
-  const usage:
-    | {
-        steps: SessionMessageAssistant[];
-        previousTurnCache: CacheUsage | undefined;
-      }
-    | undefined = turnTokens
-    ? { steps: [], previousTurnCache: undefined }
-    : undefined;
-
-  return [
+  const ordered = [
     ...messages.filter((message) => !pending.has(message.id)),
     ...pendingCompactions,
     ...messages.filter(isInput),
-  ].reduce<SessionRow[]>((rows, message) => {
+  ];
+
+  if (turnTokens) return projectWithUsage(ordered);
+
+  const rows: SessionRow[] = [];
+  for (const message of ordered) {
+    const cached = projectionCache.get(message);
+    if (cached) {
+      rows.push(...cached);
+      continue;
+    }
+    const projected = projectMessage(message);
+    projectionCache.set(message, projected);
+    rows.push(...projected);
+  }
+  return rows;
+}
+
+// Each message's projection is self-contained: reasoning/exploration parts
+// group only with adjacent same-type parts of the same message, so projected
+// rows never depend on neighboring messages and cache entries stay valid.
+function projectMessage(message: SessionMessageInfo): SessionRow[] {
+  if (message.type !== "assistant") {
+    if (message.type === "synthetic" && !message.description?.trim()) return [];
+    return [messageToRow(message)];
+  }
+
+  const rows: SessionRow[] = [];
+  const ordinals = { text: 0, reasoning: 0 };
+
+  message.content.forEach((part) => {
+    const partID =
+      part.type === "tool" ? part.id : `${part.type}:${ordinals[part.type]++}`;
+
+    if (
+      (part.type === "text" || part.type === "reasoning") &&
+      !part.text.trim()
+    )
+      return;
+
+    if (part.type === "reasoning") {
+      appendReasoning(rows, message, part, partID);
+    } else if (part.type === "tool" && isExploration(part.name)) {
+      appendExploration(rows, part);
+    } else {
+      completePrevious(rows);
+      rows.push({ type: "assistant-part", message, part, partID });
+    }
+  });
+
+  const terminal =
+    (message.finish && !["tool-calls", "unknown"].includes(message.finish)) ||
+    message.error;
+
+  if (terminal || message.retry) {
+    completePrevious(rows);
+    rows.push({ type: "assistant-footer", message });
+  }
+
+  return rows;
+}
+
+// Turn-token rows fold state across messages, so they bypass the per-message
+// cache. Grouping semantics match projectMessage (message-scoped groups).
+function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
+  const usage: {
+    steps: SessionMessageAssistant[];
+    previousTurnCache: CacheUsage | undefined;
+  } = { steps: [], previousTurnCache: undefined };
+
+  const rows: SessionRow[] = [];
+  for (const message of ordered) {
     if (message.type !== "assistant") {
-      if (message.type === "synthetic" && !message.description?.trim())
-        return rows;
-      if (
-        message.type === "compaction" &&
-        message.status === "completed" &&
-        usage
-      )
+      if (message.type === "synthetic" && !message.description?.trim()) continue;
+      if (message.type === "compaction" && message.status === "completed")
         usage.previousTurnCache = undefined;
-      if (!pending.has(message.id)) completePrevious(rows);
-      rows.push(messageToRowType(message));
-      return rows;
+      rows.push(messageToRow(message));
+      continue;
     }
 
-    usage?.steps.push(message);
-
-    const ordinals = { text: 0, reasoning: 0 };
-    message.content.forEach((part) => {
-      const partID =
-        part.type === "tool"
-          ? part.id
-          : `${part.type}:${ordinals[part.type]++}`;
-
-      if (
-        (part.type === "text" || part.type === "reasoning") &&
-        !part.text.trim()
-      )
-        return;
-
-      const ref: PartRef = { messageID: message.id, partID };
-
-      if (part.type === "reasoning") {
-        appendReasoning(rows, ref);
-      } else if (part.type === "tool" && isExploration(part.name)) {
-        appendExploration(rows, ref);
-      } else {
-        completePrevious(rows);
-        rows.push({ type: "assistant-part", ref });
-      }
-    });
+    usage.steps.push(message);
+    rows.push(...projectMessage(message));
 
     const terminal =
       (message.finish && !["tool-calls", "unknown"].includes(message.finish)) ||
       message.error;
 
-    if (terminal || message.retry) {
-      completePrevious(rows);
-      rows.push({ type: "assistant-footer", messageID: message.id });
-    }
-
-    if (terminal && usage) {
+    if (terminal) {
       const stepsWithUsage = usage.steps.filter(hasTokenUsage);
       const last = stepsWithUsage.at(-1);
       if (last) {
@@ -113,57 +151,62 @@ export function projectRows(
       }
       usage.steps.length = 0;
     }
-
-    return rows;
-  }, []);
+  }
+  return rows;
 }
 
-function messageToRowType(message: SessionMessageInfo): SessionRow {
+function messageToRow(message: NonAssistantMessage): SessionRow {
   switch (message.type) {
     case "user":
-      return { type: "user-message", messageID: message.id };
+      return { type: "user-message", message };
     case "shell":
-      return { type: "shell-message", messageID: message.id };
+      return { type: "shell-message", message };
     case "compaction":
-      return { type: "compaction-message", messageID: message.id };
+      return { type: "compaction-message", message };
     default:
-      return { type: "system-message", messageID: message.id };
+      return { type: "system-message", message };
   }
 }
 
-function completePrevious(rows: SessionRow[], index = rows.length) {
-  const prev = rows[index - 1];
-  if (
-    prev &&
-    (prev.type === "reasoning-group" || prev.type === "exploration-group")
-  ) {
+function completePrevious(rows: SessionRow[]) {
+  const prev = rows[rows.length - 1];
+  if (prev?.type === "reasoning-group") {
     prev.completed = true;
   }
 }
 
-function appendReasoning(rows: SessionRow[], ref: PartRef) {
+function appendReasoning(
+  rows: SessionRow[],
+  message: SessionMessageAssistant,
+  part: SessionMessageAssistantReasoning,
+  partID: string,
+) {
   const prev = rows[rows.length - 1];
   if (prev?.type === "reasoning-group") {
-    prev.refs.push(ref);
-    return;
-  }
-  completePrevious(rows);
-  rows.push({ type: "reasoning-group", refs: [ref], completed: false });
-}
-
-function appendExploration(rows: SessionRow[], ref: PartRef) {
-  const prev = rows[rows.length - 1];
-  if (prev?.type === "exploration-group") {
-    prev.refs.push(ref);
+    prev.parts.push(part);
     return;
   }
   completePrevious(rows);
   rows.push({
-    type: "exploration-group",
-    refs: [ref],
-    pending: [],
+    type: "reasoning-group",
+    message,
+    parts: [part],
+    firstPartID: partID,
     completed: false,
   });
+}
+
+function appendExploration(
+  rows: SessionRow[],
+  part: SessionMessageAssistantTool,
+) {
+  const prev = rows[rows.length - 1];
+  if (prev?.type === "exploration-group") {
+    prev.parts.push(part);
+    return;
+  }
+  completePrevious(rows);
+  rows.push({ type: "exploration-group", parts: [part] });
 }
 
 function hasTokenUsage(
@@ -182,20 +225,6 @@ function tokenTotal(tokens: TokenUsageInfo) {
     tokens.cache.read +
     tokens.cache.write
   );
-}
-
-export function resolvePart(
-  message: SessionMessageAssistant,
-  partID: string,
-): SessionMessageAssistant["content"][number] | undefined {
-  const tool = message.content.find(
-    (part) => part.type === "tool" && part.id === partID,
-  );
-  if (tool) return tool;
-  const match = /^(text|reasoning):(\d+)$/.exec(partID);
-  if (!match) return;
-  const ordinal = Number(match[2]);
-  return message.content.filter((part) => part.type === match[1])[ordinal];
 }
 
 export function cacheReuseDrop(

@@ -11,9 +11,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { messages, loaded, loading } = useSessionMessages(sessionID);
-  const chronological = messages;
-  const messageMap = new Map(chronological.map((m) => [m.id, m]));
-  const rows = projectRows(chronological);
+  const rows = projectRows(messages);
 
   if (!loaded && loading) {
     return (
@@ -32,14 +30,11 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     <KeyboardAwareLegendList
       data={rows}
       keyExtractor={rowKey}
-      renderItem={({ item }) => (
-        <RowRenderer row={item} messages={messageMap} />
-      )}
+      renderItem={({ item }) => <RowRenderer row={item} />}
       recycleItems
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
       maintainScrollAtEnd
-      maintainVisibleContentPosition
       alignItemsAtEnd
       keyboardOffset={insets.bottom}
       keyboardDismissMode="interactive"
