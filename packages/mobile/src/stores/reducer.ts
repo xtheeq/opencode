@@ -930,9 +930,9 @@ export function handleEvent(event: V2Event) {
 
     // Explicitly out of scope for mobile: no store mutation or refetch needed.
     case "session.forked":
-      // Forks are child sessions mobile never lists (root-only session list)
-      // and have no fork UI; registering one would fold it into the parent's
-      // blocker family as if it were a subagent.
+    // Forks are child sessions mobile never lists (root-only session list)
+    // and have no fork UI; registering one would fold it into the parent's
+    // blocker family as if it were a subagent.
     case "models-dev.refreshed":
     case "integration.connection.updated":
     case "filesystem.changed":

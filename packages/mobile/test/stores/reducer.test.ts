@@ -114,9 +114,7 @@ describe("reducer session.input.cancelled", () => {
     let state = eventStore.getState();
     expect(state.session.pending["ses_1"]).toHaveLength(1);
     expect(state.session.input["ses_1"]).toEqual(["inp_1"]);
-    expect(state.session.message["ses_1"].map((m) => m.id)).toEqual([
-      "inp_1",
-    ]);
+    expect(state.session.message["ses_1"].map((m) => m.id)).toEqual(["inp_1"]);
 
     handleEvent(inputCancelled("ses_1", "inp_1"));
     state = eventStore.getState();
@@ -128,9 +126,7 @@ describe("reducer session.input.cancelled", () => {
   test("is a no-op when the input was never admitted", () => {
     resetStore();
     handleEvent(inputCancelled("ses_1", "inp_missing"));
-    expect(
-      eventStore.getState().session.message["ses_1"],
-    ).toBeUndefined();
+    expect(eventStore.getState().session.message["ses_1"]).toBeUndefined();
   });
 });
 
@@ -139,18 +135,20 @@ describe("reducer session.input.steered / queued", () => {
     resetStore();
     handleEvent(inputAdmitted("ses_1", "inp_1", "queue"));
     handleEvent(inputSteered("ses_1", "inp_1"));
-    expect(
-      eventStore.getState().session.pending["ses_1"][0],
-    ).toMatchObject({ id: "inp_1", delivery: "steer" });
+    expect(eventStore.getState().session.pending["ses_1"][0]).toMatchObject({
+      id: "inp_1",
+      delivery: "steer",
+    });
   });
 
   test("queue updates the pending delivery", () => {
     resetStore();
     handleEvent(inputAdmitted("ses_1", "inp_1", "steer"));
     handleEvent(inputQueued("ses_1", "inp_1"));
-    expect(
-      eventStore.getState().session.pending["ses_1"][0],
-    ).toMatchObject({ id: "inp_1", delivery: "queue" });
+    expect(eventStore.getState().session.pending["ses_1"][0]).toMatchObject({
+      id: "inp_1",
+      delivery: "queue",
+    });
   });
 
   test("does not rewrite an unchanged delivery", () => {

@@ -40,9 +40,7 @@ export function useConnectionState(): ConnectionState {
 }
 
 export function useSessions() {
-  const sessions = eventStore(
-    useShallow((s) => Object.values(s.session.info)),
-  );
+  const sessions = eventStore(useShallow((s) => Object.values(s.session.info)));
   return [...sessions].sort((a, b) => b.time.updated - a.time.updated);
 }
 

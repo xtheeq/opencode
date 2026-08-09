@@ -285,8 +285,7 @@ export function setDelivery(
   if (!list) return;
   const position = list.findIndex((item) => item.id === inputID);
   const item = list[position];
-  if (!item || item.type === "compaction" || item.delivery === delivery)
-    return;
+  if (!item || item.type === "compaction" || item.delivery === delivery) return;
   list[position] = { ...item, delivery };
 }
 

@@ -5,11 +5,7 @@ import type {
   SessionMessageInfo,
   TokenUsageInfo,
 } from "@opencode-ai/client/promise";
-import {
-  isExploration,
-  type CacheUsage,
-  type SessionRow,
-} from "../types/rows";
+import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 
 // Each message's projected rows are cached by message object identity. immer
 // preserves identity for unchanged messages, so a re-projection only rebuilds
@@ -119,7 +115,8 @@ function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
   const rows: SessionRow[] = [];
   for (const message of ordered) {
     if (message.type !== "assistant") {
-      if (message.type === "synthetic" && !message.description?.trim()) continue;
+      if (message.type === "synthetic" && !message.description?.trim())
+        continue;
       if (message.type === "compaction" && message.status === "completed")
         usage.previousTurnCache = undefined;
       rows.push(messageToRow(message));
