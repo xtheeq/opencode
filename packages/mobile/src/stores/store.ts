@@ -44,6 +44,11 @@ export type ConnectionSlice = {
   error?: string;
 };
 
+// Inlined equivalent of SessionMessage.ID.fromEvent, which performs exactly this
+// replacement: schema modules re-export themselves with `.js` specifiers (e.g.
+// `export * as SessionMessage from "./session-message.js"`), which Metro resolves
+// literally and never maps to the `.ts` sources. Any value import of a schema
+// module would therefore fail the native bundle.
 export const messageIDFromEvent = (eventID: string) =>
   eventID.replace(/^evt_/, "msg_");
 
