@@ -18,6 +18,7 @@ import {
   messageIDFromEvent,
   removeBlocker,
   removePending,
+  setDelivery,
 } from "./store";
 import { loadSession, refreshLocation, removeSession, sync } from "./sync";
 
@@ -181,6 +182,27 @@ export function handleEvent(event: V2Event) {
       break;
     }
 
+    case "session.input.cancelled":
+      eventStore.setState((s) => {
+        removePending(s, event.data.sessionID, event.data.inputID);
+        const idx = index(event.data.sessionID);
+        const position = idx.get(event.data.inputID);
+        if (position === undefined) return;
+        const messages = s.session.message[event.data.sessionID];
+        if (!messages) return;
+        messages.splice(position, 1);
+        idx.clear();
+        messages.forEach((m, i) => idx.set(m.id, i));
+      });
+      eventStore.setState((s) => {
+        if (s.session.input[event.data.sessionID]) {
+          s.session.input[event.data.sessionID] = s.session.input[
+            event.data.sessionID
+          ].filter((id) => id !== event.data.inputID);
+        }
+      });
+      break;
+
     case "session.input.admitted":
       eventStore.setState((s) => {
         addPending(s, {
@@ -219,6 +241,18 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
+    case "session.input.steered":
+      eventStore.setState((s) => {
+        setDelivery(s, event.data.sessionID, event.data.inputID, "steer");
+      });
+      break;
+
+    case "session.input.queued":
+      eventStore.setState((s) => {
+        setDelivery(s, event.data.sessionID, event.data.inputID, "queue");
+      });
+      break;
+
     case "session.instructions.updated": {
       const instructionsMeta = event.metadata?.instructions;
       if (
@@ -252,6 +286,22 @@ export function handleEvent(event: V2Event) {
           text: event.data.text,
           description: event.data.description,
           metadata: event.data.metadata,
+          time: { created: event.created },
+        });
+      });
+      break;
+
+    case "session.skill.activated":
+      eventStore.setState((s) => {
+        const idx = index(event.data.sessionID);
+        const messages = (s.session.message[event.data.sessionID] ??= []);
+        append(messages, idx, {
+          id: messageIDFromEvent(event.id),
+          type: "skill",
+          skill: event.data.id,
+          name: event.data.name,
+          text: event.data.text,
+          metadata: event.metadata,
           time: { created: event.created },
         });
       });
@@ -877,5 +927,41 @@ export function handleEvent(event: V2Event) {
         event.location ?? eventStore.getState()._defaultLocation,
       );
       break;
+
+    // Explicitly out of scope for mobile: no store mutation or refetch needed.
+    case "session.forked":
+      // Forks are child sessions mobile never lists (root-only session list)
+      // and have no fork UI; registering one would fold it into the parent's
+      // blocker family as if it were a subagent.
+    case "models-dev.refreshed":
+    case "integration.connection.updated":
+    case "filesystem.changed":
+    case "plugin.added":
+    case "plugin.updated":
+    case "project.directories.updated":
+    case "pty.created":
+    case "pty.updated":
+    case "pty.exited":
+    case "pty.deleted":
+    case "question.asked":
+    case "question.replied":
+    case "question.rejected":
+    case "session.status":
+    case "session.idle":
+    case "tui.prompt.append":
+    case "tui.command.execute":
+    case "tui.toast.show":
+    case "tui.session.select":
+    case "installation.updated":
+    case "installation.update-available":
+    case "vcs.branch.updated":
+    case "server.connected":
+      break;
+
+    default: {
+      // Exhaustiveness guard: a new V2Event type without an explicit case
+      // fails typecheck instead of being silently dropped.
+      const exhaustive: never = event;
+    }
   }
 }

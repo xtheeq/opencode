@@ -275,6 +275,21 @@ export function removePending(
   ).filter((item) => item.id !== inputID);
 }
 
+export function setDelivery(
+  store: Store,
+  sessionID: string,
+  inputID: string,
+  delivery: "steer" | "queue",
+) {
+  const list = store.session.pending[sessionID];
+  if (!list) return;
+  const position = list.findIndex((item) => item.id === inputID);
+  const item = list[position];
+  if (!item || item.type === "compaction" || item.delivery === delivery)
+    return;
+  list[position] = { ...item, delivery };
+}
+
 export function addBlocker(store: Store, sessionID: string, blocker: Blocker) {
   const list = store.session.blocker[sessionID] ?? [];
   if (
