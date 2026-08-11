@@ -33,6 +33,7 @@ export type ComposerState = {
   prompt: ComposerPart[];
   cursor?: number;
   model?: ModelSelection;
+  agent?: string;
 };
 
 export type SuggestionKind = "agent" | "command" | "file" | "reference" | "resource";

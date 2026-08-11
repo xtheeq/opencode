@@ -50,6 +50,9 @@ export function createComposerStore(access: ComposerStoreAccess) {
     setModel(model: ModelSelection | undefined) {
       update((state) => ({ ...state, model }));
     },
+    setAgent(agent: string | undefined) {
+      update((state) => ({ ...state, agent }));
+    },
     setVariant(variant: string | null) {
       update((state) => (state.model ? { ...state, model: { ...state.model, variant } } : state));
     },

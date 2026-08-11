@@ -106,4 +106,14 @@ describe("composer store", () => {
     store.setVariant("thinking");
     expect(getState().model).toBeUndefined();
   });
+
+  test("setAgent updates the draft agent", () => {
+    const { store, getState } = createPromptStore();
+
+    store.setAgent("planner");
+    expect(getState().agent).toBe("planner");
+
+    store.setAgent(undefined);
+    expect(getState().agent).toBeUndefined();
+  });
 });
