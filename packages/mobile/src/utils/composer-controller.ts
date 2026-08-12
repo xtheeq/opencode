@@ -145,6 +145,12 @@ export function createComposerController(input: ComposerControllerInput): Compos
     emit();
   };
 
+  const submit = async () => {
+    const result = await input.submit();
+    reset();
+    return result;
+  };
+
   const setModel = (model: ComposerState["model"]) => {
     input.draft.setModel(model);
     emit();
@@ -177,7 +183,7 @@ export function createComposerController(input: ComposerControllerInput): Compos
     select,
     suggestions,
     canSubmit,
-    submit: () => input.submit(),
+    submit,
     stop: () => input.stop(),
     reset,
     value,
