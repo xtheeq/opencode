@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
+import { useShallow } from "zustand/react/shallow";
 import type { ComposerState } from "@/types/composer";
 import type { ComposerStoreAccess } from "@/utils/composer-store";
 
@@ -32,6 +33,10 @@ export function composerAccess(sessionID: string): ComposerStoreAccess {
 
 export function composerDraft(sessionID: string): ComposerState {
   return composerDrafts.getState().drafts[sessionID] ?? EMPTY_DRAFT;
+}
+
+export function useComposerDraft(sessionID: string): ComposerState {
+  return composerDrafts(useShallow((state) => state.drafts[sessionID] ?? EMPTY_DRAFT));
 }
 
 export function resetComposerDraft(sessionID: string) {

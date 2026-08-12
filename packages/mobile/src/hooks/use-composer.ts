@@ -4,7 +4,7 @@ import { createComposerController, type ComposerController } from "@/utils/compo
 import { createComposerStore } from "@/utils/composer-store";
 import { commandSuggestions, contextSuggestions, searchContextFiles } from "@/utils/composer-suggestions";
 import { submitComposer } from "@/utils/composer-submit";
-import { composerAccess } from "@/stores/composer";
+import { composerAccess, useComposerDraft } from "@/stores/composer";
 import { eventStore, getClient, locationKey, locationQuery, type LocationData } from "@/stores/store";
 import { useSessionActive } from "./use-store";
 
@@ -70,6 +70,10 @@ export function useComposer(sessionID: string) {
     setController(createController(sessionID));
   }
   useSyncExternalStore(controller.subscribe, controller.version);
+  const draft = useComposerDraft(sessionID);
   const working = useSessionActive(sessionID) === "running";
-  return { controller, working };
+  const text = draft.prompt.map((part) => part.content).join("");
+  const parts = draft.prompt;
+  const canSubmit = text.trim().length > 0;
+  return { controller, working, text, parts, canSubmit };
 }
