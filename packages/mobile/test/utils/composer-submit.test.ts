@@ -15,7 +15,7 @@ function recordingApi() {
   const calls: string[] = [];
   const prompts: SessionPromptInput[] = [];
   const api: ComposerApi = {
-    createSession: async () => {
+    create: async () => {
       calls.push("create");
       return { id: "ses_new" };
     },
@@ -139,7 +139,7 @@ describe("submitComposer", () => {
     const created: { agent?: string; model?: ModelRef }[] = [];
     const { prompts } = recordingApi();
     const api: ComposerApi = {
-      createSession: async (input) => {
+      create: async (input) => {
         created.push(input);
         return { id: "ses_new" };
       },

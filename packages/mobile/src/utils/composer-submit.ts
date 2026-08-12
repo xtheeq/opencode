@@ -8,7 +8,7 @@ import type {
 } from "@/types/composer";
 
 export type ComposerApi = {
-  createSession(input: { agent?: string; model?: ModelRef }): Promise<{ id: string }>;
+  create(input: { agent?: string; model?: ModelRef }): Promise<{ id: string }>;
   switchAgent(input: { sessionID: string; agent: string }): Promise<unknown>;
   switchModel(input: { sessionID: string; model: ModelRef }): Promise<unknown>;
   prompt(input: SessionPromptInput): Promise<unknown>;
@@ -66,7 +66,7 @@ async function createSession(
   agent: string | undefined,
   model: ModelSelection | undefined,
 ): Promise<string> {
-  const session = await api.createSession({
+  const session = await api.create({
     agent,
     model: model ? toModelRef(model) : undefined,
   });
