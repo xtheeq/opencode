@@ -6,6 +6,7 @@ import type {
   ReferenceInfo,
 } from "@opencode-ai/client/promise";
 import type { Suggestion } from "@/types/composer";
+import type { InteractionState } from "./composer-machine";
 
 export function referenceSuggestions(references: ReferenceInfo[]): Suggestion[] {
   return references
@@ -103,6 +104,22 @@ export function filterSuggestions(items: Suggestion[], query: string): Suggestio
       (field) => field?.toLowerCase().includes(needle),
     ),
   );
+}
+
+export function sheetSuggestions(
+  interaction: InteractionState,
+  input: { commands: Suggestion[]; context: Suggestion[]; files: Suggestion[] },
+): Suggestion[] {
+  if (interaction.popover.type === "context") {
+    return filterSuggestions([...input.context, ...input.files], interaction.popover.query);
+  }
+  if (
+    interaction.popover.type === "command-menu" ||
+    interaction.popover.type === "command-inline"
+  ) {
+    return filterSuggestions(input.commands, interaction.popover.query);
+  }
+  return [];
 }
 
 export function searchContextFiles(

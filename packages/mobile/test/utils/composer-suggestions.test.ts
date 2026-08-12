@@ -15,7 +15,9 @@ import {
   referenceSuggestions,
   resourceSuggestions,
   searchContextFiles,
+  sheetSuggestions,
 } from "@/utils/composer-suggestions";
+import type { InteractionState } from "@/utils/composer-machine";
 
 const reference = (overrides: Partial<ReferenceInfo> = {}): ReferenceInfo =>
   ({
@@ -179,6 +181,48 @@ describe("filterSuggestions", () => {
     expect(filterSuggestions(commands, "review").map((s) => s.id)).toEqual(["custom.review"]);
     expect(filterSuggestions(commands, "code review").map((s) => s.id)).toEqual(["custom.review"]);
     expect(filterSuggestions(commands, "writes").map((s) => s.id)).toEqual(["agent:coder"]);
+  });
+});
+
+describe("sheetSuggestions", () => {
+  const commands: Suggestion[] = [
+    { id: "custom.review", kind: "command", label: "/review", trigger: "review", title: "review" },
+    { id: "custom.plan", kind: "command", label: "/plan", trigger: "plan", title: "plan" },
+  ];
+  const context: Suggestion[] = [
+    { id: "agent:coder", kind: "agent", label: "@coder" },
+    { id: "reference:docs", kind: "reference", label: "@docs" },
+  ];
+  const files: Suggestion[] = [
+    { id: "file:src/app.ts", kind: "file", label: "src/app.ts", path: "src/app.ts" },
+  ];
+
+  test("returns nothing while the popover is closed", () => {
+    expect(sheetSuggestions({ popover: { type: "closed" } }, { commands, context, files })).toEqual([]);
+  });
+
+  test("filters commands for the command menu", () => {
+    const interaction: InteractionState = { popover: { type: "command-menu", query: "rev" } };
+
+    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
+      "custom.review",
+    ]);
+  });
+
+  test("filters commands for an inline command popover", () => {
+    const interaction: InteractionState = { popover: { type: "command-inline", query: "" } };
+
+    expect(sheetSuggestions(interaction, { commands, context, files })).toHaveLength(2);
+  });
+
+  test("combines context and file results for the context popover", () => {
+    const interaction: InteractionState = { popover: { type: "context", query: "" } };
+
+    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
+      "agent:coder",
+      "reference:docs",
+      "file:src/app.ts",
+    ]);
   });
 });
 

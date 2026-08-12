@@ -7,11 +7,34 @@ import { useComposer } from "@/hooks/use-composer";
 import { raiseCue } from "@/stores/cues";
 import { borderRadius, spacing, typography, useTheme } from "@/theme";
 import type { AgentPart, FilePart } from "@/types/composer";
+import type { Popover } from "@/utils/composer-machine";
+import { CommandSheet } from "./command-sheet";
+
+function isCommandPopover(
+  popover: Popover,
+): popover is Extract<Popover, { type: "command-menu" | "command-inline" }> {
+  return popover.type === "command-menu" || popover.type === "command-inline";
+}
 
 export function Composer({ sessionID }: { sessionID: string }) {
-  const { text, parts, canSubmit, working, onChangeText, onCursor, submit, stop, removeMention } =
-    useComposer(sessionID);
+  const {
+    text,
+    parts,
+    canSubmit,
+    working,
+    interaction,
+    suggestions,
+    onChangeText,
+    onCursor,
+    select,
+    submit,
+    stop,
+    removeMention,
+  } = useComposer(sessionID);
   const { colors, effects } = useTheme();
+
+  const popover = interaction.popover;
+  const commandsOpen = isCommandPopover(popover);
 
   const handleSubmit = async () => {
     if (working) {
@@ -36,6 +59,9 @@ export function Composer({ sessionID }: { sessionID: string }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.default }]}>
+      {commandsOpen && (
+        <CommandSheet suggestions={suggestions} onSelect={select} />
+      )}
       {parts.some((part) => part.type !== "text") && (
         <View style={styles.chips}>
           {parts.map((part, index) => {
