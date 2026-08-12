@@ -17,7 +17,7 @@ import { LayerNode } from "@opencode-ai/util/effect/layer-node"
 import { Bus } from "@opencode-ai/core/bus"
 import { EventTable } from "@opencode-ai/core/event/sql"
 import { InstructionDiscovery } from "@opencode-ai/core/instruction-discovery"
-import { Instructions } from "@opencode-ai/core/instructions"
+import { Instructions } from "@opencode-ai/core/instructions/index"
 import { InstructionBuiltIns } from "@opencode-ai/core/instructions/builtins"
 import { Location } from "@opencode-ai/core/location"
 import { McpInstructions } from "@opencode-ai/core/mcp/instructions"
@@ -99,7 +99,10 @@ const builtins = Layer.mock(InstructionBuiltIns.Service, {
       }),
     ),
 })
-const discovery = Layer.mock(InstructionDiscovery.Service, { load: () => Effect.succeed(Instructions.empty) })
+const discovery = Layer.mock(InstructionDiscovery.Service, {
+  project: true,
+  load: () => Effect.succeed(Instructions.empty),
+})
 const skills = Layer.mock(SkillInstructions.Service, { load: () => Effect.succeed(Instructions.empty) })
 const references = Layer.mock(ReferenceInstructions.Service, { load: () => Effect.succeed(Instructions.empty) })
 const mcp = Layer.mock(McpInstructions.Service, { load: () => Effect.succeed(Instructions.empty) })

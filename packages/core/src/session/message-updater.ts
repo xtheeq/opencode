@@ -1,10 +1,12 @@
 import { castDraft, produce, type WritableDraft } from "immer"
 import { DateTime, Effect, Match, pipe } from "effect"
-import { SessionEvent } from "./event"
-import { SessionMessage } from "./message"
+import { SessionEvent } from "./event.js"
+import { SessionMessage } from "./message.js"
 
 export interface Adapter {
+  readonly getAgent: () => Effect.Effect<SessionMessage.AgentSelected["agent"] | undefined, never, never>
   readonly getModel: () => Effect.Effect<SessionMessage.ModelSelected["model"] | undefined, never, never>
+  readonly getLocation: () => Effect.Effect<SessionMessage.LocationSwitched["previous"], never, never>
   readonly getCurrentAssistant: () => Effect.Effect<SessionMessage.Assistant | undefined, never, never>
   readonly getAssistant: (
     messageID: SessionMessage.ID,
@@ -59,19 +61,23 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
       "session.created": () => Effect.void,
       "session.usage.recorded": () => Effect.void,
       "session.agent.selected": (event) => {
-        return adapter.appendMessage(
-          SessionMessage.AgentSelected.make({
-            id: SessionMessage.ID.fromEvent(event.id),
-            type: "agent-switched",
-            metadata: event.metadata,
-            agent: event.data.agent,
-            time: { created: event.created },
-          }),
-        )
+        return Effect.gen(function* () {
+          const previous = event.data.previous ?? (yield* adapter.getAgent())
+          yield* adapter.appendMessage(
+            SessionMessage.AgentSelected.make({
+              id: SessionMessage.ID.fromEvent(event.id),
+              type: "agent-switched",
+              metadata: event.metadata,
+              agent: event.data.agent,
+              previous,
+              time: { created: event.created },
+            }),
+          )
+        })
       },
       "session.model.selected": (event) => {
         return Effect.gen(function* () {
-          const previous = yield* adapter.getModel()
+          const previous = event.data.previous ?? (yield* adapter.getModel())
           yield* adapter.appendMessage(
             SessionMessage.ModelSelected.make({
               id: SessionMessage.ID.fromEvent(event.id),
@@ -84,7 +90,22 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
           )
         })
       },
-      "session.moved": () => Effect.void,
+      "session.moved": (event) => {
+        return Effect.gen(function* () {
+          yield* adapter.appendMessage(
+            SessionMessage.LocationSwitched.make({
+              id: SessionMessage.ID.fromEvent(event.id),
+              type: "location-switched",
+              metadata: event.metadata,
+              location: event.data.location,
+              projectID: event.data.projectID,
+              subpath: event.data.subpath,
+              previous: yield* adapter.getLocation(),
+              time: { created: event.created },
+            }),
+          )
+        })
+      },
       "session.renamed": () => Effect.void,
       "session.deleted": () => Effect.void,
       "session.forked": () => Effect.void,
@@ -104,6 +125,7 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
             id: SessionMessage.ID.fromEvent(event.id),
             type: "system",
             text: event.data.text,
+            description: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
             metadata: event.metadata,
             time: { created: event.created },
           }),
@@ -422,4 +444,4 @@ export function update(adapter: Adapter, event: SessionEvent.DurableEvent) {
   return project(event)
 }
 
-export * as SessionMessageUpdater from "./message-updater"
+export * as SessionMessageUpdater from "./message-updater.js"

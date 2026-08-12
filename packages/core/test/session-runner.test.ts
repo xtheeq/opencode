@@ -38,7 +38,7 @@ import { Money } from "@opencode-ai/schema/money"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
 import { SessionRunCoordinator } from "@opencode-ai/core/session/run-coordinator"
-import { SessionRunner } from "@opencode-ai/core/session/runner"
+import { SessionRunner } from "@opencode-ai/core/session/runner/index"
 import * as SessionRunnerLLM from "@opencode-ai/core/session/runner/llm"
 import { SessionRunnerModel } from "@opencode-ai/core/session/runner/model"
 import { PromptCacheDiagnostics } from "@opencode-ai/core/session/prompt-cache-diagnostics"
@@ -61,7 +61,7 @@ import {
 } from "@opencode-ai/core/session/sql"
 import { InstructionEntry } from "@opencode-ai/core/session/instruction-entry"
 import { SessionStore } from "@opencode-ai/core/session/store"
-import { Instructions } from "@opencode-ai/core/instructions"
+import { Instructions } from "@opencode-ai/core/instructions/index"
 import { InstructionBuiltIns } from "@opencode-ai/core/instructions/builtins"
 import { InstructionDiscovery } from "@opencode-ai/core/instruction-discovery"
 import { SkillInstructions } from "@opencode-ai/core/skill/instructions"
@@ -312,7 +312,10 @@ const systemContext = Layer.mock(InstructionBuiltIns.Service, {
       }),
     ),
 })
-const instructionContext = Layer.mock(InstructionDiscovery.Service, { load: () => Effect.succeed(Instructions.empty) })
+const instructionContext = Layer.mock(InstructionDiscovery.Service, {
+  project: true,
+  load: () => Effect.succeed(Instructions.empty),
+})
 const skillInstructions = Layer.mock(SkillInstructions.Service, {
   load: (agent) =>
     Effect.succeed(
@@ -512,7 +515,11 @@ const providerUnavailable = () =>
   new AIError({
     module: "test",
     method: "stream",
-    reason: new TransportReason({ message: "Provider unavailable" }),
+    reason: new TransportReason({
+      message: "Provider unavailable",
+      transport: "http",
+      operation: "request",
+    }),
   })
 
 const incompleteStream = () =>
@@ -809,7 +816,7 @@ const verifyPartialFlushOnInterruption = (kind: FragmentKind) =>
   })
 
 describe("SessionRunnerLLM", () => {
-  it.effect("retries title generation from the first prompt after execution and title failures", () =>
+  it.effect("generates the title while the first model step is still running", () =>
     Effect.gen(function* () {
       const session = yield* setup
       const agents = yield* Agent.Service
@@ -824,16 +831,48 @@ describe("SessionRunnerLLM", () => {
       )
 
       yield* admit(session, "First prompt")
-      yield* TestLLM.push(Stream.fail(invalidRequest()))
+      yield* TestLLM.push(TestLLM.text("Generated title", "text-title"), Stream.never)
+      const bus = yield* Bus.Service
+      const renamed = yield* bus.subscribe(SessionEvent.Renamed).pipe(
+        Stream.filter((event) => event.data.sessionID === sessionID),
+        Stream.take(1),
+        Stream.runDrain,
+        Effect.forkScoped({ startImmediately: true }),
+      )
+      const runner = yield* SessionRunner.Service
+      const fiber = yield* runner.drain({ sessionID, force: true }).pipe(Effect.forkChild)
+      yield* Fiber.join(renamed)
+
+      expect((yield* session.get(sessionID)).title).toBe("Generated title")
+      yield* Fiber.interrupt(fiber)
+    }),
+  )
+
+  it.effect("retries title generation from the first prompt after title and execution failures", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      const agents = yield* Agent.Service
+      const { db } = yield* Database.Service
+      yield* db.update(SessionTable).set({ title: null }).where(eq(SessionTable.id, sessionID)).run().pipe(Effect.orDie)
+      yield* agents.transform((draft) =>
+        draft.update(Agent.ID.make("title"), (agent) => {
+          agent.mode = "primary"
+          agent.hidden = true
+          agent.system = "Generate a title."
+        }),
+      )
+
+      yield* admit(session, "First prompt")
+      yield* TestLLM.push(Stream.fail(invalidRequest()), Stream.fail(invalidRequest()))
       expect((yield* session.resume(sessionID).pipe(Effect.exit))._tag).toBe("Failure")
 
       yield* admit(session, "Second prompt")
       const titleFailed = yield* Deferred.make<void>()
       yield* TestLLM.push(
-        TestLLM.text("Recovered", "text-recovered"),
         Stream.make(LLMEvent.providerError({ message: "Title provider unavailable" })).pipe(
           Stream.ensuring(Deferred.succeed(titleFailed, undefined)),
         ),
+        TestLLM.text("Recovered", "text-recovered"),
       )
       yield* session.resume(sessionID)
       yield* Deferred.await(titleFailed)
@@ -849,13 +888,13 @@ describe("SessionRunnerLLM", () => {
       )
       yield* admit(session, "Third prompt")
       yield* TestLLM.push(
-        TestLLM.text("Recovered again", "text-recovered-again"),
         TestLLM.text("Generated title", "text-title"),
+        TestLLM.text("Recovered again", "text-recovered-again"),
       )
       yield* session.resume(sessionID)
       yield* Fiber.join(renamed)
 
-      expect(requests).toHaveLength(5)
+      expect(requests).toHaveLength(6)
       expect(requests[2]?.messages).toContainEqual(Message.user("First prompt"))
       expect(requests[4]?.messages).toContainEqual(Message.user("First prompt"))
       expect((yield* session.get(sessionID)).title).toBe("Generated title")
@@ -3944,7 +3983,7 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
-  it.effect("retries eligible pre-output failures after exponential backoff", () =>
+  it.effect("bounds jittered exponential backoff for eligible pre-output failures", () =>
     Effect.gen(function* () {
       const session = yield* setup
       yield* admit(session, "Retry transport")
@@ -3953,9 +3992,9 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      yield* TestClock.adjust("1999 millis")
+      yield* TestClock.adjust("1599 millis")
       expect(requests).toHaveLength(1)
-      yield* TestClock.adjust("1 millis")
+      yield* TestClock.adjust("801 millis")
       yield* Fiber.join(run)
 
       expect(requests).toHaveLength(2)
@@ -3980,7 +4019,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(requests).toHaveLength(2)
@@ -4025,7 +4064,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(requests).toHaveLength(2)
@@ -4082,7 +4121,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(requests[1]?.messages.at(-2)).toMatchObject({
@@ -4123,7 +4162,7 @@ describe("SessionRunnerLLM", () => {
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
       while (!(yield* recordedEventTypes(sessionID)).includes("session.retry.scheduled.1")) yield* Effect.yieldNow
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(executions).toEqual(["settled"])
@@ -4162,7 +4201,7 @@ describe("SessionRunnerLLM", () => {
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
       while (!(yield* recordedEventTypes(sessionID)).includes("session.retry.scheduled.1")) yield* Effect.yieldNow
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(messageRoles(requests[1])).toEqual(["user", "assistant", "tool", "user"])
@@ -4200,7 +4239,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      for (const [index, delay] of [2_000, 4_000, 8_000, 16_000].entries()) {
+      for (const [index, delay] of [2_400, 4_800, 9_600, 19_200].entries()) {
         yield* TestClock.adjust(delay)
         yield* TestLLM.wait(index + 2)
       }
@@ -4221,7 +4260,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      for (const [index, delay] of [2_000, 4_000, 8_000, 16_000].entries()) {
+      for (const [index, delay] of [2_400, 4_800, 9_600, 19_200].entries()) {
         yield* TestClock.adjust(delay)
         yield* TestLLM.wait(index + 2)
       }
@@ -4236,12 +4275,15 @@ describe("SessionRunnerLLM", () => {
         .orderBy(asc(EventTable.seq))
         .all()
         .pipe(Effect.orDie)
-      expect(retries.map((event) => event.data)).toMatchObject([
-        { attempt: 2, at: 2_000 },
-        { attempt: 3, at: 6_000 },
-        { attempt: 4, at: 14_000 },
-        { attempt: 5, at: 30_000 },
-      ])
+      for (const [index, range] of [
+        [1_600, 2_400],
+        [4_800, 7_200],
+        [11_200, 16_800],
+        [24_000, 36_000],
+      ].entries()) {
+        expect(retries[index]?.data.at).toBeGreaterThanOrEqual(range[0]!)
+        expect(retries[index]?.data.at).toBeLessThanOrEqual(range[1]!)
+      }
       expect((yield* recordedEventTypes(sessionID)).filter((type) => type === "session.step.started.1")).toHaveLength(5)
       const assistant = requireAssistant(yield* session.context(sessionID))
       expect(yield* recordedStepSettlementEvents(sessionID, assistant.id)).toMatchObject([
@@ -4271,7 +4313,7 @@ describe("SessionRunnerLLM", () => {
 
       const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* TestLLM.wait(1)
-      yield* TestClock.adjust("2 seconds")
+      yield* TestClock.adjust("2400 millis")
       yield* Fiber.join(run)
 
       expect(requests).toHaveLength(3)

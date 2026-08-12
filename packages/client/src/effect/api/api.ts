@@ -339,7 +339,11 @@ export type Endpoint5_31Output =
           readonly type: "session.agent.selected"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?: Location.Ref | undefined
-          readonly data: { readonly sessionID: Session.ID; readonly agent: Agent.ID }
+          readonly data: {
+            readonly sessionID: Session.ID
+            readonly agent: Agent.ID
+            readonly previous?: Agent.ID | undefined
+          }
         }
       | {
           readonly id: Event.ID
@@ -348,7 +352,11 @@ export type Endpoint5_31Output =
           readonly type: "session.model.selected"
           readonly durable: { readonly aggregateID: string; readonly seq: Event.Seq; readonly version: Event.Version }
           readonly location?: Location.Ref | undefined
-          readonly data: { readonly sessionID: Session.ID; readonly model: Model.Ref }
+          readonly data: {
+            readonly sessionID: Session.ID
+            readonly model: Model.Ref
+            readonly previous?: Model.Ref | undefined
+          }
         }
       | {
           readonly id: Event.ID
@@ -907,7 +915,7 @@ export type Endpoint5_31Output =
   | EventLog.Synced
 export type SessionLogOperation<E = never> = (input: Endpoint5_31Input) => Stream.Stream<Endpoint5_31Output, E>
 
-export type Endpoint5_32Input = { readonly sessionID: Session.ID }
+export type Endpoint5_32Input = { readonly sessionID: Session.ID; readonly continue?: boolean | undefined }
 export type Endpoint5_32Output = void
 export type SessionInterruptOperation<E = never> = (input: Endpoint5_32Input) => Effect.Effect<Endpoint5_32Output, E>
 

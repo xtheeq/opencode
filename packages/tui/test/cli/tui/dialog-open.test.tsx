@@ -16,6 +16,7 @@ import { ThemeProvider } from "../../../src/context/theme"
 import { DialogProvider, useDialog } from "../../../src/ui/dialog"
 import { ToastProvider } from "../../../src/ui/toast"
 import { createApi, createEventStream, createFetch, json, type FetchHandler } from "../../fixture/tui-client"
+import { emptyThemeSource } from "../../fixture/fixture"
 import { TestTuiContexts } from "../../fixture/tui-environment"
 import { tmpdir } from "../../fixture/fixture"
 import { createTuiResolvedConfig } from "../../fixture/tui-runtime"
@@ -185,6 +186,94 @@ test("preserves a moved project when sessions arrive", async () => {
   }
 })
 
+test("option arrows jump between sections", async () => {
+  const handler: FetchHandler = (url) => {
+    if (url.pathname === "/api/session")
+      return json({
+        data: [
+          {
+            id: "ses_recent",
+            projectID: "proj_recent",
+            cost: 0,
+            tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+            time: { created: 1, updated: 2 },
+            title: "Recent session",
+            location: { directory: "/tmp/opencode/recent" },
+          },
+        ],
+        cursor: {},
+      })
+    if (url.pathname === "/api/project")
+      return json([
+        {
+          id: "proj_recent",
+          canonical: "/tmp/opencode/recent",
+          name: "Recent project",
+          time: { created: 1, updated: 2 },
+          sandboxes: [],
+        },
+      ])
+    return undefined
+  }
+
+  const next = await renderOpen(handler)
+  try {
+    await next.app.waitForFrame((frame) => frame.includes("Recent session") && frame.includes("Recent project"))
+    next.app.mockInput.pressArrow("down", { meta: true })
+    next.app.mockInput.pressEnter()
+    await next.app.waitFor(() => next.route.data.type === "home")
+    expect(next.route.data).toEqual({ type: "home", location: { directory: "/tmp/opencode/recent" } })
+  } finally {
+    await next.dispose()
+  }
+
+  const previous = await renderOpen(handler)
+  try {
+    await previous.app.waitForFrame((frame) => frame.includes("Recent session") && frame.includes("Recent project"))
+    previous.app.mockInput.pressArrow("up", { meta: true })
+    previous.app.mockInput.pressEnter()
+    await previous.app.waitFor(() => previous.route.data.type === "home")
+    expect(previous.route.data).toEqual({ type: "home", location: { directory: "/tmp/opencode/recent" } })
+  } finally {
+    await previous.dispose()
+  }
+})
+
+test("option arrows stay in the only visible section", async () => {
+  const fixture = await renderOpen((url) => {
+    if (url.pathname === "/api/session") return json({ data: [], cursor: {} })
+    if (url.pathname !== "/api/project") return undefined
+    return json([
+      {
+        id: "proj_effect",
+        canonical: "/tmp/effect",
+        name: "Effect",
+        time: { created: 1, updated: 2 },
+        sandboxes: [],
+      },
+      {
+        id: "proj_opencode",
+        canonical: "/tmp/opencode",
+        name: "OpenCode",
+        time: { created: 1, updated: 1 },
+        sandboxes: [],
+      },
+    ])
+  })
+
+  try {
+    await fixture.app.waitForFrame((frame) => frame.includes("Effect") && frame.includes("OpenCode"))
+    await fixture.app.mockInput.typeText("Effect")
+    await fixture.app.waitForFrame((frame) => frame.includes("Effect") && !frame.includes("OpenCode"))
+    fixture.app.mockInput.pressArrow("down", { meta: true })
+    fixture.app.mockInput.pressEnter()
+    await fixture.app.waitFor(() => fixture.route.data.type === "home")
+    expect(fixture.route.data).toEqual({ type: "home", location: { directory: "/tmp/effect" } })
+  } finally {
+    await fixture.dispose()
+  }
+})
+
 async function renderOpen(
   handler: FetchHandler,
   beforeOpen?: (contexts: {
@@ -226,7 +315,7 @@ async function renderOpen(
                       <DataProvider>
                         <LocationProvider>
                           <SessionTabsProvider>
-                            <ThemeProvider mode="dark" source={{ discover: () => Promise.resolve({}) }}>
+                            <ThemeProvider mode="dark" source={emptyThemeSource}>
                               <DialogProvider>
                                 <Probe />
                               </DialogProvider>

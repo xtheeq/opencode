@@ -38,6 +38,7 @@ import {
   TuiStartupProvider,
   TuiTerminalEnvironmentProvider,
   useTuiApp,
+  useTuiPaths,
   useTuiStartup,
   type TuiApp,
 } from "./context/runtime"
@@ -72,7 +73,7 @@ import { DialogOpen } from "./component/dialog-open"
 import { SessionTabs } from "./component/session-tabs"
 import { sessionTabsFitVertically } from "./ui/layout"
 import { ThemeErrorToast } from "./component/theme-error-toast"
-import { ThemeProvider, useTheme, useThemes } from "./context/theme"
+import { createThemeSource, ThemeProvider, useTheme, useThemes } from "./context/theme"
 import { Home } from "./routes/home"
 import { Session } from "./routes/session"
 import { PromptHistoryProvider } from "./prompt/history"
@@ -85,9 +86,10 @@ import { ArgsProvider, useArgs, type Args } from "./context/args"
 import open from "open"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { Config, ConfigProvider, useConfig } from "./config"
+import { newSessionLocation } from "./config/new-session-location"
 import { PluginProvider, usePlugin, type PackageResolver } from "./plugin/context"
 import { tuiPluginDirectories } from "./plugin/discovery"
-import { PluginRoute, PluginSlot } from "./plugin/render"
+import { PluginRoute, Slot } from "./plugin/render"
 import { CommandPaletteDialog } from "./component/command-palette"
 import { COMMAND_PALETTE_COMMAND, Keymap, type KeymapCommand } from "./context/keymap"
 
@@ -97,6 +99,7 @@ import { destroyRenderer } from "./util/renderer"
 import { cliErrorMessage, errorFormat } from "./util/error"
 import { AttentionProvider } from "./context/attention"
 import { StorageProvider } from "./context/storage"
+import { createTuiClipboard } from "./clipboard"
 
 registerOpencodeSpinner()
 
@@ -147,6 +150,7 @@ const appBindingCommands = [
   "variant.cycle",
   "variant.list",
   "provider.connect",
+  "opencode.settings",
   "opencode.status",
   "server.pair",
   "service.restart",
@@ -165,6 +169,7 @@ const appBindingCommands = [
   "app.toggle.file_context",
   "app.toggle.diffwrap",
   "app.toggle.paste_summary",
+  "permission.mode",
 ] as const
 
 export type TuiInput = {
@@ -251,6 +256,13 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
           (renderer) => Effect.sync(() => destroyRenderer(renderer)),
         )
       })
+      const clipboard = yield* Effect.acquireRelease(
+        Effect.sync(() => createTuiClipboard(renderer)),
+        (clipboard) =>
+          Effect.tryPromise(() => clipboard.dispose()).pipe(
+            Effect.catch((error) => Effect.sync(() => log("error", "Failed to dispose TUI clipboard", { error }))),
+          ),
+      )
       win32DisableProcessedInput()
       const finalizers = new Set<() => Promise<void>>()
       yield* Effect.addFinalizer(() =>
@@ -287,7 +299,11 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                 <EpilogueProvider set={(value) => (exit.epilogue = value)}>
                   <TuiAppProvider value={input.app}>
                     <ErrorBoundary
-                      fallback={(error, reset) => <ErrorComponent error={error} reset={reset} mode={mode} />}
+                      fallback={(error, reset) => (
+                        <ClipboardProvider value={clipboard}>
+                          <ErrorComponent error={error} reset={reset} mode={mode} />
+                        </ClipboardProvider>
+                      )}
                     >
                       <TuiPathsProvider
                         value={{
@@ -336,7 +352,7 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                   skipInitialLoading: Boolean(process.env.OPENCODE_FAST_BOOT),
                                 }}
                               >
-                                <ClipboardProvider>
+                                <ClipboardProvider value={clipboard}>
                                   <ArgsProvider {...input.args}>
                                     <ConfigProvider
                                       config={config}
@@ -360,7 +376,10 @@ export const run = Effect.fn("Tui.run")(function* (input: TuiInput) {
                                                 <DataProvider>
                                                   <LocationProvider>
                                                     <SessionTabsProvider>
-                                                      <ThemeProvider mode={mode}>
+                                                      <ThemeProvider
+                                                        mode={mode}
+                                                        source={createThemeSource(global.config)}
+                                                      >
                                                         <ThemeErrorToast />
                                                         <LocalProvider>
                                                           <PromptStashProvider>
@@ -438,6 +457,7 @@ function App(props: { pair?: DialogPairCredentials }) {
   const log = useLog({ component: "app" })
   const app = useTuiApp()
   const startup = useTuiStartup()
+  const paths = useTuiPaths()
   const config = useConfig()
   const devtools = createMemo(() => config.data.debug?.devtools ?? app.channel === "local")
   const route = useRoute()
@@ -481,7 +501,7 @@ function App(props: { pair?: DialogPairCredentials }) {
         toast.show({
           variant: "error",
           title: `MCP server failed: ${server.name}`,
-          message: "Open MCP servers to view details.",
+          message: "Run /mcps to view details.",
         })
     }
   })
@@ -504,7 +524,7 @@ function App(props: { pair?: DialogPairCredentials }) {
     if (!text || text.length === 0) return
 
     await clipboard
-      .write?.(text)
+      .write(text)
       .then(() => toast.show({ message: "Copied to clipboard", variant: "info" }))
       .catch(toast.error)
 
@@ -644,10 +664,13 @@ function App(props: { pair?: DialogPairCredentials }) {
         run: () => {
           route.navigate({
             type: "home",
-            location:
+            location: newSessionLocation(
+              config.data.session.new_location,
+              paths.cwd,
               route.data.type === "session"
                 ? (data.session.get(route.data.sessionID)?.location ?? location.ref)
                 : undefined,
+            ),
           })
           dialog.clear()
         },
@@ -867,7 +890,7 @@ function App(props: { pair?: DialogPairCredentials }) {
       {
         name: "server.pair",
         title: "Pair device",
-        slash: { name: "pair" },
+        slash: { name: "pair", aliases: ["web"] },
         run: () => {
           dialog.replace(() => <DialogPair credentials={props.pair} />)
         },
@@ -1225,7 +1248,7 @@ function App(props: { pair?: DialogPairCredentials }) {
                 </Match>
               </Switch>
             </box>
-            <PluginSlot name="app" input={{}} mode="all" />
+            <Slot path="app" />
           </Show>
         </box>
       </box>

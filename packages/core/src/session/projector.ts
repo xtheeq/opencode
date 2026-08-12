@@ -1,21 +1,23 @@
-export * as SessionProjector from "./projector"
+export * as SessionProjector from "./projector.js"
 
 import { and, asc, desc, eq, gt, gte, lt, lte, sql } from "drizzle-orm"
 import { DateTime, Effect, Layer, Schema, Stream } from "effect"
-import { Database } from "../database/database"
-import { Bus } from "../bus"
+import { Database } from "../database/database.js"
+import { Bus } from "../bus.js"
 import { makeGlobalNode } from "@opencode-ai/util/effect/app-node"
-import { Model } from "../model"
-import { SessionEvent } from "./event"
-import { SessionMessage } from "./message"
-import { SessionMessageUpdater } from "./message-updater"
-import { SessionPending } from "./pending"
-import { Workspace } from "../workspace"
-import { InstructionState } from "./instruction-state"
-import { SessionPendingTable, SessionMessageTable, SessionTable } from "./sql"
-import { Slug } from "../util/slug"
+import { Agent } from "../agent.js"
+import { Model } from "../model.js"
+import { SessionEvent } from "./event.js"
+import { SessionMessage } from "./message.js"
+import { SessionMessageUpdater } from "./message-updater.js"
+import { SessionPending } from "./pending.js"
+import { Workspace } from "../workspace.js"
+import { InstructionState } from "./instruction-state.js"
+import { SessionPendingTable, SessionMessageTable, SessionTable } from "./sql.js"
+import { Slug } from "../util/slug.js"
 import { Money } from "@opencode-ai/schema/money"
-import type { SessionSchema } from "./schema"
+import { AbsolutePath, RelativePath } from "../schema.js"
+import type { SessionSchema } from "./schema.js"
 
 type DatabaseService = Database.Interface["db"]
 type CurrentDurableEvent = Extract<SessionEvent.Event, { readonly durable: object }>
@@ -230,6 +232,17 @@ function run(db: DatabaseService, event: MessageEvent) {
     }
     const appendMessage = (message: SessionMessage.Info) => insertMessage(db, event, message)
     const adapter: SessionMessageUpdater.Adapter = {
+      getAgent() {
+        return db
+          .select({ agent: SessionTable.agent })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(
+            Effect.orDie,
+            Effect.map((row) => (row?.agent ? Agent.ID.make(row.agent) : undefined)),
+          )
+      },
       getModel() {
         return db
           .select({ model: SessionTable.model })
@@ -239,6 +252,33 @@ function run(db: DatabaseService, event: MessageEvent) {
           .pipe(
             Effect.orDie,
             Effect.map((row) => (row?.model ? Schema.decodeUnknownSync(Model.Ref)(row.model) : undefined)),
+          )
+      },
+      getLocation() {
+        return db
+          .select({
+            directory: SessionTable.directory,
+            workspaceID: SessionTable.workspace_id,
+            projectID: SessionTable.project_id,
+            subpath: SessionTable.path,
+          })
+          .from(SessionTable)
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .get()
+          .pipe(
+            Effect.orDie,
+            Effect.map((row) =>
+              row
+                ? {
+                    location: {
+                      directory: AbsolutePath.make(row.directory),
+                      workspaceID: row.workspaceID ? Workspace.ID.make(row.workspaceID) : undefined,
+                    },
+                    projectID: row.projectID,
+                    subpath: row.subpath === null ? undefined : RelativePath.make(row.subpath),
+                  }
+                : undefined,
+            ),
           )
       },
       getCurrentAssistant() {
@@ -379,6 +419,7 @@ const layer = Layer.effectDiscard(
     )
     yield* bus.project(SessionEvent.Moved, (event) =>
       Effect.gen(function* () {
+        yield* run(db, event)
         yield* db
           .update(SessionTable)
           .set({
@@ -398,12 +439,15 @@ const layer = Layer.effectDiscard(
       db.delete(SessionTable).where(eq(SessionTable.id, event.data.sessionID)).run().pipe(Effect.orDie),
     )
     yield* bus.project(SessionEvent.AgentSelected, (event) =>
-      db
-        .update(SessionTable)
-        .set({ agent: event.data.agent, time_updated: DateTime.toEpochMillis(event.created) })
-        .where(eq(SessionTable.id, event.data.sessionID))
-        .run()
-        .pipe(Effect.orDie, Effect.andThen(run(db, event))),
+      Effect.gen(function* () {
+        yield* run(db, event)
+        yield* db
+          .update(SessionTable)
+          .set({ agent: event.data.agent, time_updated: DateTime.toEpochMillis(event.created) })
+          .where(eq(SessionTable.id, event.data.sessionID))
+          .run()
+          .pipe(Effect.orDie)
+      }),
     )
     yield* bus.project(SessionEvent.ModelSelected, (event) =>
       Effect.gen(function* () {

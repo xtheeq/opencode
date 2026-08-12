@@ -41,6 +41,7 @@ export type SessionMessageAgentSelected = {
   time: { created: number }
   type: "agent-switched"
   agent: string
+  previous?: string
 }
 
 export type PromptBase64 = string
@@ -64,6 +65,7 @@ export type SessionMessageSystem = {
   time: { created: number }
   type: "system"
   text: string
+  description?: string
 }
 
 export type SessionMessageSkill = {
@@ -407,6 +409,17 @@ export type ProviderRequest = {
 
 export type PermissionRule = { action: string; resource: string; effect: PermissionEffect }
 
+export type SessionMessageLocationSwitched = {
+  id: string
+  metadata?: { [x: string]: JsonValue }
+  time: { created: number }
+  type: "location-switched"
+  location: LocationRef
+  projectID?: string
+  subpath?: string
+  previous?: { location: LocationRef; projectID?: string; subpath?: string }
+}
+
 export type SessionCreated = {
   id: string
   created: number
@@ -435,7 +448,7 @@ export type SessionAgentSelected = {
   type: "session.agent.selected"
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
-  data: { sessionID: string; agent: string }
+  data: { sessionID: string; agent: string; previous?: string }
 }
 
 export type SessionModelSelected = {
@@ -445,7 +458,7 @@ export type SessionModelSelected = {
   type: "session.model.selected"
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
-  data: { sessionID: string; model: ModelRef }
+  data: { sessionID: string; model: ModelRef; previous?: ModelRef }
 }
 
 export type SessionMoved = {
@@ -1942,6 +1955,7 @@ export type SessionInputAdmitted = {
 export type SessionMessageInfo =
   | SessionMessageAgentSelected
   | SessionMessageModelSelected
+  | SessionMessageLocationSwitched
   | SessionMessageUser
   | SessionMessageSynthetic
   | SessionMessageSystem
@@ -2535,6 +2549,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "agent-switched"
           readonly agent: string
+          readonly previous?: string
         }
       | {
           readonly id: string
@@ -2543,6 +2558,20 @@ export type SessionImportInput = {
           readonly type: "model-switched"
           readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
           readonly previous?: { readonly id: string; readonly providerID: string; readonly variant?: string }
+        }
+      | {
+          readonly id: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly time: { readonly created: number }
+          readonly type: "location-switched"
+          readonly location: { readonly directory: string; readonly workspaceID?: string }
+          readonly projectID?: string
+          readonly subpath?: string
+          readonly previous?: {
+            readonly location: { readonly directory: string; readonly workspaceID?: string }
+            readonly projectID?: string
+            readonly subpath?: string
+          }
         }
       | {
           readonly id: string
@@ -2583,6 +2612,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "system"
           readonly text: string
+          readonly description?: string
         }
       | {
           readonly id: string
@@ -2786,6 +2816,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "agent-switched"
           readonly agent: string
+          readonly previous?: string
         }
       | {
           readonly id: string
@@ -2794,6 +2825,20 @@ export type SessionImportInput = {
           readonly type: "model-switched"
           readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
           readonly previous?: { readonly id: string; readonly providerID: string; readonly variant?: string }
+        }
+      | {
+          readonly id: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly time: { readonly created: number }
+          readonly type: "location-switched"
+          readonly location: { readonly directory: string; readonly workspaceID?: string }
+          readonly projectID?: string
+          readonly subpath?: string
+          readonly previous?: {
+            readonly location: { readonly directory: string; readonly workspaceID?: string }
+            readonly projectID?: string
+            readonly subpath?: string
+          }
         }
       | {
           readonly id: string
@@ -2834,6 +2879,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "system"
           readonly text: string
+          readonly description?: string
         }
       | {
           readonly id: string
@@ -3037,6 +3083,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "agent-switched"
           readonly agent: string
+          readonly previous?: string
         }
       | {
           readonly id: string
@@ -3045,6 +3092,20 @@ export type SessionImportInput = {
           readonly type: "model-switched"
           readonly model: { readonly id: string; readonly providerID: string; readonly variant?: string }
           readonly previous?: { readonly id: string; readonly providerID: string; readonly variant?: string }
+        }
+      | {
+          readonly id: string
+          readonly metadata?: { readonly [x: string]: JsonValue }
+          readonly time: { readonly created: number }
+          readonly type: "location-switched"
+          readonly location: { readonly directory: string; readonly workspaceID?: string }
+          readonly projectID?: string
+          readonly subpath?: string
+          readonly previous?: {
+            readonly location: { readonly directory: string; readonly workspaceID?: string }
+            readonly projectID?: string
+            readonly subpath?: string
+          }
         }
       | {
           readonly id: string
@@ -3085,6 +3146,7 @@ export type SessionImportInput = {
           readonly time: { readonly created: number }
           readonly type: "system"
           readonly text: string
+          readonly description?: string
         }
       | {
           readonly id: string
@@ -3888,7 +3950,10 @@ export type SessionLogInput = {
 
 export type SessionLogOutput = SessionLogItem
 
-export type SessionInterruptInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+export type SessionInterruptInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly continue?: { readonly continue?: boolean | undefined }["continue"]
+}
 
 export type SessionInterruptOutput = void
 

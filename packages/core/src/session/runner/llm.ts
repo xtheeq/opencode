@@ -1,4 +1,4 @@
-export * as SessionRunnerLLM from "./llm"
+export * as SessionRunnerLLM from "./llm.js"
 
 import {
   LLMClient,
@@ -9,30 +9,30 @@ import {
   type ToolCall,
 } from "@opencode-ai/ai"
 import { Cause, Data, Effect, Exit, Fiber, FiberSet, Layer, Option, Pull, Schedule, Stream } from "effect"
-import { Database } from "../../database/database"
-import { Bus } from "../../bus"
-import { Permission } from "../../permission"
-import { QuestionTool } from "../../tool/plugin/question"
-import { InstructionState } from "../instruction-state"
-import { SessionCompaction } from "../compaction"
-import { SessionContext } from "../context"
-import { SessionEvent } from "../event"
-import { SessionPending } from "../pending"
-import { SessionModelRequest } from "../model-request"
-import { SessionMessage } from "../message"
-import { SessionSchema } from "../schema"
-import { SessionStore } from "../store"
-import { SessionTitle } from "../title"
-import { Service } from "./index"
-import { createLLMEventPublisher, type StepRecord } from "./publish-llm-event"
-import { Snapshot } from "../../snapshot"
+import { Database } from "../../database/database.js"
+import { Bus } from "../../bus.js"
+import { Permission } from "../../permission.js"
+import { QuestionTool } from "../../tool/plugin/question.js"
+import { InstructionState } from "../instruction-state.js"
+import { SessionCompaction } from "../compaction.js"
+import { SessionContext } from "../context.js"
+import { SessionEvent } from "../event.js"
+import { SessionPending } from "../pending.js"
+import { SessionModelRequest } from "../model-request.js"
+import { SessionMessage } from "../message.js"
+import { SessionSchema } from "../schema.js"
+import { SessionStore } from "../store.js"
+import { SessionTitle } from "../title.js"
+import { Service } from "./index.js"
+import { createLLMEventPublisher, type StepRecord } from "./publish-llm-event.js"
+import { Snapshot } from "../../snapshot.js"
 import { makeLocationNode } from "@opencode-ai/util/effect/app-node"
-import { llmClient } from "../../effect/app-node-platform"
-import { StepFailedError } from "../error"
-import { toSessionError } from "../to-session-error"
-import { SessionRunnerRetry } from "./retry"
-import { SessionUsage } from "../usage"
-import { ToolOutput } from "../../tool-output"
+import { llmClient } from "../../effect/app-node-platform.js"
+import { StepFailedError } from "../error.js"
+import { toSessionError } from "../to-session-error.js"
+import { SessionRunnerRetry } from "./retry.js"
+import { SessionUsage } from "../usage.js"
+import { ToolOutput } from "../../tool-output.js"
 
 /** How one model call ended: settled, awaiting a scheduled retry, or restarted by compaction. */
 type CallOutcome = Data.TaggedEnum<{
@@ -113,8 +113,8 @@ const layer = Layer.effect(
     const compaction = yield* SessionCompaction.Service
     const title = yield* SessionTitle.Service
     const toolOutput = yield* ToolOutput.Service
-    // Title generation is a side effect of a successful step; it must not delay continuation.
-    // The in-flight set coalesces overlapping steps while title presence records success durably.
+    // Title generation starts once input is visible and must not delay model execution.
+    // The in-flight set coalesces overlapping prompts while title presence records success durably.
     const titlesRunning = new Set<SessionSchema.ID>()
     const forkTitle = yield* FiberSet.makeRuntime<never, void, never>()
     /**
@@ -144,7 +144,6 @@ const layer = Layer.effect(
       let step = 1
       while (true) {
         const result = yield* runStep(sessionID, promotable, step)
-        if (step === 1) yield* startTitle(sessionID)
         yield* runPendingCompaction(sessionID)
         if (!result.needsContinuation && !(yield* SessionPending.has(db, sessionID, "steer"))) return
         promotable = "steer"
@@ -236,6 +235,7 @@ const layer = Layer.effect(
       // a blocked first step leaves pending inputs untouched.
       yield* InstructionState.prepare(db, bus, selected.instructions, selected.session.id)
       const promoted = promotable ? yield* SessionPending.promote(db, bus, selected.session.id, promotable) : 0
+      if (promoted > 0) yield* startTitle(sessionID)
       // Promoted input opens a fresh step allowance.
       const currentStep = promoted > 0 ? 1 : step
       const loaded = yield* context.load(selected)
@@ -244,7 +244,7 @@ const layer = Layer.effect(
       const model = resolved.model
       // Make room: history must fit the context window before the call. A pending manual
       // compaction owns this instead; the runner executes it between steps.
-      const compactionInput = { session, messages: loaded.messages, model, cost: resolved.cost }
+      const compactionInput = { session, messages: loaded.messages, model, ref: resolved.ref, cost: resolved.cost }
       if (compaction.required(compactionInput) && !(yield* SessionPending.compaction(db, session.id))) {
         const compacted = yield* compaction.compact(compactionInput)
         if (compacted.status === "completed")

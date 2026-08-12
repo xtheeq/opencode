@@ -40,6 +40,7 @@ export interface DialogSelectProps<T> {
   bindings?: readonly KeymapCommand[]
   current?: T
   focusCurrent?: boolean
+  sectionNavigation?: boolean
 }
 
 type DialogSelectActionBase<T> = {
@@ -212,7 +213,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   const flatten = createMemo(() => props.flat && store.filter.length > 0)
 
   const grouped = createMemo<[string, DialogSelectOption<T>[]][]>(() => {
-    if (flatten()) return [["", filtered()]]
+    if (flatten()) return filtered().length ? [["", filtered()]] : []
     const result = pipe(
       filtered(),
       groupBy((x) => x.category ?? ""),
@@ -325,6 +326,15 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
     if (props.locked) return
     if (flat().length === 0) return
     moveTo(moveSelection(store.selected, { count: flat().length, delta: direction, policy: "wrap" }), true)
+  }
+
+  function moveSection(direction: 1 | -1) {
+    if (props.locked) return
+    const sections = grouped().filter(([_, options]) => options.length > 0)
+    if (sections.length === 0) return
+    const current = sections.findIndex(([category]) => category === selected()?.category)
+    const section = sections[(current + direction + sections.length) % sections.length]
+    moveTo(flat().indexOf(section[1][0]), true)
   }
 
   function moveTo(next: number, center = false, preserve = true) {
@@ -488,6 +498,22 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
             ]
           : []),
         ...(props.bindings ?? []),
+        ...(props.sectionNavigation
+          ? [
+              {
+                bind: "alt+up",
+                title: "Previous section",
+                group: "Dialog",
+                run: () => moveSection(-1),
+              },
+              {
+                bind: "alt+down",
+                title: "Next section",
+                group: "Dialog",
+                run: () => moveSection(1),
+              },
+            ]
+          : []),
       ],
     }
   })
