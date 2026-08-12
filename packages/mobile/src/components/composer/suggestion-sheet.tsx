@@ -6,15 +6,17 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Text } from "@/components/primitives";
-import { borderRadius, spacing, typography, useTheme } from "@/theme";
+import { borderRadius, spacing, useTheme } from "@/theme";
 import type { Suggestion } from "@/types/composer";
 
-export function CommandSheet({
+export function SuggestionSheet({
   suggestions,
   onSelect,
+  emptyText,
 }: {
   suggestions: Suggestion[];
   onSelect: (item: Suggestion) => void;
+  emptyText: string;
 }) {
   const { colors } = useTheme();
   const { height } = useWindowDimensions();
@@ -58,7 +60,7 @@ export function CommandSheet({
         )}
         ListEmptyComponent={
           <Text variant="caption" color="secondary" style={styles.empty}>
-            No matching commands
+            {emptyText}
           </Text>
         }
       />

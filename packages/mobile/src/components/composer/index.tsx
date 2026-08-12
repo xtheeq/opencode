@@ -7,14 +7,7 @@ import { useComposer } from "@/hooks/use-composer";
 import { raiseCue } from "@/stores/cues";
 import { borderRadius, spacing, typography, useTheme } from "@/theme";
 import type { AgentPart, FilePart } from "@/types/composer";
-import type { Popover } from "@/utils/composer-machine";
-import { CommandSheet } from "./command-sheet";
-
-function isCommandPopover(
-  popover: Popover,
-): popover is Extract<Popover, { type: "command-menu" | "command-inline" }> {
-  return popover.type === "command-menu" || popover.type === "command-inline";
-}
+import { SuggestionSheet } from "./suggestion-sheet";
 
 export function Composer({ sessionID }: { sessionID: string }) {
   const {
@@ -34,7 +27,9 @@ export function Composer({ sessionID }: { sessionID: string }) {
   const { colors, effects } = useTheme();
 
   const popover = interaction.popover;
-  const commandsOpen = isCommandPopover(popover);
+  const sheetOpen = popover.type !== "closed";
+  const emptyText =
+    popover.type === "context" ? "No matching context" : "No matching commands";
 
   const handleSubmit = async () => {
     if (working) {
@@ -59,8 +54,12 @@ export function Composer({ sessionID }: { sessionID: string }) {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background.default }]}>
-      {commandsOpen && (
-        <CommandSheet suggestions={suggestions} onSelect={select} />
+      {sheetOpen && (
+        <SuggestionSheet
+          suggestions={suggestions}
+          onSelect={select}
+          emptyText={emptyText}
+        />
       )}
       {parts.some((part) => part.type !== "text") && (
         <View style={styles.chips}>

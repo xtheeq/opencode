@@ -224,6 +224,22 @@ describe("sheetSuggestions", () => {
       "file:src/app.ts",
     ]);
   });
+
+  test("filters catalog and file results together for a context query", () => {
+    const interaction: InteractionState = { popover: { type: "context", query: "cod" } };
+
+    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
+      "agent:coder",
+    ]);
+  });
+
+  test("returns only matching file results when the context catalog is empty", () => {
+    const interaction: InteractionState = { popover: { type: "context", query: "app" } };
+
+    expect(sheetSuggestions(interaction, { commands, context: [], files }).map((s) => s.id)).toEqual([
+      "file:src/app.ts",
+    ]);
+  });
 });
 
 describe("searchContextFiles", () => {

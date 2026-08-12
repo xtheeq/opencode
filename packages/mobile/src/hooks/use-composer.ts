@@ -1,11 +1,6 @@
 import { useShallow } from "zustand/react/shallow";
 import type { Suggestion } from "@/types/composer";
 import {
-  commandSuggestions,
-  searchContextFiles,
-  sheetSuggestions,
-} from "@/utils/composer-suggestions";
-import {
   composerDispatch,
   composerOpenCommands,
   composerRemoveMention,
@@ -14,9 +9,11 @@ import {
   composerSetCursor,
   composerSubmit,
   useComposerDraft,
+  useComposerFiles,
   useComposerInteraction,
 } from "@/stores/composer";
 import { eventStore, getClient, locationKey, locationQuery, type LocationData } from "@/stores/store";
+import { commandSuggestions, contextSuggestions, searchContextFiles, sheetSuggestions } from "@/utils/composer-suggestions";
 import { useSessionActive } from "./use-store";
 
 const EMPTY_LOCATION: LocationData = {};
@@ -39,6 +36,7 @@ async function searchFiles(query: string): Promise<Suggestion[]> {
 export function useComposer(sessionID: string) {
   const draft = useComposerDraft(sessionID);
   const interaction = useComposerInteraction(sessionID);
+  const files = useComposerFiles(sessionID);
   const location = eventStore(
     useShallow((state) => state.location[locationKey(state._defaultLocation)] ?? EMPTY_LOCATION),
   );
@@ -47,8 +45,15 @@ export function useComposer(sessionID: string) {
   const parts = draft.prompt;
   const canSubmit = text.trim().length > 0;
 
-  const commands = commandSuggestions(location.command ?? []);
-  const suggestions = sheetSuggestions(interaction, { commands, context: [], files: [] });
+  const suggestions = sheetSuggestions(interaction, {
+    commands: commandSuggestions(location.command ?? []),
+    context: contextSuggestions({
+      references: location.reference ?? [],
+      agents: location.agent ?? [],
+      resources: location.mcp?.resource ?? [],
+    }),
+    files,
+  });
 
   const submit = async () => {
     const info = eventStore.getState().session.info[sessionID];
