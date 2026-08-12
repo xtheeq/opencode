@@ -33,6 +33,7 @@ export type ComposerController = {
   reset: () => void;
   value: () => string;
   parts: () => ComposerState["prompt"];
+  removeMention: (index: number) => void;
   setModel: (model: ComposerState["model"]) => void;
   setAgent: (agent: string | undefined) => void;
   setVariant: (variant: string | null) => void;
@@ -181,6 +182,10 @@ export function createComposerController(input: ComposerControllerInput): Compos
     reset,
     value,
     parts: () => input.draft.state.prompt,
+    removeMention: (index) => {
+      input.draft.removeMention(index);
+      emit();
+    },
     setModel,
     setAgent,
     setVariant,

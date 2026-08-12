@@ -69,6 +69,17 @@ export function createComposerStore(access: ComposerStoreAccess) {
         };
       });
     },
+    removeMention(index: number) {
+      update((state) => {
+        if (index < 0 || index >= state.prompt.length) return state;
+        const prompt = state.prompt.filter((_, i) => i !== index);
+        return {
+          ...state,
+          prompt: withOffsets(prompt),
+          cursor: Math.min(state.cursor ?? 0, promptText(prompt).length),
+        };
+      });
+    },
   };
 }
 
