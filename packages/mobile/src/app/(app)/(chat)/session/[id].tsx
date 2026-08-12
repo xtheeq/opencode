@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
 import { AppHeader } from "@/components/app-header";
 import { MessageTimeline } from "@/components/message-timeline";
-import { PromptInput } from "@/components/prompt-input";
+import { Composer } from "@/components/composer";
 import { BlockerDock } from "@/components/blockers";
 import { useSessionBlockers } from "@/hooks/use-blockers";
 import { useSessionInfo } from "@/hooks/use-store";
@@ -35,9 +35,9 @@ export default function SessionScreen() {
       </KeyboardGestureArea>
       <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
         {blocked && blocker ? <BlockerDock blocker={blocker} /> : null}
-        {/* Keep PromptInput mounted so a half-typed draft survives while blocked. */}
+        {/* Keep Composer mounted so a half-typed draft survives while blocked. */}
         <View style={blocked ? styles.hidden : undefined}>
-          <PromptInput sessionID={id} />
+          <Composer sessionID={id} />
         </View>
       </KeyboardStickyView>
     </View>
