@@ -191,6 +191,44 @@ describe("composer controller", () => {
     expect(calls).toEqual(["submit", "stop"]);
   });
 
+  test("submit clears the draft on success", async () => {
+    const { controller, getState } = createHarness();
+
+    controller.onChangeText("hello", 5);
+    await controller.submit();
+
+    expect(getState().prompt[0].content).toBe("");
+    expect(controller.value()).toBe("");
+  });
+
+  test("submit keeps the draft when it fails", async () => {
+    const { controller, getState } = createHarness({
+      submit: async () => {
+        throw new Error("boom");
+      },
+    });
+
+    controller.onChangeText("hello", 5);
+    await expect(controller.submit()).rejects.toThrow("boom");
+
+    expect(getState().prompt[0].content).toBe("hello");
+  });
+
+  test("removeMention removes a mention part and notifies listeners", () => {
+    const { controller, getState } = createHarness();
+    let count = 0;
+    controller.subscribe(() => {
+      count += 1;
+    });
+
+    controller.openContext();
+    controller.select(agent);
+    controller.removeMention(0);
+
+    expect(getState().prompt).toEqual([{ type: "text", content: " ", start: 0, end: 1 }]);
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
   test("subscribe notifies listeners on state changes", () => {
     const { controller } = createHarness();
     let count = 0;

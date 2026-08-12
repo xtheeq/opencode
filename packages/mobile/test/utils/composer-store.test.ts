@@ -116,4 +116,35 @@ describe("composer store", () => {
     store.setAgent(undefined);
     expect(getState().agent).toBeUndefined();
   });
+
+  test("removeMention removes a part and re-aligns offsets", () => {
+    const { store, getState } = createHarness({
+      prompt: [
+        { type: "text", content: "A ", start: 0, end: 2 },
+        { type: "agent", name: "coder", content: "@coder", start: 2, end: 8 },
+        { type: "text", content: " B", start: 8, end: 10 },
+      ],
+      cursor: 10,
+    });
+
+    store.removeMention(1);
+
+    expect(getState().prompt).toEqual([
+      { type: "text", content: "A ", start: 0, end: 2 },
+      { type: "text", content: " B", start: 2, end: 4 },
+    ]);
+    expect(getState().cursor).toBe(4);
+  });
+
+  test("removeMention ignores invalid indexes", () => {
+    const { store, getState } = createHarness({
+      prompt: [{ type: "text", content: "hi", start: 0, end: 2 }],
+      cursor: 2,
+    });
+
+    store.removeMention(5);
+    store.removeMention(-1);
+
+    expect(getState().prompt).toHaveLength(1);
+  });
 });
