@@ -38,18 +38,24 @@ describe("composer interaction machine", () => {
     expect(selected.commands).toContainEqual({ type: "draft.setText", value: "/review/nested " });
   });
 
-  test("opens context completion at the cursor", () => {
-    const value = "alpha @sr omega";
-    const input = persisted(value);
-    input.cursor = 9;
-
+  test("opens context completion for an @ at the end of the input", () => {
     const result = transition(
       createInteractionState(),
-      { type: "input.changed", value, persist: false },
-      input,
+      { type: "input.changed", value: "hi @co", persist: false },
+      persisted("hi @co"),
     );
 
-    expect(result.state.popover).toEqual({ type: "context", query: "sr" });
+    expect(result.state.popover).toEqual({ type: "context", query: "co" });
+  });
+
+  test("does not open context completion for a mid-text @", () => {
+    const result = transition(
+      createInteractionState(),
+      { type: "input.changed", value: "alpha @sr omega", persist: false },
+      persisted("alpha @sr omega"),
+    );
+
+    expect(result.state.popover).toEqual({ type: "closed" });
   });
 
   test("opens the searchable command menu for a populated draft", () => {

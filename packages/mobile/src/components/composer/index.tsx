@@ -1,10 +1,4 @@
-import { useRef } from "react";
-import {
-  StyleSheet,
-  TextInput as RNTextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { StyleSheet, TextInput as RNTextInput, TouchableOpacity, View } from "react-native";
 import ArrowUp from "lucide-react-native/icons/arrow-up";
 import Square from "lucide-react-native/icons/square";
 import X from "lucide-react-native/icons/x";
@@ -15,18 +9,18 @@ import { borderRadius, spacing, typography, useTheme } from "@/theme";
 import type { AgentPart, FilePart } from "@/types/composer";
 
 export function Composer({ sessionID }: { sessionID: string }) {
-  const { controller, working, text, parts, canSubmit } = useComposer(sessionID);
+  const { text, parts, canSubmit, working, onChangeText, onCursor, submit, stop, removeMention } =
+    useComposer(sessionID);
   const { colors, effects } = useTheme();
-  const selection = useRef<{ start: number; end: number } | undefined>(undefined);
 
   const handleSubmit = async () => {
     if (working) {
-      await controller.stop();
+      await stop();
       return;
     }
     if (!canSubmit) return;
     try {
-      await controller.submit();
+      await submit();
     } catch (error) {
       raiseCue({
         kind: "error",
@@ -62,7 +56,7 @@ export function Composer({ sessionID }: { sessionID: string }) {
                   {label}
                 </Text>
                 <TouchableOpacity
-                  onPress={() => controller.removeMention(index)}
+                  onPress={() => removeMention(index)}
                   hitSlop={8}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${label}`}
@@ -89,11 +83,8 @@ export function Composer({ sessionID }: { sessionID: string }) {
           placeholder="Message..."
           placeholderTextColor={colors.text.secondary}
           value={text}
-          onChangeText={(value) => controller.onChangeText(value, selection.current?.end ?? value.length)}
-          onSelectionChange={(event) => {
-            selection.current = event.nativeEvent.selection;
-            controller.onCursor(event.nativeEvent.selection.end);
-          }}
+          onChangeText={(value) => onChangeText(value)}
+          onSelectionChange={(event) => onCursor(event.nativeEvent.selection.end)}
           multiline
           textAlignVertical="center"
         />

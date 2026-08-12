@@ -1,150 +1,138 @@
 import { describe, expect, test } from "bun:test";
-import { createComposerStore, type ComposerStoreAccess } from "@/utils/composer-store";
+import {
+  addMention,
+  addText,
+  removeMention,
+  resetPrompt,
+  setAgent,
+  setModel,
+  setPrompt,
+  setText,
+  setVariant,
+} from "@/utils/composer-store";
 import type { ComposerState } from "@/types/composer";
 
-function createHarness(initial: ComposerState) {
-  let state = initial;
-  const access: ComposerStoreAccess = {
-    get: () => state,
-    set: (next) => {
-      state =
-        typeof next === "function"
-          ? (next as (current: ComposerState) => ComposerState)(state)
-          : next;
-    },
-  };
-  const store = createComposerStore(access);
-  return { store, getState: () => state };
-}
-
-function createPromptStore() {
-  return createHarness({
-    prompt: [{ type: "text", content: "old", start: 0, end: 3 }],
-    cursor: 3,
-    model: { providerID: "anthropic", modelID: "claude-sonnet", variant: null },
-  });
-}
+const draft = (content: string, cursor = content.length): ComposerState => ({
+  prompt: [{ type: "text", content, start: 0, end: content.length }],
+  cursor,
+});
 
 describe("composer store", () => {
-  test("updates prompt text and cursor together while preserving structured parts", () => {
-    const { store, getState } = createHarness({
-      prompt: [
-        { type: "text", content: "old", start: 0, end: 3 },
-        { type: "file", path: "one", content: "@one", start: 3, end: 7 },
-      ],
-      cursor: 3,
-    });
+  test("setText preserves structured parts and re-aligns offsets", () => {
+    const result = setText(
+      {
+        prompt: [
+          { type: "text", content: "old", start: 0, end: 3 },
+          { type: "file", path: "one", content: "@one", start: 3, end: 7 },
+        ],
+        cursor: 3,
+      },
+      "updated",
+    );
 
-    store.setText("updated");
-
-    expect(getState().prompt).toEqual([
+    expect(result.prompt).toEqual([
       { type: "text", content: "updated", start: 0, end: 7 },
       { type: "file", path: "one", content: "@one", start: 7, end: 11 },
     ]);
-    expect(getState().cursor).toBe(7);
+    expect(result.cursor).toBe(7);
   });
 
-  test("inserts text without flattening structured mentions", () => {
-    const { store, getState } = createHarness({
-      prompt: [
-        { type: "text", content: "A ", start: 0, end: 2 },
-        { type: "file", path: "one", content: "@one", start: 2, end: 6 },
-        { type: "text", content: " B", start: 6, end: 8 },
-      ],
-      cursor: 2,
-    });
+  test("addText inserts without flattening structured mentions", () => {
+    const result = addText(
+      {
+        prompt: [
+          { type: "text", content: "A ", start: 0, end: 2 },
+          { type: "file", path: "one", content: "@one", start: 2, end: 6 },
+          { type: "text", content: " B", start: 6, end: 8 },
+        ],
+        cursor: 2,
+      },
+      "X\nY",
+    );
 
-    store.addText("X\nY");
-
-    expect(getState().prompt).toEqual([
+    expect(result.prompt).toEqual([
       { type: "text", content: "A X\nY", start: 0, end: 5 },
       { type: "file", path: "one", content: "@one", start: 5, end: 9 },
       { type: "text", content: " B", start: 9, end: 11 },
     ]);
-    expect(getState().cursor).toBe(5);
+    expect(result.cursor).toBe(5);
   });
 
-  test("adds mentions and mutates the model through shared actions", () => {
-    const { store, getState } = createPromptStore();
+  test("addMention inserts at the cursor", () => {
+    const result = addMention(draft("old", 3), {
+      type: "file",
+      path: "src/app.ts",
+      content: "@src/app.ts",
+      start: 0,
+      end: 0,
+    });
 
-    store.addMention({ type: "file", path: "src/app.ts", content: "@src/app.ts", start: 0, end: 0 });
-    store.setVariant("thinking");
-
-    expect(getState().prompt).toEqual([
+    expect(result.prompt).toEqual([
       { type: "text", content: "old", start: 0, end: 3 },
       { type: "file", path: "src/app.ts", content: "@src/app.ts", start: 3, end: 14 },
       { type: "text", content: " ", start: 14, end: 15 },
     ]);
-    expect(getState().model?.variant).toBe("thinking");
-
-    store.setPrompt([{ type: "text", content: "old", start: 0, end: 3 }], 3);
-    store.setModel(undefined);
-
-    expect(getState().prompt).toEqual([{ type: "text", content: "old", start: 0, end: 3 }]);
-    expect(getState().model).toBeUndefined();
   });
 
-  test("resets the prompt and cursor", () => {
-    const { store, getState } = createPromptStore();
+  test("model and agent setters update the selection", () => {
+    const withVariant = setVariant(
+      setModel(draft("old"), { providerID: "anthropic", modelID: "claude-sonnet", variant: null }),
+      "thinking",
+    );
 
-    store.reset();
-
-    expect(getState().prompt).toEqual([{ type: "text", content: "", start: 0, end: 0 }]);
-    expect(getState().cursor).toBe(0);
-  });
-
-  test("setModel updates the whole selection and setVariant only when a model exists", () => {
-    const { store, getState } = createPromptStore();
-
-    store.setVariant(null);
-    expect(getState().model?.variant).toBeNull();
-
-    store.setModel({ providerID: "openai", modelID: "gpt-5", variant: undefined });
-    expect(getState().model).toEqual({ providerID: "openai", modelID: "gpt-5", variant: undefined });
-
-    store.setModel(undefined);
-    store.setVariant("thinking");
-    expect(getState().model).toBeUndefined();
-  });
-
-  test("setAgent updates the draft agent", () => {
-    const { store, getState } = createPromptStore();
-
-    store.setAgent("planner");
-    expect(getState().agent).toBe("planner");
-
-    store.setAgent(undefined);
-    expect(getState().agent).toBeUndefined();
-  });
-
-  test("removeMention removes a part and re-aligns offsets", () => {
-    const { store, getState } = createHarness({
-      prompt: [
-        { type: "text", content: "A ", start: 0, end: 2 },
-        { type: "agent", name: "coder", content: "@coder", start: 2, end: 8 },
-        { type: "text", content: " B", start: 8, end: 10 },
-      ],
-      cursor: 10,
+    expect(withVariant.model).toEqual({
+      providerID: "anthropic",
+      modelID: "claude-sonnet",
+      variant: "thinking",
     });
+    expect(setModel(withVariant, undefined).model).toBeUndefined();
+    expect(setAgent(draft("old"), "planner").agent).toBe("planner");
+  });
 
-    store.removeMention(1);
+  test("setVariant is a no-op when no model is selected", () => {
+    const state = draft("old");
 
-    expect(getState().prompt).toEqual([
+    expect(setVariant(state, "thinking")).toBe(state);
+  });
+
+  test("removeMention removes a part and clamps the cursor", () => {
+    const result = removeMention(
+      {
+        prompt: [
+          { type: "text", content: "A ", start: 0, end: 2 },
+          { type: "agent", name: "coder", content: "@coder", start: 2, end: 8 },
+          { type: "text", content: " B", start: 8, end: 10 },
+        ],
+        cursor: 10,
+      },
+      1,
+    );
+
+    expect(result.prompt).toEqual([
       { type: "text", content: "A ", start: 0, end: 2 },
       { type: "text", content: " B", start: 2, end: 4 },
     ]);
-    expect(getState().cursor).toBe(4);
+    expect(result.cursor).toBe(4);
   });
 
   test("removeMention ignores invalid indexes", () => {
-    const { store, getState } = createHarness({
-      prompt: [{ type: "text", content: "hi", start: 0, end: 2 }],
-      cursor: 2,
-    });
+    const state = draft("hi");
 
-    store.removeMention(5);
-    store.removeMention(-1);
+    expect(removeMention(state, 5)).toBe(state);
+    expect(removeMention(state, -1)).toBe(state);
+  });
 
-    expect(getState().prompt).toHaveLength(1);
+  test("resetPrompt clears the prompt and cursor", () => {
+    const result = resetPrompt(draft("hello"));
+
+    expect(result.prompt).toEqual([{ type: "text", content: "", start: 0, end: 0 }]);
+    expect(result.cursor).toBe(0);
+  });
+
+  test("setPrompt replaces the prompt", () => {
+    const result = setPrompt(draft("hello"), [{ type: "text", content: "x", start: 0, end: 1 }], 1);
+
+    expect(result.prompt).toEqual([{ type: "text", content: "x", start: 0, end: 1 }]);
+    expect(result.cursor).toBe(1);
   });
 });

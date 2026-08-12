@@ -6,87 +6,88 @@ import type {
   ModelSelection,
 } from "@/types/composer";
 
-export type ComposerStoreAccess = {
-  get(): ComposerState;
-  set(next: ComposerState | ((current: ComposerState) => ComposerState)): void;
-};
+export function setPrompt(
+  state: ComposerState,
+  prompt: ComposerPart[],
+  cursor?: number,
+): ComposerState {
+  return { ...state, prompt, cursor: cursor ?? state.cursor };
+}
 
-export function createComposerStore(access: ComposerStoreAccess) {
-  const update = (fn: (state: ComposerState) => ComposerState) => access.set(fn);
+export function setCursor(state: ComposerState, cursor: number): ComposerState {
+  return { ...state, cursor };
+}
+
+export function setText(state: ComposerState, content: string): ComposerState {
   return {
-    get state() {
-      return access.get();
-    },
-    setPrompt(prompt: ComposerPart[], cursor?: number) {
-      update((state) => ({ ...state, prompt, cursor: cursor ?? state.cursor }));
-    },
-    setCursor(cursor: number) {
-      update((state) => ({ ...state, cursor }));
-    },
-    setText(content: string) {
-      update((state) => ({
-        ...state,
-        prompt: withOffsets([
-          { type: "text", content, start: 0, end: content.length },
-          ...state.prompt.filter((part) => part.type !== "text"),
-        ]),
-        cursor: content.length,
-      }));
-    },
-    addText(content: string) {
-      update((state) => {
-        const cursor = state.cursor ?? promptLength(state.prompt);
-        const prompt = insertText(state.prompt, cursor, content);
-        return { ...state, prompt, cursor: cursor + content.length };
-      });
-    },
-    reset() {
-      update((state) => ({
-        ...state,
-        prompt: [{ type: "text", content: "", start: 0, end: 0 }],
-        cursor: 0,
-      }));
-    },
-    setModel(model: ModelSelection | undefined) {
-      update((state) => ({ ...state, model }));
-    },
-    setAgent(agent: string | undefined) {
-      update((state) => ({ ...state, agent }));
-    },
-    setVariant(variant: string | null) {
-      update((state) => (state.model ? { ...state, model: { ...state.model, variant } } : state));
-    },
-    addMention(mention: FilePart | AgentPart) {
-      update((state) => {
-        const text = promptText(state.prompt);
-        const end = state.cursor ?? text.length;
-        const start = text.slice(0, end).lastIndexOf("@");
-        const prompt = insertMention(state.prompt, start < 0 ? end : start, end, mention);
-        return {
-          ...state,
-          prompt,
-          cursor: (start < 0 ? end : start) + mention.content.length + 1,
-        };
-      });
-    },
-    removeMention(index: number) {
-      update((state) => {
-        if (index < 0 || index >= state.prompt.length) return state;
-        const prompt = state.prompt.filter((_, i) => i !== index);
-        return {
-          ...state,
-          prompt: withOffsets(prompt),
-          cursor: Math.min(state.cursor ?? 0, promptText(prompt).length),
-        };
-      });
-    },
+    ...state,
+    prompt: withOffsets([
+      { type: "text", content, start: 0, end: content.length },
+      ...state.prompt.filter((part) => part.type !== "text"),
+    ]),
+    cursor: content.length,
   };
 }
 
-export type ComposerStore = ReturnType<typeof createComposerStore>;
+export function addText(state: ComposerState, content: string): ComposerState {
+  const cursor = state.cursor ?? partsLength(state.prompt);
+  return {
+    ...state,
+    prompt: insertText(state.prompt, cursor, content),
+    cursor: cursor + content.length,
+  };
+}
 
-function promptText(prompt: ComposerPart[]) {
+export function resetPrompt(state: ComposerState): ComposerState {
+  return {
+    ...state,
+    prompt: [{ type: "text", content: "", start: 0, end: 0 }],
+    cursor: 0,
+  };
+}
+
+export function setModel(
+  state: ComposerState,
+  model: ModelSelection | undefined,
+): ComposerState {
+  return { ...state, model };
+}
+
+export function setAgent(state: ComposerState, agent: string | undefined): ComposerState {
+  return { ...state, agent };
+}
+
+export function setVariant(state: ComposerState, variant: string | null): ComposerState {
+  return state.model ? { ...state, model: { ...state.model, variant } } : state;
+}
+
+export function addMention(state: ComposerState, mention: FilePart | AgentPart): ComposerState {
+  const text = partsText(state.prompt);
+  const end = state.cursor ?? text.length;
+  const start = text.slice(0, end).lastIndexOf("@");
+  return {
+    ...state,
+    prompt: insertMention(state.prompt, start < 0 ? end : start, end, mention),
+    cursor: (start < 0 ? end : start) + mention.content.length + 1,
+  };
+}
+
+export function removeMention(state: ComposerState, index: number): ComposerState {
+  if (index < 0 || index >= state.prompt.length) return state;
+  const prompt = state.prompt.filter((_, i) => i !== index);
+  return {
+    ...state,
+    prompt: withOffsets(prompt),
+    cursor: Math.min(state.cursor ?? 0, partsLength(prompt)),
+  };
+}
+
+function partsText(prompt: ComposerPart[]): string {
   return prompt.map((part) => part.content).join("");
+}
+
+function partsLength(prompt: ComposerPart[]): number {
+  return prompt.reduce((length, part) => length + part.content.length, 0);
 }
 
 function insertText(prompt: ComposerPart[], cursor: number, content: string): ComposerPart[] {
@@ -138,8 +139,4 @@ function withOffsets(prompt: ComposerPart[]): ComposerPart[] {
     offset = next.end;
     return next;
   });
-}
-
-function promptLength(prompt: ComposerPart[]) {
-  return prompt.reduce((length, part) => length + part.content.length, 0);
 }

@@ -11,7 +11,7 @@ export type InteractionState = {
 };
 
 export type InteractionEvent =
-  | { type: "input.changed"; value: string; cursor?: number; persist?: boolean }
+  | { type: "input.changed"; value: string; persist?: boolean }
   | { type: "commands.open" }
   | { type: "context.open" }
   | { type: "popover.query"; value: string }
@@ -41,7 +41,7 @@ export function transition(
 ): Transition {
   switch (event.type) {
     case "input.changed":
-      return inputChanged(state, event, persisted);
+      return inputChanged(state, event);
     case "commands.open":
       return openCommands(state, persisted);
     case "context.open":
@@ -62,12 +62,12 @@ export function transition(
 function inputChanged(
   state: InteractionState,
   event: Extract<InteractionEvent, { type: "input.changed" }>,
-  persisted: ComposerState,
 ): Transition {
   const setText: InteractionCommand[] =
     event.persist !== false ? [{ type: "draft.setText", value: event.value }] : [];
-  const cursor = event.cursor ?? persisted.cursor;
-  const context = event.value.slice(0, cursor ?? event.value.length).match(/(?:^|\s)@([^\s@]*)$/);
+  // End-anchored: the caret position from the native selection event can lag the
+  // text-change event, so detect the trigger against the full value instead.
+  const context = event.value.match(/(?:^|\s)@([^\s@]*)$/);
   if (context) {
     const query = context[1] ?? "";
     return changed({ ...state, popover: { type: "context", query } }, [
