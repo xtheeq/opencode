@@ -5,6 +5,7 @@ import type {
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
   SessionMessageCompaction,
+  SessionMessageLocationSwitched,
   SessionMessageModelSelected,
   SessionMessageShell,
   SessionMessageSkill,
@@ -35,6 +36,7 @@ export type ToolPart = SessionMessageAssistantTool;
 
 export type Systemish =
   | SessionMessageAgentSelected
+  | SessionMessageLocationSwitched
   | SessionMessageModelSelected
   | SessionMessageSynthetic
   | SessionMessageSystem
