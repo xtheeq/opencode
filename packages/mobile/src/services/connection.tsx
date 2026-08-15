@@ -20,6 +20,8 @@ import { recoverConnection } from "@/stores/sync";
 export function connect(serverUrl: string, password?: string) {
   eventStore.setState((s) => {
     s._client = createClient(serverUrl, password);
+    s._serverUrl = serverUrl;
+    s.connection = { status: "disconnected", attempt: 0, everConnected: false };
   });
   createEventManager(getClient());
   setServerUrl(serverUrl).catch(console.error);
@@ -35,6 +37,8 @@ export function disconnect() {
   clearServerConfig().catch(console.error);
   eventStore.setState((s) => {
     s._client = null;
+    s._serverUrl = null;
+    s.connection = { status: "disconnected", attempt: 0, everConnected: false };
   });
 }
 
@@ -54,6 +58,7 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
       if (storedUrl) {
         eventStore.setState((s) => {
           s._client = createClient(storedUrl, storedPassword ?? undefined);
+          s._serverUrl = storedUrl;
         });
         createEventManager(getClient());
       }
@@ -81,6 +86,7 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
           status: ev.status,
           attempt: ev.attempt,
           error: ev.error,
+          everConnected: s.connection.everConnected || ev.status === "connected",
         };
       });
       if (ev.status === "connected") {

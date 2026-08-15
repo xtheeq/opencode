@@ -25,6 +25,7 @@ import type {
   SkillInfo,
   WebSearchProvider,
 } from "@opencode-ai/client/promise";
+import type { ConnectionStatus } from "@/types/connection";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 
@@ -32,16 +33,13 @@ export type DataSessionStatus = "idle" | "running";
 
 export type HydrationStatus = "loading" | "loaded";
 
-export type ConnectionStatus =
-  | "connected"
-  | "connecting"
-  | "reconnecting"
-  | "disconnected";
-
 export type ConnectionSlice = {
   status: ConnectionStatus;
   attempt: number;
   error?: string;
+  // Distinguishes a failed first connect (stay on the connect screen) from
+  // losing an established connection (keep the app shell mounted).
+  everConnected: boolean;
 };
 
 // Inlined equivalent of SessionMessage.ID.fromEvent, which performs exactly this
@@ -105,6 +103,7 @@ export type Store = {
   _defaultLocation: LocationRef;
   _client: OpenCodeClient | null;
   _serverConfigLoaded: boolean;
+  _serverUrl: string | null;
   connection: ConnectionSlice;
 };
 
@@ -137,7 +136,8 @@ export const eventStore = create<Store>()(
     _loadedSessions: false,
     _client: null,
     _serverConfigLoaded: false,
-    connection: { status: "disconnected", attempt: 0 },
+    _serverUrl: null,
+    connection: { status: "disconnected", attempt: 0, everConnected: false },
   })),
 );
 

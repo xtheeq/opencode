@@ -6,6 +6,8 @@ import type {
   SessionInfo,
   SessionMessageInfo,
 } from "@opencode-ai/client/promise";
+import { connectionPhase } from "@/utils/connection-phase";
+import type { ConnectionPhase } from "@/types/connection";
 
 const EMPTY_MESSAGES: never[] = [];
 
@@ -15,6 +17,21 @@ export function useClient() {
 
 export function useConnectionStatus() {
   return eventStore((s) => s.connection);
+}
+
+export function useConnectionPhase(): ConnectionPhase {
+  return eventStore((s) =>
+    connectionPhase({
+      configLoaded: s._serverConfigLoaded,
+      configured: s._client !== null,
+      status: s.connection.status,
+      everConnected: s.connection.everConnected,
+    }),
+  );
+}
+
+export function useConnectionError(): string | undefined {
+  return eventStore((s) => s.connection.error);
 }
 
 export type ConnectionState =

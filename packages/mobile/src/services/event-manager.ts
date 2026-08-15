@@ -1,15 +1,10 @@
 import { AppState, type AppStateStatus } from "react-native";
 import { type OpenCodeClient, type V2Event } from "@opencode-ai/client/promise";
+import type { ConnectionStatus } from "@/types/connection";
 import { isTransientError } from "@/services/transient-error";
 import { coalesceEvents } from "@/services/event-coalesce";
 
 type EventMap = { [K in V2Event["type"]]: Extract<V2Event, { type: K }> };
-
-export type ConnectionStatus =
-  | "connected"
-  | "connecting"
-  | "reconnecting"
-  | "disconnected";
 
 export type ConnectionStatusEvent = {
   readonly type: "connection";
