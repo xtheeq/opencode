@@ -4,23 +4,22 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeProvider, useTheme } from "@/theme";
 import { ConnectionManager } from "@/services/connection";
-import { useConnectionState } from "@/hooks/use-store";
+import { useConnectionPhase } from "@/hooks/use-store";
 import { ErrorBoundary } from "@/components/error-boundary";
 
 SplashScreen.preventAutoHideAsync();
 
 function SplashScreenController() {
-  const status = useConnectionState();
+  const phase = useConnectionPhase();
   useEffect(() => {
-    if (status !== "loading") SplashScreen.hide();
-  }, [status]);
+    if (phase !== "loading") SplashScreen.hide();
+  }, [phase]);
   return null;
 }
 
 function RootNavigator() {
   const { colors } = useTheme();
-  const status = useConnectionState();
-  const appReady = status !== "idle" && status !== "loading";
+  const phase = useConnectionPhase();
   return (
     <Stack
       screenOptions={{
@@ -28,10 +27,10 @@ function RootNavigator() {
         contentStyle: { backgroundColor: colors.background.default },
       }}
     >
-      <Stack.Protected guard={appReady}>
+      <Stack.Protected guard={phase === "ready"}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
-      <Stack.Protected guard={!appReady}>
+      <Stack.Protected guard={phase !== "ready"}>
         <Stack.Screen name="connect" />
       </Stack.Protected>
     </Stack>
