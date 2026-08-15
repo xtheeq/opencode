@@ -4,6 +4,7 @@ import {
   cueStore,
   dismissAllCues,
   dismissCue,
+  dismissCueKey,
   raiseCue,
   selectForeground,
 } from "@/stores/cues";
@@ -56,12 +57,24 @@ describe("raiseCue", () => {
     });
   });
 
-  test("caps the active list at MAX_ACTIVE, evicting the oldest", () => {
+  test("caps the active list at MAX_ACTIVE, evicting the oldest non-sticky", () => {
     for (let i = 0; i < MAX_ACTIVE + 2; i++)
       raiseCue({ title: `s${i}`, sticky: true });
     const cues = cueStore.getState().cues;
+    expect(cues).toHaveLength(MAX_ACTIVE + 2);
+    expect(cues[0]?.title).toBe("s0");
+  });
+
+  test("never evicts sticky cues under overflow", () => {
+    raiseCue({ title: "sticky", sticky: true });
+    for (let i = 0; i < MAX_ACTIVE; i++)
+      raiseCue({ title: `s${i}`, ttl: 10_000 });
+    raiseCue({ title: "overflow", ttl: 10_000 });
+    const cues = cueStore.getState().cues;
     expect(cues).toHaveLength(MAX_ACTIVE);
-    expect(cues[0]?.title).toBe("s2");
+    expect(cues.some((c) => c.title === "sticky")).toBe(true);
+    expect(cues.some((c) => c.title === "s0")).toBe(false);
+    expect(cues.some((c) => c.title === "s1")).toBe(false);
   });
 
   test("raising the same key replaces the existing cue", () => {
@@ -102,6 +115,23 @@ describe("dismissCue", () => {
   test("is a no-op for an unknown id", () => {
     raiseCue({ title: "x", sticky: true });
     dismissCue("missing");
+    expect(cueStore.getState().cues).toHaveLength(1);
+  });
+});
+
+describe("dismissCueKey", () => {
+  test("removes every cue with the key", () => {
+    raiseCue({ key: "k", title: "a", sticky: true });
+    raiseCue({ key: "other", title: "b", sticky: true });
+    dismissCueKey("k");
+    const cues = cueStore.getState().cues;
+    expect(cues).toHaveLength(1);
+    expect(cues[0]?.title).toBe("b");
+  });
+
+  test("is a no-op for an unknown key", () => {
+    raiseCue({ title: "x", sticky: true });
+    dismissCueKey("missing");
     expect(cueStore.getState().cues).toHaveLength(1);
   });
 });

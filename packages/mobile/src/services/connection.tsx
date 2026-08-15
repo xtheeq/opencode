@@ -16,8 +16,11 @@ import { useClient } from "@/hooks/use-store";
 import { eventStore, getClient } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
 import { recoverConnection } from "@/stores/sync";
+import { dismissCueKey, raiseCue } from "@/stores/cues";
+import { CONNECTION_CUE_KEY, connectionCue } from "@/utils/connection-cue";
 
 export function connect(serverUrl: string, password?: string) {
+  dismissCueKey(CONNECTION_CUE_KEY);
   eventStore.setState((s) => {
     s._client = createClient(serverUrl, password);
     s._serverUrl = serverUrl;
@@ -32,14 +35,18 @@ export function retry() {
   getEventManager().connect();
 }
 
+// Reset the slice before destroying the manager so its final "disconnected"
+// status event cannot raise a "Connection lost" cue for a user-initiated
+// disconnect.
 export function disconnect() {
-  destroyEventManager();
-  clearServerConfig().catch(console.error);
   eventStore.setState((s) => {
     s._client = null;
     s._serverUrl = null;
     s.connection = { status: "disconnected", attempt: 0, everConnected: false };
   });
+  dismissCueKey(CONNECTION_CUE_KEY);
+  destroyEventManager();
+  clearServerConfig().catch(console.error);
 }
 
 // Mounts the connection lifecycle: loads stored credentials, then wires the
@@ -81,6 +88,11 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
     const eventUnsub = mgr.onAny(handleEvent);
     mgr.connect();
     const statusUnsub = mgr.onStatusChange((ev) => {
+      const cue = connectionCue(
+        ev,
+        eventStore.getState().connection.everConnected,
+        { retry, disconnect },
+      );
       eventStore.setState((s) => {
         s.connection = {
           status: ev.status,
@@ -89,6 +101,7 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
           everConnected: s.connection.everConnected || ev.status === "connected",
         };
       });
+      if (cue) raiseCue(cue);
       if (ev.status === "connected") {
         void recoverConnection(mgr).catch((error) =>
           console.error("Failed to recover after reconnect", error),

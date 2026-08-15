@@ -64,9 +64,12 @@ export function raiseCue(input: CueInput): string {
       }
     }
     s.cues.push(cue);
+    // Sticky cues (e.g. connection status) must never be silently evicted.
     while (s.cues.length > MAX_ACTIVE) {
-      const evicted = s.cues.shift();
-      if (evicted) clearTimer(evicted.id);
+      const at = s.cues.findIndex((item) => !item.sticky);
+      if (at === -1) break;
+      const [evicted] = s.cues.splice(at, 1);
+      clearTimer(evicted.id);
     }
   });
 
@@ -84,6 +87,15 @@ export function dismissCue(id: string) {
     const at = s.cues.findIndex((item) => item.id === id);
     if (at === -1) return;
     clearTimer(id);
+    s.cues.splice(at, 1);
+  });
+}
+
+export function dismissCueKey(key: string) {
+  cueStore.setState((s) => {
+    const at = s.cues.findIndex((item) => item.key === key);
+    if (at === -1) return;
+    clearTimer(s.cues[at].id);
     s.cues.splice(at, 1);
   });
 }
