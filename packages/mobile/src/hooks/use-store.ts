@@ -30,30 +30,8 @@ export function useConnectionPhase(): ConnectionPhase {
   );
 }
 
-export function useConnectionError(): string | undefined {
-  return eventStore((s) => s.connection.error);
-}
-
-export type ConnectionState =
-  | "loading"
-  | "idle"
-  | "checking"
-  | "connected"
-  | "error";
-
-export function useConnectionState(): ConnectionState {
-  const initialized = eventStore((s) => s._serverConfigLoaded);
-  const hasServer = eventStore((s) => s._client !== null);
-  const connection = useConnectionStatus();
-  if (!initialized) return "loading";
-  if (!hasServer) return "idle";
-  if (connection.status === "connected") return "connected";
-  if (
-    connection.status === "connecting" ||
-    connection.status === "reconnecting"
-  )
-    return "checking";
-  return "error";
+export function useServerUrl(): string | null {
+  return eventStore((s) => s._serverUrl);
 }
 
 export function useSessions() {
