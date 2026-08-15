@@ -44,6 +44,7 @@ import { Effect, Layer, Stream } from "effect"
 import { HttpClient, HttpClientResponse } from "effect/unstable/http"
 import path from "node:path"
 import { testEffect } from "./lib/effect"
+import { permissionLayer } from "./lib/permission"
 import { agentHost, catalogHost, host } from "./plugin/host"
 
 const cassetteName = "session-runner/openai-chat-streams-text"
@@ -55,17 +56,7 @@ if (process.env.RECORD === "true") {
 const cassette = HttpRecorder.layerFetch(cassetteName, { directory: cassetteDirectory })
 const executor = RequestExecutor.layer.pipe(Layer.provide(cassette))
 const client = LLMClient.layer.pipe(Layer.provide(executor))
-const permission = Layer.succeed(
-  Permission.Service,
-  Permission.Service.of({
-    assert: () => Effect.die("unused"),
-    ask: () => Effect.die("unused"),
-    reply: () => Effect.die("unused"),
-    get: () => Effect.die("unused"),
-    forSession: () => Effect.die("unused"),
-    list: () => Effect.die("unused"),
-  }),
-)
+const permission = permissionLayer()
 const model = OpenAIChat.route
   .with({
     endpoint: { baseURL: "https://api.openai.com/v1" },
@@ -129,7 +120,7 @@ const execution = (llmClient: Layer.Layer<typeof LLMClient.Service>) =>
     Effect.gen(function* () {
       const sessionRunner = yield* SessionRunner.Service
       const coordinator = yield* SessionRunCoordinator.make<Session.ID, SessionRunner.RunError>({
-        drain: (sessionID, force) => sessionRunner.drain({ sessionID, force }),
+        drain: (sessionID, force) => sessionRunner.drain({ sessionID, force }).pipe(Effect.asVoid),
       })
       return SessionExecution.Service.of({
         active: coordinator.active,
@@ -243,9 +234,9 @@ describe("SessionRunnerLLM recorded", () => {
           .orderBy(EventTable.seq)
           .all()).map((event) => event.type),
       ).toEqual([
-        "session.input.admitted.1",
+        "session.inbox.enqueued.1",
         "session.instructions.updated.2",
-        "session.input.promoted.1",
+        "session.inbox.delivered.1",
         "session.step.started.1",
         "session.text.started.1",
         "session.text.ended.1",

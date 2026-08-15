@@ -32,8 +32,11 @@ import { AbsolutePath } from "@opencode-ai/core/schema"
 import { Session } from "@opencode-ai/core/session"
 import { Snapshot } from "@opencode-ai/core/snapshot"
 import { SessionEvent } from "@opencode-ai/core/session/event"
-import { SessionPending } from "@opencode-ai/core/session/pending"
+import { SessionContext } from "@opencode-ai/core/session/context"
+import { SessionInbox } from "@opencode-ai/core/session/inbox"
 import { SessionMessage } from "@opencode-ai/core/session/message"
+import { SessionModelRequest } from "@opencode-ai/core/session/model-request"
+import { SessionModelTransport } from "@opencode-ai/core/session/model-transport"
 import { Money } from "@opencode-ai/schema/money"
 import { SessionProjector } from "@opencode-ai/core/session/projector"
 import { SessionExecution } from "@opencode-ai/core/session/execution"
@@ -55,11 +58,12 @@ import { Tool } from "@opencode-ai/core/tool"
 import type { Info as ToolInfo } from "@opencode-ai/schema/tool"
 import {
   InstructionStateTable,
-  SessionPendingTable,
+  SessionInboxTable,
   SessionMessageTable,
   SessionTable,
 } from "@opencode-ai/core/session/sql"
 import { InstructionEntry } from "@opencode-ai/core/session/instruction-entry"
+import { InstructionState } from "@opencode-ai/core/session/instruction-state"
 import { SessionStore } from "@opencode-ai/core/session/store"
 import { Instructions } from "@opencode-ai/core/instructions/index"
 import { InstructionBuiltIns } from "@opencode-ai/core/instructions/builtins"
@@ -67,15 +71,17 @@ import { InstructionDiscovery } from "@opencode-ai/core/instruction-discovery"
 import { SkillInstructions } from "@opencode-ai/core/skill/instructions"
 import { ReferenceInstructions } from "@opencode-ai/core/reference/instructions"
 import { McpInstructions } from "@opencode-ai/core/mcp/instructions"
+import { SessionSystemPrompt } from "@opencode-ai/core/session/system-prompt"
 import { ID } from "@opencode-ai/core/model"
 import { Location } from "@opencode-ai/core/location"
 import { Provider } from "@opencode-ai/core/provider"
 import { Cause, DateTime, Deferred, Effect, Exit, Fiber, Layer, Schema, Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
-import { asc, eq } from "drizzle-orm"
+import { HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { asc, desc, eq } from "drizzle-orm"
 import { testEffect } from "./lib/effect"
+import { permissionLayer } from "./lib/permission"
 import { agentHost, catalogHost, host } from "./plugin/host"
-import PROMPT_DEFAULT from "../src/session/runner/prompt/base.txt"
 import { CodeModeInstructions } from "@opencode-ai/core/codemode/instructions"
 
 let requests: LLMRequest[] = []
@@ -131,8 +137,17 @@ const testLLM = TestLLM.layer({
     }),
 })
 const client = TestLLM.clientLayer
+const closedTransports: Session.ID[] = []
+const modelTransport = Layer.succeed(
+  SessionModelTransport.Service,
+  SessionModelTransport.Service.of({
+    bind: () => ({ execute: () => Effect.die("Unexpected WebSocket execution") }),
+    close: (sessionID) => Effect.sync(() => closedTransports.push(sessionID)),
+    closeAll: Effect.void,
+  }),
+)
 const model = LanguageModel.make({ id: "fake-model", provider: "fake", route: OpenAIChat.route })
-const defaultSystem = PROMPT_DEFAULT
+const defaultSystem = SessionSystemPrompt.make([])
 const replacementModel = LanguageModel.make({ id: "replacement", provider: "fake", route: OpenAIChat.route })
 const compactModel = LanguageModel.make({
   id: "compact",
@@ -218,17 +233,7 @@ const permissionFail = {
       }),
     }),
 }
-const permission = Layer.succeed(
-  Permission.Service,
-  Permission.Service.of({
-    assert: () => Effect.die("unused"),
-    ask: () => Effect.die("unused"),
-    reply: () => Effect.die("unused"),
-    get: () => Effect.die("unused"),
-    forSession: () => Effect.die("unused"),
-    list: () => Effect.die("unused"),
-  }),
-)
+const permission = permissionLayer()
 const transformTools = (registry: Tool.Interface, tools: Readonly<Record<string, ToolInfo>>, options?: Tool.Options) =>
   registry.transform((draft) =>
     Object.entries(tools).forEach(([name, tool]) => draft.add({ ...tool, name, options: options ?? tool.options })),
@@ -382,13 +387,27 @@ const runnerLayer = AppNodeBuilder.build(SessionRunnerLLM.node, [
   [Config.node, config],
   [McpInstructions.node, mcpInstructions],
   [PluginSupervisor.node, pluginSupervisor],
+  [SessionModelTransport.node, modelTransport],
 ])
 const execution = Layer.effect(
   SessionExecution.Service,
   Effect.gen(function* () {
     const sessionRunner = yield* SessionRunner.Service
+    function drain(
+      sessionID: Session.ID,
+      force: boolean,
+      continuation?: SessionRunner.Continuation,
+    ): Effect.Effect<void, SessionRunner.RunError> {
+      return sessionRunner
+        .drain({ sessionID, force, continuation })
+        .pipe(
+          Effect.flatMap((result) =>
+            result.type === "complete" ? Effect.void : drain(sessionID, false, result.continuation),
+          ),
+        )
+    }
     const coordinator = yield* SessionRunCoordinator.make<Session.ID, SessionRunner.RunError>({
-      drain: (sessionID, force) => sessionRunner.drain({ sessionID, force }),
+      drain: (sessionID, force) => drain(sessionID, force),
     })
     return SessionExecution.Service.of({
       active: coordinator.active,
@@ -422,6 +441,8 @@ const it = testEffect(
       ReferenceInstructions.node,
       Config.node,
       Snapshot.node,
+      SessionContext.node,
+      SessionModelRequest.node,
       SessionRunnerLLM.node,
       SessionExecution.node,
       Session.node,
@@ -441,6 +462,7 @@ const it = testEffect(
       [SessionExecution.node, execution],
       [Config.node, config],
       [PluginSupervisor.node, pluginSupervisor],
+      [SessionModelTransport.node, modelTransport],
     ],
   ).pipe(Layer.provideMerge(testLLM)),
 )
@@ -487,6 +509,7 @@ const setup = Effect.gen(function* () {
   requests = (yield* TestLLM.Service).requests
   authorizations.length = 0
   executions.length = 0
+  closedTransports.length = 0
   systemBaseline = "Initial context"
   systemRemoved = false
   systemUnavailable = false
@@ -519,6 +542,20 @@ const providerUnavailable = () =>
       message: "Provider unavailable",
       transport: "http",
       operation: "request",
+    }),
+  })
+
+const continuationRejected = (recovery: "retry-full" | "rotate-and-retry-full") =>
+  new AIError({
+    module: "test",
+    method: "stream",
+    reason: new TransportReason({
+      message: "Continuation rejected",
+      transport: "websocket",
+      operation: "read",
+      phase: "receive",
+      delivery: "rejected",
+      recovery,
     }),
   })
 
@@ -629,9 +666,9 @@ const replaySessionProjection = (id: Session.ID) =>
 
     yield* bus.remove(id)
     yield* db.delete(InstructionStateTable).where(eq(InstructionStateTable.session_id, id)).run().pipe(Effect.orDie)
-    yield* db.delete(SessionPendingTable).where(eq(SessionPendingTable.session_id, id)).run().pipe(Effect.orDie)
+    yield* db.delete(SessionInboxTable).where(eq(SessionInboxTable.session_id, id)).run().pipe(Effect.orDie)
     yield* db.delete(SessionMessageTable).where(eq(SessionMessageTable.session_id, id)).run().pipe(Effect.orDie)
-    yield* bus.replayAll(
+    yield* Effect.forEach(
       recorded.map((event) => ({
         id: event.id,
         created: DateTime.makeUnsafe(event.created),
@@ -640,6 +677,8 @@ const replaySessionProjection = (id: Session.ID) =>
         type: event.type,
         data: event.data,
       })),
+      (event) => bus.replay(event),
+      { discard: true },
     )
   })
 
@@ -941,6 +980,48 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("forces HTTP and triggers active request and response hooks once", () =>
+    Effect.gen(function* () {
+      yield* setup
+      const hooks = yield* PluginHooks.Service
+      let requestTriggers = 0
+      let responseTriggers = 0
+      yield* hooks.register("session", "http.request", (event) =>
+        Effect.sync(() => {
+          requestTriggers++
+          event.request.headers.set("x-request-hook", "active")
+        }),
+      )
+      yield* hooks.register("session", "http.response", (event) =>
+        Effect.sync(() => {
+          responseTriggers++
+          event.response.headers.set("x-response-hook", "active")
+        }),
+      )
+      const context = yield* SessionContext.Service
+      const modelRequests = yield* SessionModelRequest.Service
+      const selected = yield* context.select(sessionID)
+      const database = yield* Database.Service
+      const bus = yield* Bus.Service
+      yield* InstructionState.prepare(database.db, bus, selected.instructions, sessionID)
+      const prepared = yield* modelRequests.prepare({
+        context: yield* context.load(selected),
+        step: 1,
+      })
+      const http = prepared.options.http ?? (yield* Effect.die("Expected Session HTTP middleware"))
+
+      const response = yield* http(HttpClientRequest.post("https://provider.test/responses"), (request) => {
+        expect(request.headers["x-request-hook"]).toBe("active")
+        return Effect.succeed(HttpClientResponse.fromWeb(request, new Response("network")))
+      })
+
+      expect(prepared.webSocketEligible).toBe(false)
+      expect(response.headers["x-response-hook"]).toBe("active")
+      expect(requestTriggers).toBe(1)
+      expect(responseTriggers).toBe(1)
+    }),
+  )
+
   it.effect("executes a tool renamed by a session context hook", () =>
     Effect.gen(function* () {
       const session = yield* setup
@@ -1186,7 +1267,7 @@ describe("SessionRunnerLLM", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       if (Exit.isFailure(exit)) expect(Cause.squash(exit.cause)).toBeInstanceOf(Instructions.InitializationBlocked)
       expect(requests).toHaveLength(0)
-      expect(yield* SessionPending.has(db, sessionID, "steer")).toBe(true)
+      expect(yield* SessionInbox.has(db, sessionID, "steer")).toBe(true)
       expect(
         yield* db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, sessionID)).get(),
       ).toBeUndefined()
@@ -1200,27 +1281,105 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
-  it.effect("interrupts a source Location runner after a Session moves", () =>
+  it.effect("preserves instruction state and interrupts the source Location runner after a Session moves", () =>
     Effect.gen(function* () {
       const session = yield* setup
       const bus = yield* Bus.Service
       const { db } = yield* Database.Service
       yield* runPrompt(session, "First")
+      const instructionState = yield* db
+        .select()
+        .from(InstructionStateTable)
+        .where(eq(InstructionStateTable.session_id, sessionID))
+        .get()
 
       yield* bus.publish(SessionEvent.Moved, {
         sessionID,
         location: Location.Ref.make({ directory: AbsolutePath.make("/moved") }),
+        projectID: Project.ID.global,
       })
       expect(
         yield* db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, sessionID)).get(),
-      ).toBeUndefined()
+      ).toEqual(instructionState)
 
       yield* admit(session, "Second")
       const exit = yield* session.resume(sessionID).pipe(Effect.exit)
 
       expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
       expect(requests).toHaveLength(1)
-      expect(yield* SessionPending.has(db, sessionID, "steer")).toBe(true)
+      expect(yield* SessionInbox.has(db, sessionID, "steer")).toBe(true)
+    }),
+  )
+
+  it.effect("delivers a queued move atomically at the idle boundary", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      const inboxID = SessionMessage.ID.create()
+      yield* SessionInbox.admit(db, bus, {
+        id: inboxID,
+        sessionID,
+        item: {
+          type: "move",
+          payload: {
+            location: Location.Ref.make({ directory: AbsolutePath.make("/moved") }),
+            projectID: Project.ID.global,
+          },
+          delivery: "queue",
+        },
+      })
+
+      yield* session.resume(sessionID)
+
+      expect((yield* session.get(sessionID)).location.directory).toBe(AbsolutePath.make("/moved"))
+      expect(yield* session.inbox(sessionID)).toEqual([])
+      expect(requests).toEqual([])
+      expect(closedTransports).toEqual([sessionID])
+      expect(
+        (yield* db
+          .select({ type: EventTable.type })
+          .from(EventTable)
+          .where(eq(EventTable.aggregate_id, sessionID))
+          .orderBy(desc(EventTable.seq))
+          .limit(2)
+          .all()).map((event) => event.type),
+      ).toEqual([Bus.versionedType(SessionEvent.Moved.type, 1), Bus.versionedType(SessionEvent.InboxDelivered.type, 1)])
+    }),
+  )
+
+  it.effect("preserves a tool continuation across a steered move", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      const bus = yield* Bus.Service
+      const { db } = yield* Database.Service
+      yield* admit(session, "Echo before moving")
+      yield* TestLLM.push(
+        TestLLM.tool("call-move", "echo", { text: "moving" }),
+        TestLLM.text("Done", "text-after-move"),
+      )
+      const tools = yield* blockTools()
+      const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* tools.started
+      yield* SessionInbox.admit(db, bus, {
+        id: SessionMessage.ID.create(),
+        sessionID,
+        item: {
+          type: "move",
+          payload: {
+            location: Location.Ref.make({ directory: AbsolutePath.make("/project") }),
+            projectID: Project.ID.global,
+          },
+          delivery: "steer",
+        },
+      })
+
+      yield* tools.release
+      yield* Fiber.join(run)
+
+      expect(requests).toHaveLength(2)
+      expect(requests.map(messageRoles).at(1)?.slice(0, 3)).toEqual(["user", "assistant", "tool"])
+      expect(yield* session.inbox(sessionID)).toEqual([])
     }),
   )
 
@@ -1262,7 +1421,7 @@ describe("SessionRunnerLLM", () => {
         .all()
       yield* bus.remove(forked.id)
       yield* db.delete(SessionTable).where(eq(SessionTable.id, forked.id)).run()
-      yield* bus.replayAll(
+      yield* Effect.forEach(
         recorded.map((event) => ({
           id: event.id,
           created: DateTime.makeUnsafe(event.created),
@@ -1271,6 +1430,8 @@ describe("SessionRunnerLLM", () => {
           type: event.type,
           data: event.data,
         })),
+        (event) => bus.replay(event),
+        { discard: true },
       )
       expect(
         yield* db.select().from(InstructionStateTable).where(eq(InstructionStateTable.session_id, forked.id)).get(),
@@ -1825,15 +1986,15 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
-  it.effect("runs one durable compaction barrier after tool settlement and before later inputs", () =>
+  it.effect("runs steers before queued compaction and later queued input", () =>
     Effect.gen(function* () {
       const session = yield* setup
       currentModel = recoveryModel
       const stream = yield* TestLLM.gate
       yield* TestLLM.push(
         TestLLM.tool("call-active", "echo", { text: "active" }),
-        [LLMEvent.textDelta({ id: "summary", text: "durable summary" })],
         TestLLM.text("Steer complete", "text-steer"),
+        [LLMEvent.textDelta({ id: "summary", text: "durable summary" })],
         TestLLM.text("Queue complete", "text-queue"),
       )
       yield* admit(session, "Active work")
@@ -1841,9 +2002,7 @@ describe("SessionRunnerLLM", () => {
       yield* stream.started
 
       const first = yield* session.compact({ sessionID })
-      const second = yield* session.compact({ sessionID })
-      expect(second.id).toBe(first.id)
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toMatchObject({
+      expect(yield* SessionInbox.find((yield* Database.Service).db, first.id)).toMatchObject({
         id: first.id,
       })
       expect((yield* session.messages({ sessionID })).find((message) => message.id === first.id)).toBeUndefined()
@@ -1856,17 +2015,17 @@ describe("SessionRunnerLLM", () => {
         delivery: "queue",
         resume: false,
       })
-      expect(yield* SessionPending.has((yield* Database.Service).db, sessionID, "steer")).toBe(false)
+      expect(yield* SessionInbox.has((yield* Database.Service).db, sessionID, "steer")).toBe(true)
 
       yield* stream.release
       yield* Fiber.join(active)
 
       expect(requests).toHaveLength(4)
-      expect(userTexts(requests[1])[0]).toContain("Create a new anchored summary")
-      expect(userTexts(requests[2])).toContain("Steer after compaction")
-      expect(userTexts(requests[2])).toContain("Completion after compaction")
+      expect(userTexts(requests[1])).toContain("Steer after compaction")
+      expect(userTexts(requests[1])).toContain("Completion after compaction")
+      expect(userTexts(requests[2])[0]).toContain("Create a new anchored summary")
       expect(userTexts(requests[3])).toContain("Queue after compaction")
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toBeUndefined()
+      expect(yield* SessionInbox.find((yield* Database.Service).db, first.id)).toBeUndefined()
       expect((yield* session.messages({ sessionID })).find((message) => message.id === first.id)).toMatchObject({
         type: "compaction",
         status: "completed",
@@ -1901,7 +2060,7 @@ describe("SessionRunnerLLM", () => {
 
       expect(requests).toHaveLength(3)
       expect(userTexts(requests[2])).toContain("Continue after failure")
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toBeUndefined()
+      expect(yield* SessionInbox.find((yield* Database.Service).db, compaction.id)).toBeUndefined()
       expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
         type: "compaction",
         status: "failed",
@@ -1923,7 +2082,7 @@ describe("SessionRunnerLLM", () => {
 
       yield* session.resume(sessionID)
 
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toBeUndefined()
+      expect(yield* SessionInbox.find((yield* Database.Service).db, compaction.id)).toBeUndefined()
       expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
         type: "compaction",
         status: "failed",
@@ -1938,7 +2097,7 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
-  it.effect("manually compacts when the model has no context limit", () =>
+  it.effect("delivers steered manual compaction when the model has no context limit", () =>
     Effect.gen(function* () {
       const session = yield* setup
       yield* TestLLM.push(TestLLM.text("Earlier answer", "text-manual-unknown-history"))
@@ -1946,7 +2105,7 @@ describe("SessionRunnerLLM", () => {
 
       requests.length = 0
       yield* TestLLM.push(TestLLM.text("Manual summary", "text-manual-unknown-summary"))
-      const compaction = yield* session.compact({ sessionID })
+      const compaction = yield* session.compact({ sessionID, delivery: "steer" })
       yield* session.resume(sessionID)
 
       expect(requests).toHaveLength(1)
@@ -2015,7 +2174,7 @@ describe("SessionRunnerLLM", () => {
       yield* session.interrupt(sessionID)
 
       yield* Fiber.await(run)
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toBeUndefined()
+      expect(yield* SessionInbox.find((yield* Database.Service).db, compaction.id)).toBeUndefined()
       expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
         type: "compaction",
         status: "failed",
@@ -2036,7 +2195,7 @@ describe("SessionRunnerLLM", () => {
 
       expect(yield* Effect.exit(session.resume(sessionID))).toMatchObject({ _tag: "Failure" })
 
-      expect(yield* SessionPending.compaction((yield* Database.Service).db, sessionID)).toBeUndefined()
+      expect(yield* SessionInbox.find((yield* Database.Service).db, compaction.id)).toBeUndefined()
       expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
         type: "compaction",
         status: "failed",
@@ -2864,7 +3023,7 @@ describe("SessionRunnerLLM", () => {
       yield* session.interrupt(sessionID)
       expect(yield* Fiber.await(run)).toMatchObject({ _tag: "Failure" })
       expect(requests).toHaveLength(1)
-      expect(yield* SessionPending.has(db, sessionID, "queue")).toBe(true)
+      expect(yield* SessionInbox.has(db, sessionID, "queue")).toBe(true)
       const resumed = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* stream.started
       yield* stream.release
@@ -2894,7 +3053,7 @@ describe("SessionRunnerLLM", () => {
       yield* session.interrupt(sessionID)
       expect(yield* Fiber.await(run)).toMatchObject({ _tag: "Failure" })
       expect(requests).toHaveLength(1)
-      expect(yield* SessionPending.has(db, sessionID, "steer")).toBe(true)
+      expect(yield* SessionInbox.has(db, sessionID, "steer")).toBe(true)
 
       const resumed = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* stream.started
@@ -3047,7 +3206,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const bus = yield* Bus.Service
       yield* admit(session, "Recover interrupted tool")
-      yield* SessionPending.promote((yield* Database.Service).db, bus, sessionID, "steer")
+      yield* SessionInbox.promote((yield* Database.Service).db, bus, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* bus.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3104,7 +3263,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const bus = yield* Bus.Service
       yield* admit(session, "Recover interrupted hosted tool")
-      yield* SessionPending.promote((yield* Database.Service).db, bus, sessionID, "steer")
+      yield* SessionInbox.promote((yield* Database.Service).db, bus, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* bus.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3155,7 +3314,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const bus = yield* Bus.Service
       yield* admit(session, "Recover interrupted tool input")
-      yield* SessionPending.promote((yield* Database.Service).db, bus, sessionID, "steer")
+      yield* SessionInbox.promote((yield* Database.Service).db, bus, sessionID, "steer")
       const assistantMessageID = SessionMessage.ID.create()
       yield* bus.publish(SessionEvent.Step.Started, {
         sessionID,
@@ -3208,7 +3367,7 @@ describe("SessionRunnerLLM", () => {
       const bus = yield* Bus.Service
       const defect = new Error("fail after prompt promotion")
       let fail = true
-      yield* bus.project(SessionEvent.InputPromoted, () => (fail ? Effect.die(defect) : Effect.void))
+      yield* bus.project(SessionEvent.InboxDelivered, () => (fail ? Effect.die(defect) : Effect.void))
       yield* admit(session, "Recover promoted input")
 
       expect(yield* session.resume(sessionID).pipe(Effect.catchDefect(Effect.succeed))).toBe(defect)
@@ -3230,7 +3389,7 @@ describe("SessionRunnerLLM", () => {
       const session = yield* setup
       const bus = yield* Bus.Service
       yield* bus.listen((event) =>
-        event.type === SessionEvent.InputPromoted.type
+        event.type === SessionEvent.InboxDelivered.type
           ? Effect.die("fail after prompt promotion commits")
           : Effect.void,
       )
@@ -4007,6 +4166,36 @@ describe("SessionRunnerLLM", () => {
       ])
       yield* replaySessionProjection(sessionID)
       expect((yield* session.context(sessionID)).filter((message) => message.type === "assistant")).toHaveLength(1)
+    }),
+  )
+
+  it.effect("immediately rebuilds once after explicit continuation rejection", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      yield* TestLLM.push(Stream.fail(continuationRejected("retry-full")))
+      yield* TestLLM.push(TestLLM.text("Recovered", "continuation-recovery"))
+
+      yield* runPrompt(session, "Recover continuation")
+
+      expect(requests).toHaveLength(2)
+      expect(yield* recordedEventTypes(sessionID)).not.toContain("session.retry.scheduled.1")
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user" },
+        { type: "assistant", finish: "stop", content: [{ type: "text", text: "Recovered" }] },
+      ])
+    }),
+  )
+
+  it.effect("bounds repeated continuation rejection to one immediate recovery", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      const failure = continuationRejected("rotate-and-retry-full")
+      yield* TestLLM.push(Stream.fail(failure), Stream.fail(failure))
+
+      expect(yield* runPrompt(session, "Reject continuation twice").pipe(Effect.flip)).toBe(failure)
+
+      expect(requests).toHaveLength(2)
+      expect(yield* recordedEventTypes(sessionID)).not.toContain("session.retry.scheduled.1")
     }),
   )
 

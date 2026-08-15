@@ -16,7 +16,7 @@ import type {
   ReferenceInfo,
   SessionInfo,
   SessionMessageInfo,
-  SessionPendingInfo,
+  SessionInboxInfo,
   ShellInfo,
   SkillInfo,
   VcsInfo,
@@ -70,7 +70,7 @@ export interface Data {
     cost(sessionID: string): number
     status(sessionID: string): "idle" | "running"
     readonly pending: {
-      list(sessionID: string): SessionPendingInfo[]
+      list(sessionID: string): SessionInboxInfo[]
       sync(sessionID: string): Promise<void>
       invalidate(sessionID: string): void
     }
@@ -171,7 +171,7 @@ export interface SlotMap {
   readonly "prompt.footer.file": PromptFooterInput
   readonly "session.composer.top": { readonly sessionID: string }
   readonly "sidebar.content": { readonly sessionID: string }
-  readonly "sidebar.footer": Readonly<Record<string, never>>
+  readonly "sidebar.footer": { readonly sessionID: string }
 }
 export type SlotPath = keyof SlotMap
 

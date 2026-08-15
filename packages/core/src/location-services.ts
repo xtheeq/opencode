@@ -25,15 +25,15 @@ import { MCP } from "./mcp/index.js"
 import { Permission } from "./permission.js"
 import { Plugin } from "./plugin.js"
 import { PluginSupervisor } from "./plugin/supervisor.js"
-import { ProjectCopy } from "./project/copy.js"
+import { Worktree } from "./worktree.js"
 import { Pty } from "./pty.js"
-import { Question } from "./question.js"
 import { Shell } from "./shell.js"
 import { Reference } from "./reference.js"
 import { WebSearch } from "./websearch.js"
 import { ReferenceInstructions } from "./reference/instructions.js"
 import { SessionRunnerLLM } from "./session/runner/llm.js"
 import { SessionRunnerModel } from "./session/runner/model.js"
+import { SessionModelTransport } from "./session/model-transport.js"
 import { SessionCompaction } from "./session/compaction.js"
 import { SessionTitle } from "./session/title.js"
 import { Skill } from "./skill.js"
@@ -66,8 +66,7 @@ const locationServiceNodes = [
   AISDK.node,
   Plugin.node,
   PluginSupervisor.node,
-  ProjectCopy.node,
-  ProjectCopy.refreshNode,
+  Worktree.refreshNode,
   FileSystemSearch.node,
   FileSystem.node,
   Pty.node,
@@ -87,13 +86,13 @@ const locationServiceNodes = [
   ReferenceInstructions.node,
   InstructionEntry.node,
   Form.node,
-  Question.node,
   Generate.node,
   SessionGenerateNode.node,
   ReadToolFileSystem.node,
   McpTool.node,
   SessionInstructions.node,
   SessionRunnerModel.node,
+  SessionModelTransport.node,
   SessionCompaction.node,
   SessionTitle.node,
   Snapshot.node,

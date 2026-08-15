@@ -1670,7 +1670,32 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Location.Ref"
+                "type": "object",
+                "properties": {
+                  "directory": {
+                    "type": "string"
+                  },
+                  "workspaceID": {
+                    "type": "string",
+                    "allOf": [
+                      {
+                        "pattern": "^wrk"
+                      }
+                    ]
+                  },
+                  "delivery": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/Session.Inbox.Delivery"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": ["directory"],
+                "additionalProperties": false
               }
             }
           },
@@ -1707,7 +1732,7 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/SessionPending.User"
+                      "$ref": "#/components/schemas/Session.Inbox.User"
                     }
                   },
                   "required": ["data"],
@@ -1821,8 +1846,7 @@
                   "delivery": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "enum": ["steer", "queue"]
+                        "$ref": "#/components/schemas/Session.Inbox.Delivery"
                       },
                       {
                         "type": "null"
@@ -1878,7 +1902,7 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/SessionPending.User"
+                      "$ref": "#/components/schemas/Session.Inbox.User"
                     }
                   },
                   "required": ["data"],
@@ -2032,8 +2056,7 @@
                   "delivery": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "enum": ["steer", "queue"]
+                        "$ref": "#/components/schemas/Session.Inbox.Delivery"
                       },
                       {
                         "type": "null"
@@ -2200,7 +2223,7 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/SessionPending.Synthetic"
+                      "$ref": "#/components/schemas/Session.Inbox.Synthetic"
                     }
                   },
                   "required": ["data"],
@@ -2299,8 +2322,7 @@
                   "delivery": {
                     "anyOf": [
                       {
-                        "type": "string",
-                        "enum": ["steer", "queue"]
+                        "$ref": "#/components/schemas/Session.Inbox.Delivery"
                       },
                       {
                         "type": "null"
@@ -2454,7 +2476,7 @@
                   "type": "object",
                   "properties": {
                     "data": {
-                      "$ref": "#/components/schemas/SessionPending.Compaction"
+                      "$ref": "#/components/schemas/Session.Inbox.Compaction"
                     }
                   },
                   "required": ["data"],
@@ -2528,6 +2550,16 @@
                             "pattern": "^msg_"
                           }
                         ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "delivery": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/Session.Inbox.Delivery"
                       },
                       {
                         "type": "null"
@@ -3000,10 +3032,10 @@
         "summary": "Get session context"
       }
     },
-    "/api/session/{sessionID}/pending": {
+    "/api/session/{sessionID}/inbox": {
       "get": {
         "tags": ["session"],
-        "operationId": "v2.session.pending.list",
+        "operationId": "v2.session.inbox.list",
         "parameters": [
           {
             "name": "sessionID",
@@ -3031,7 +3063,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/SessionPending.Info"
+                        "$ref": "#/components/schemas/Session.Inbox.Info"
                       }
                     }
                   },
@@ -3072,14 +3104,14 @@
             }
           }
         },
-        "description": "List durable admitted session work not yet visible in projected history, ordered by admission. Includes unpromoted user and synthetic inputs and unhandled compaction barriers. The runner owns consumption; items disappear once promoted or handled.",
-        "summary": "List pending session work"
+        "description": "List durable enqueued session work not yet delivered, ordered by enqueue sequence. Includes user, synthetic, compaction, and move items.",
+        "summary": "List session inbox"
       }
     },
-    "/api/session/{sessionID}/pending/{inputID}": {
+    "/api/session/{sessionID}/inbox/{inboxID}": {
       "delete": {
         "tags": ["session"],
-        "operationId": "v2.session.pending.cancel",
+        "operationId": "v2.session.inbox.cancel",
         "parameters": [
           {
             "name": "sessionID",
@@ -3095,7 +3127,7 @@
             "required": true
           },
           {
-            "name": "inputID",
+            "name": "inboxID",
             "in": "path",
             "schema": {
               "type": "string",
@@ -3154,14 +3186,14 @@
             }
           }
         },
-        "description": "Cancel an input that has not yet been promoted into session history.",
-        "summary": "Cancel pending input"
+        "description": "Cancel an inbox item that has not yet been delivered.",
+        "summary": "Cancel inbox input"
       }
     },
-    "/api/session/{sessionID}/pending/{inputID}/steer": {
+    "/api/session/{sessionID}/inbox/{inboxID}/steer": {
       "post": {
         "tags": ["session"],
-        "operationId": "v2.session.pending.steer",
+        "operationId": "v2.session.inbox.steer",
         "parameters": [
           {
             "name": "sessionID",
@@ -3177,7 +3209,7 @@
             "required": true
           },
           {
-            "name": "inputID",
+            "name": "inboxID",
             "in": "path",
             "schema": {
               "type": "string",
@@ -3236,14 +3268,14 @@
             }
           }
         },
-        "description": "Change a queued input to steer delivery and wake session execution.",
-        "summary": "Steer queued input"
+        "description": "Change a queued inbox item to steer delivery and wake session execution.",
+        "summary": "Steer queued item"
       }
     },
-    "/api/session/{sessionID}/pending/{inputID}/queue": {
+    "/api/session/{sessionID}/inbox/{inboxID}/queue": {
       "post": {
         "tags": ["session"],
-        "operationId": "v2.session.pending.queue",
+        "operationId": "v2.session.inbox.queue",
         "parameters": [
           {
             "name": "sessionID",
@@ -3259,7 +3291,7 @@
             "required": true
           },
           {
-            "name": "inputID",
+            "name": "inboxID",
             "in": "path",
             "schema": {
               "type": "string",
@@ -3318,8 +3350,8 @@
             }
           }
         },
-        "description": "Change a pending steer to queued delivery.",
-        "summary": "Queue pending steer"
+        "description": "Change a steered inbox item to queued delivery.",
+        "summary": "Queue steered item"
       }
     },
     "/api/session/{sessionID}/instructions/entries": {
@@ -3932,7 +3964,7 @@
             }
           }
         },
-        "description": "Interrupt active execution owned by this OpenCode process. Idle interruption is a no-op. When continue=true, execution resumes if durable pending work remains after interruption.",
+        "description": "Interrupt active execution owned by this OpenCode process. Idle interruption is a no-op. When continue=true, execution resumes if durable inbox work remains after interruption.",
         "summary": "Interrupt session execution"
       }
     },
@@ -6915,97 +6947,6 @@
         },
         "description": "Resolve the project for the requested location.",
         "summary": "Get current project"
-      }
-    },
-    "/api/project/{projectID}/directories": {
-      "get": {
-        "tags": ["project"],
-        "operationId": "v2.project.directories",
-        "parameters": [
-          {
-            "name": "projectID",
-            "in": "path",
-            "schema": {
-              "type": "string"
-            },
-            "required": true
-          },
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Project.Directories",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Project.Directories"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedError"
-                }
-              }
-            }
-          }
-        },
-        "description": "List known local absolute directories for a project.",
-        "summary": "List project directories"
       }
     },
     "/api/form/request": {
@@ -10497,359 +10438,6 @@
         "summary": "Read shell output"
       }
     },
-    "/api/question/request": {
-      "get": {
-        "tags": ["question"],
-        "operationId": "v2.question.request.list",
-        "parameters": [
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "location": {
-                      "$ref": "#/components/schemas/Location.Info"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Question.Request"
-                      }
-                    }
-                  },
-                  "required": ["location", "data"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedError"
-                }
-              }
-            }
-          }
-        },
-        "description": "Retrieve pending question requests for a location.",
-        "summary": "List pending question requests"
-      }
-    },
-    "/api/session/{sessionID}/question": {
-      "get": {
-        "tags": ["question"],
-        "operationId": "v2.session.question.list",
-        "parameters": [
-          {
-            "name": "sessionID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "allOf": [
-                {
-                  "pattern": "^ses"
-                }
-              ]
-            },
-            "required": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Question.Request"
-                      }
-                    }
-                  },
-                  "required": ["data"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "SessionNotFoundError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "description": "Retrieve pending question requests owned by a session.",
-        "summary": "List session question requests"
-      }
-    },
-    "/api/session/{sessionID}/question/{requestID}/reply": {
-      "post": {
-        "tags": ["question"],
-        "operationId": "v2.session.question.reply",
-        "parameters": [
-          {
-            "name": "sessionID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "allOf": [
-                {
-                  "pattern": "^ses"
-                }
-              ]
-            },
-            "required": true
-          },
-          {
-            "name": "requestID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "allOf": [
-                {
-                  "pattern": "^que"
-                }
-              ]
-            },
-            "required": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "204": {
-            "description": "<No Content>"
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "SessionNotFoundError | QuestionNotFoundError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/QuestionNotFoundError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "description": "Answer a pending question request owned by a session.",
-        "summary": "Reply to pending question request",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Question.Reply"
-              }
-            }
-          },
-          "required": true
-        }
-      }
-    },
-    "/api/session/{sessionID}/question/{requestID}/reject": {
-      "post": {
-        "tags": ["question"],
-        "operationId": "v2.session.question.reject",
-        "parameters": [
-          {
-            "name": "sessionID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "allOf": [
-                {
-                  "pattern": "^ses"
-                }
-              ]
-            },
-            "required": true
-          },
-          {
-            "name": "requestID",
-            "in": "path",
-            "schema": {
-              "type": "string",
-              "allOf": [
-                {
-                  "pattern": "^que"
-                }
-              ]
-            },
-            "required": true
-          }
-        ],
-        "security": [],
-        "responses": {
-          "204": {
-            "description": "<No Content>"
-          },
-          "400": {
-            "description": "InvalidRequestError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvalidRequestError"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "UnauthorizedError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UnauthorizedError"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "SessionNotFoundError | QuestionNotFoundError",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/QuestionNotFoundError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    },
-                    {
-                      "$ref": "#/components/schemas/SessionNotFoundError"
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "description": "Reject a pending question request owned by a session.",
-        "summary": "Reject pending question request"
-      }
-    },
     "/api/reference": {
       "get": {
         "tags": ["reference"],
@@ -10946,10 +10534,10 @@
         "summary": "List references"
       }
     },
-    "/api/experimental/project/{projectID}/copy": {
-      "post": {
-        "tags": ["projectCopy"],
-        "operationId": "v2.projectCopy.create",
+    "/api/worktree/{projectID}": {
+      "get": {
+        "tags": ["worktree"],
+        "operationId": "v2.worktree.list",
         "parameters": [
           {
             "name": "projectID",
@@ -10958,68 +10546,77 @@
               "type": "string"
             },
             "required": true
-          },
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
           }
         ],
         "security": [],
         "responses": {
           "200": {
-            "description": "ProjectCopy.Copy",
+            "description": "Worktree.List",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectCopy.Copy"
+                  "$ref": "#/components/schemas/Worktree.List"
                 }
               }
             }
           },
           "400": {
-            "description": "ProjectCopyError | InvalidRequestError",
+            "description": "InvalidRequestError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvalidRequestError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UnauthorizedError",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthorizedError"
+                }
+              }
+            }
+          }
+        },
+        "description": "List known local worktrees for a project.",
+        "summary": "List worktrees"
+      },
+      "post": {
+        "tags": ["worktree"],
+        "operationId": "v2.worktree.create",
+        "parameters": [
+          {
+            "name": "projectID",
+            "in": "path",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          }
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Worktree.Info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worktree.Info"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "WorktreeError | InvalidRequestError",
             "content": {
               "application/json": {
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/ProjectCopyError"
+                      "$ref": "#/components/schemas/WorktreeError"
                     },
                     {
                       "$ref": "#/components/schemas/InvalidRequestError"
@@ -11040,6 +10637,8 @@
             }
           }
         },
+        "description": "Create a worktree for a project.",
+        "summary": "Create worktree",
         "requestBody": {
           "content": {
             "application/json": {
@@ -11047,6 +10646,9 @@
                 "type": "object",
                 "properties": {
                   "strategy": {
+                    "type": "string"
+                  },
+                  "from": {
                     "type": "string"
                   },
                   "directory": {
@@ -11065,8 +10667,8 @@
         }
       },
       "delete": {
-        "tags": ["projectCopy"],
-        "operationId": "v2.projectCopy.remove",
+        "tags": ["worktree"],
+        "operationId": "v2.worktree.remove",
         "parameters": [
           {
             "name": "projectID",
@@ -11075,46 +10677,6 @@
               "type": "string"
             },
             "required": true
-          },
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
           }
         ],
         "security": [],
@@ -11123,13 +10685,13 @@
             "description": "<No Content>"
           },
           "400": {
-            "description": "ProjectCopyError | InvalidRequestError",
+            "description": "WorktreeError | InvalidRequestError",
             "content": {
               "application/json": {
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/ProjectCopyError"
+                      "$ref": "#/components/schemas/WorktreeError"
                     },
                     {
                       "$ref": "#/components/schemas/InvalidRequestError"
@@ -11150,6 +10712,8 @@
             }
           }
         },
+        "description": "Remove a managed worktree from a project.",
+        "summary": "Remove worktree",
         "requestBody": {
           "content": {
             "application/json": {
@@ -11172,10 +10736,10 @@
         }
       }
     },
-    "/api/experimental/project/{projectID}/copy/refresh": {
+    "/api/worktree/{projectID}/refresh": {
       "post": {
-        "tags": ["projectCopy"],
-        "operationId": "v2.projectCopy.refresh",
+        "tags": ["worktree"],
+        "operationId": "v2.worktree.refresh",
         "parameters": [
           {
             "name": "projectID",
@@ -11184,46 +10748,6 @@
               "type": "string"
             },
             "required": true
-          },
-          {
-            "name": "location",
-            "in": "query",
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "directory": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    },
-                    "workspace": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
-                    }
-                  },
-                  "additionalProperties": false
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "required": false,
-            "style": "deepObject",
-            "explode": true
           }
         ],
         "security": [],
@@ -11232,13 +10756,13 @@
             "description": "<No Content>"
           },
           "400": {
-            "description": "ProjectCopyError | InvalidRequestError",
+            "description": "WorktreeError | InvalidRequestError",
             "content": {
               "application/json": {
                 "schema": {
                   "anyOf": [
                     {
-                      "$ref": "#/components/schemas/ProjectCopyError"
+                      "$ref": "#/components/schemas/WorktreeError"
                     },
                     {
                       "$ref": "#/components/schemas/InvalidRequestError"
@@ -11258,7 +10782,9 @@
               }
             }
           }
-        }
+        },
+        "description": "Reconcile stored worktrees with the project repositories.",
+        "summary": "Refresh worktrees"
       }
     },
     "/api/vcs": {
@@ -12146,7 +11672,7 @@
             "type": "integer",
             "allOf": [
               {
-                "exclusiveMinimum": 0
+                "minimum": 0
               }
             ]
           }
@@ -13951,6 +13477,10 @@
         "required": ["_tag", "sessionID", "messageID", "message"],
         "additionalProperties": false
       },
+      "Session.Inbox.Delivery": {
+        "type": "string",
+        "enum": ["steer", "queue"]
+      },
       "PromptInput.FileAttachment": {
         "type": "object",
         "properties": {
@@ -13983,7 +13513,7 @@
         "required": ["id"],
         "additionalProperties": false
       },
-      "SessionPending.UserData": {
+      "Session.Inbox.UserPayload": {
         "type": "object",
         "properties": {
           "text": {
@@ -14014,7 +13544,7 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "SessionPending.User": {
+      "Session.Inbox.User": {
         "type": "object",
         "properties": {
           "id": {
@@ -14040,15 +13570,14 @@
             "type": "string",
             "enum": ["user"]
           },
-          "data": {
-            "$ref": "#/components/schemas/SessionPending.UserData"
+          "payload": {
+            "$ref": "#/components/schemas/Session.Inbox.UserPayload"
           },
           "delivery": {
-            "type": "string",
-            "enum": ["steer", "queue"]
+            "$ref": "#/components/schemas/Session.Inbox.Delivery"
           }
         },
-        "required": ["id", "sessionID", "timeCreated", "type", "data", "delivery"],
+        "required": ["id", "sessionID", "timeCreated", "type", "payload", "delivery"],
         "additionalProperties": false
       },
       "CommandNotFoundError": {
@@ -14102,7 +13631,7 @@
         "required": ["_tag", "skill", "message"],
         "additionalProperties": false
       },
-      "SessionPending.SyntheticData": {
+      "Session.Inbox.SyntheticPayload": {
         "type": "object",
         "properties": {
           "text": {
@@ -14118,7 +13647,7 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "SessionPending.Synthetic": {
+      "Session.Inbox.Synthetic": {
         "type": "object",
         "properties": {
           "id": {
@@ -14144,18 +13673,27 @@
             "type": "string",
             "enum": ["synthetic"]
           },
-          "data": {
-            "$ref": "#/components/schemas/SessionPending.SyntheticData"
+          "payload": {
+            "$ref": "#/components/schemas/Session.Inbox.SyntheticPayload"
           },
           "delivery": {
-            "type": "string",
-            "enum": ["steer", "queue"]
+            "$ref": "#/components/schemas/Session.Inbox.Delivery"
           }
         },
-        "required": ["id", "sessionID", "timeCreated", "type", "data", "delivery"],
+        "required": ["id", "sessionID", "timeCreated", "type", "payload", "delivery"],
         "additionalProperties": false
       },
-      "SessionPending.Compaction": {
+      "Session.Inbox.CompactionPayload": {
+        "anyOf": [
+          {
+            "type": "object"
+          },
+          {
+            "type": "array"
+          }
+        ]
+      },
+      "Session.Inbox.Compaction": {
         "type": "object",
         "properties": {
           "id": {
@@ -14180,9 +13718,15 @@
           "type": {
             "type": "string",
             "enum": ["compaction"]
+          },
+          "payload": {
+            "$ref": "#/components/schemas/Session.Inbox.CompactionPayload"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/Session.Inbox.Delivery"
           }
         },
-        "required": ["id", "sessionID", "timeCreated", "type"],
+        "required": ["id", "sessionID", "timeCreated", "type", "payload", "delivery"],
         "additionalProperties": false
       },
       "ServiceUnavailableError": {
@@ -14226,16 +13770,71 @@
         "required": ["_tag", "sessionID", "message"],
         "additionalProperties": false
       },
-      "SessionPending.Info": {
+      "Session.Inbox.MovePayload": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/components/schemas/Location.Ref"
+          },
+          "projectID": {
+            "type": "string"
+          },
+          "subpath": {
+            "type": "string"
+          }
+        },
+        "required": ["location", "projectID"],
+        "additionalProperties": false
+      },
+      "Session.Inbox.Move": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "allOf": [
+              {
+                "pattern": "^msg_"
+              }
+            ]
+          },
+          "sessionID": {
+            "type": "string",
+            "allOf": [
+              {
+                "pattern": "^ses"
+              }
+            ]
+          },
+          "timeCreated": {
+            "type": "number"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["move"]
+          },
+          "payload": {
+            "$ref": "#/components/schemas/Session.Inbox.MovePayload"
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/Session.Inbox.Delivery"
+          }
+        },
+        "required": ["id", "sessionID", "timeCreated", "type", "payload", "delivery"],
+        "additionalProperties": false
+      },
+      "Session.Inbox.Info": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/SessionPending.User"
+            "$ref": "#/components/schemas/Session.Inbox.User"
           },
           {
-            "$ref": "#/components/schemas/SessionPending.Synthetic"
+            "$ref": "#/components/schemas/Session.Inbox.Synthetic"
           },
           {
-            "$ref": "#/components/schemas/SessionPending.Compaction"
+            "$ref": "#/components/schemas/Session.Inbox.Compaction"
+          },
+          {
+            "$ref": "#/components/schemas/Session.Inbox.Move"
           }
         ]
       },
@@ -14602,7 +14201,7 @@
                 "type": "string"
               }
             },
-            "required": ["sessionID", "location"],
+            "required": ["sessionID", "location", "projectID"],
             "additionalProperties": false
           }
         },
@@ -14831,7 +14430,7 @@
         "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
-      "session.input.promoted": {
+      "session.inbox.delivered": {
         "type": "object",
         "properties": {
           "id": {
@@ -14850,7 +14449,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["session.input.promoted"]
+            "enum": ["session.inbox.delivered"]
           },
           "durable": {
             "type": "object",
@@ -14888,7 +14487,7 @@
                   }
                 ]
               },
-              "inputID": {
+              "inboxID": {
                 "type": "string",
                 "allOf": [
                   {
@@ -14897,14 +14496,14 @@
                 ]
               }
             },
-            "required": ["sessionID", "inputID"],
+            "required": ["sessionID", "inboxID"],
             "additionalProperties": false
           }
         },
         "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
-      "SessionPending.UserData1": {
+      "Session.Inbox.UserPayload1": {
         "type": "object",
         "properties": {
           "text": {
@@ -14935,25 +14534,7 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "SessionPending.UserMessage": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["user"]
-          },
-          "data": {
-            "$ref": "#/components/schemas/SessionPending.UserData1"
-          },
-          "delivery": {
-            "type": "string",
-            "enum": ["steer", "queue"]
-          }
-        },
-        "required": ["type", "data", "delivery"],
-        "additionalProperties": false
-      },
-      "SessionPending.SyntheticData1": {
+      "Session.Inbox.SyntheticPayload1": {
         "type": "object",
         "properties": {
           "text": {
@@ -14969,35 +14550,79 @@
         "required": ["text"],
         "additionalProperties": false
       },
-      "SessionPending.SyntheticMessage": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["synthetic"]
-          },
-          "data": {
-            "$ref": "#/components/schemas/SessionPending.SyntheticData1"
-          },
-          "delivery": {
-            "type": "string",
-            "enum": ["steer", "queue"]
-          }
-        },
-        "required": ["type", "data", "delivery"],
-        "additionalProperties": false
-      },
-      "SessionPending.Message": {
+      "Session.Inbox.Item": {
         "anyOf": [
           {
-            "$ref": "#/components/schemas/SessionPending.UserMessage"
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["user"]
+              },
+              "payload": {
+                "$ref": "#/components/schemas/Session.Inbox.UserPayload1"
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              }
+            },
+            "required": ["type", "payload", "delivery"],
+            "additionalProperties": false
           },
           {
-            "$ref": "#/components/schemas/SessionPending.SyntheticMessage"
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["synthetic"]
+              },
+              "payload": {
+                "$ref": "#/components/schemas/Session.Inbox.SyntheticPayload1"
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              }
+            },
+            "required": ["type", "payload", "delivery"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["compaction"]
+              },
+              "payload": {
+                "$ref": "#/components/schemas/Session.Inbox.CompactionPayload"
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              }
+            },
+            "required": ["type", "payload", "delivery"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["move"]
+              },
+              "payload": {
+                "$ref": "#/components/schemas/Session.Inbox.MovePayload"
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
+              }
+            },
+            "required": ["type", "payload", "delivery"],
+            "additionalProperties": false
           }
         ]
       },
-      "session.input.admitted": {
+      "session.inbox.enqueued": {
         "type": "object",
         "properties": {
           "id": {
@@ -15016,7 +14641,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["session.input.admitted"]
+            "enum": ["session.inbox.enqueued"]
           },
           "durable": {
             "type": "object",
@@ -15054,7 +14679,7 @@
                   }
                 ]
               },
-              "inputID": {
+              "inboxID": {
                 "type": "string",
                 "allOf": [
                   {
@@ -15062,18 +14687,18 @@
                   }
                 ]
               },
-              "input": {
-                "$ref": "#/components/schemas/SessionPending.Message"
+              "item": {
+                "$ref": "#/components/schemas/Session.Inbox.Item"
               }
             },
-            "required": ["sessionID", "inputID", "input"],
+            "required": ["sessionID", "inboxID", "item"],
             "additionalProperties": false
           }
         },
         "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
-      "session.input.cancelled": {
+      "session.inbox.cancelled": {
         "type": "object",
         "properties": {
           "id": {
@@ -15092,7 +14717,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["session.input.cancelled"]
+            "enum": ["session.inbox.cancelled"]
           },
           "durable": {
             "type": "object",
@@ -15130,7 +14755,7 @@
                   }
                 ]
               },
-              "inputID": {
+              "inboxID": {
                 "type": "string",
                 "allOf": [
                   {
@@ -15139,14 +14764,14 @@
                 ]
               }
             },
-            "required": ["sessionID", "inputID"],
+            "required": ["sessionID", "inboxID"],
             "additionalProperties": false
           }
         },
         "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
-      "session.input.steered": {
+      "session.inbox.delivery.changed": {
         "type": "object",
         "properties": {
           "id": {
@@ -15165,7 +14790,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["session.input.steered"]
+            "enum": ["session.inbox.delivery.changed"]
           },
           "durable": {
             "type": "object",
@@ -15203,89 +14828,19 @@
                   }
                 ]
               },
-              "inputID": {
+              "inboxID": {
                 "type": "string",
                 "allOf": [
                   {
                     "pattern": "^msg_"
                   }
                 ]
+              },
+              "delivery": {
+                "$ref": "#/components/schemas/Session.Inbox.Delivery"
               }
             },
-            "required": ["sessionID", "inputID"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "created", "type", "durable", "data"],
-        "additionalProperties": false
-      },
-      "session.input.queued": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^evt_"
-              }
-            ]
-          },
-          "created": {
-            "type": "number"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["session.input.queued"]
-          },
-          "durable": {
-            "type": "object",
-            "properties": {
-              "aggregateID": {
-                "type": "string"
-              },
-              "seq": {
-                "type": "integer",
-                "allOf": [
-                  {
-                    "minimum": 0
-                  }
-                ]
-              },
-              "version": {
-                "type": "number",
-                "enum": [1]
-              }
-            },
-            "required": ["aggregateID", "seq", "version"],
-            "additionalProperties": false
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location.Ref"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^ses"
-                  }
-                ]
-              },
-              "inputID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^msg_"
-                  }
-                ]
-              }
-            },
-            "required": ["sessionID", "inputID"],
+            "required": ["sessionID", "inboxID", "delivery"],
             "additionalProperties": false
           }
         },
@@ -17208,79 +16763,6 @@
         "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
-      "session.compaction.admitted": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^evt_"
-              }
-            ]
-          },
-          "created": {
-            "type": "number"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["session.compaction.admitted"]
-          },
-          "durable": {
-            "type": "object",
-            "properties": {
-              "aggregateID": {
-                "type": "string"
-              },
-              "seq": {
-                "type": "integer",
-                "allOf": [
-                  {
-                    "minimum": 0
-                  }
-                ]
-              },
-              "version": {
-                "type": "number",
-                "enum": [1]
-              }
-            },
-            "required": ["aggregateID", "seq", "version"],
-            "additionalProperties": false
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location.Ref"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^ses"
-                  }
-                ]
-              },
-              "inputID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^msg_"
-                  }
-                ]
-              }
-            },
-            "required": ["sessionID", "inputID"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "created", "type", "durable", "data"],
-        "additionalProperties": false
-      },
       "session.compaction.started": {
         "type": "object",
         "properties": {
@@ -17821,19 +17303,16 @@
             "$ref": "#/components/schemas/session.forked"
           },
           {
-            "$ref": "#/components/schemas/session.input.promoted"
+            "$ref": "#/components/schemas/session.inbox.delivered"
           },
           {
-            "$ref": "#/components/schemas/session.input.admitted"
+            "$ref": "#/components/schemas/session.inbox.enqueued"
           },
           {
-            "$ref": "#/components/schemas/session.input.cancelled"
+            "$ref": "#/components/schemas/session.inbox.cancelled"
           },
           {
-            "$ref": "#/components/schemas/session.input.steered"
-          },
-          {
-            "$ref": "#/components/schemas/session.input.queued"
+            "$ref": "#/components/schemas/session.inbox.delivery.changed"
           },
           {
             "$ref": "#/components/schemas/session.execution.started"
@@ -17900,9 +17379,6 @@
           },
           {
             "$ref": "#/components/schemas/session.retry.scheduled"
-          },
-          {
-            "$ref": "#/components/schemas/session.compaction.admitted"
           },
           {
             "$ref": "#/components/schemas/session.compaction.started"
@@ -20183,25 +19659,6 @@
         "required": ["id", "directory", "canonical"],
         "additionalProperties": false
       },
-      "Project.Directory": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string"
-          },
-          "strategy": {
-            "type": "string"
-          }
-        },
-        "required": ["directory"],
-        "additionalProperties": false
-      },
-      "Project.Directories": {
-        "type": "array",
-        "items": {
-          "$ref": "#/components/schemas/Project.Directory"
-        }
-      },
       "Form.Metadata": {
         "type": "object"
       },
@@ -21341,7 +20798,7 @@
         "required": ["id", "created", "type", "data"],
         "additionalProperties": false
       },
-      "project.directories.updated": {
+      "worktree.updated": {
         "type": "object",
         "properties": {
           "id": {
@@ -21360,7 +20817,7 @@
           },
           "type": {
             "type": "string",
-            "enum": ["project.directories.updated"]
+            "enum": ["worktree.updated"]
           },
           "location": {
             "$ref": "#/components/schemas/Location.Ref"
@@ -21377,6 +20834,72 @@
           }
         },
         "required": ["id", "created", "type", "data"],
+        "additionalProperties": false
+      },
+      "worktree.resolved": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "allOf": [
+              {
+                "pattern": "^evt_"
+              }
+            ]
+          },
+          "created": {
+            "type": "number"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["worktree.resolved"]
+          },
+          "durable": {
+            "type": "object",
+            "properties": {
+              "aggregateID": {
+                "type": "string"
+              },
+              "seq": {
+                "type": "integer",
+                "allOf": [
+                  {
+                    "minimum": 0
+                  }
+                ]
+              },
+              "version": {
+                "type": "number",
+                "enum": [1]
+              }
+            },
+            "required": ["aggregateID", "seq", "version"],
+            "additionalProperties": false
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location.Ref"
+          },
+          "data": {
+            "type": "object",
+            "properties": {
+              "projectID": {
+                "type": "string"
+              },
+              "directory": {
+                "type": "string"
+              },
+              "previous": {
+                "type": "string"
+              }
+            },
+            "required": ["projectID", "directory", "previous"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "created", "type", "durable", "data"],
         "additionalProperties": false
       },
       "command.updated": {
@@ -21838,237 +21361,6 @@
               }
             },
             "required": ["id"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "created", "type", "data"],
-        "additionalProperties": false
-      },
-      "Question.Option": {
-        "type": "object",
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "Display text (1-5 words, concise)"
-          },
-          "description": {
-            "type": "string",
-            "description": "Explanation of choice"
-          }
-        },
-        "required": ["label", "description"],
-        "additionalProperties": false
-      },
-      "Question.Info": {
-        "type": "object",
-        "properties": {
-          "question": {
-            "type": "string",
-            "description": "Complete question"
-          },
-          "header": {
-            "type": "string",
-            "description": "Very short label (max 30 chars)"
-          },
-          "options": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Question.Option"
-            },
-            "description": "Available choices"
-          },
-          "multiple": {
-            "type": "boolean"
-          },
-          "custom": {
-            "type": "boolean"
-          }
-        },
-        "required": ["question", "header", "options"],
-        "additionalProperties": false
-      },
-      "Question.Tool": {
-        "type": "object",
-        "properties": {
-          "messageID": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": ["messageID", "id"],
-        "additionalProperties": false
-      },
-      "question.asked": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^evt_"
-              }
-            ]
-          },
-          "created": {
-            "type": "number"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.asked"]
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location.Ref"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^que"
-                  }
-                ]
-              },
-              "sessionID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^ses"
-                  }
-                ]
-              },
-              "questions": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Question.Info"
-                },
-                "description": "Questions to ask"
-              },
-              "tool": {
-                "$ref": "#/components/schemas/Question.Tool"
-              }
-            },
-            "required": ["id", "sessionID", "questions"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "created", "type", "data"],
-        "additionalProperties": false
-      },
-      "Question.Answer": {
-        "type": "array",
-        "items": {
-          "type": "string"
-        }
-      },
-      "question.replied": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^evt_"
-              }
-            ]
-          },
-          "created": {
-            "type": "number"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.replied"]
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location.Ref"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^ses"
-                  }
-                ]
-              },
-              "requestID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^que"
-                  }
-                ]
-              },
-              "answers": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/Question.Answer"
-                }
-              }
-            },
-            "required": ["sessionID", "requestID", "answers"],
-            "additionalProperties": false
-          }
-        },
-        "required": ["id", "created", "type", "data"],
-        "additionalProperties": false
-      },
-      "question.rejected": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^evt_"
-              }
-            ]
-          },
-          "created": {
-            "type": "number"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["question.rejected"]
-          },
-          "location": {
-            "$ref": "#/components/schemas/Location.Ref"
-          },
-          "data": {
-            "type": "object",
-            "properties": {
-              "sessionID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^ses"
-                  }
-                ]
-              },
-              "requestID": {
-                "type": "string",
-                "allOf": [
-                  {
-                    "pattern": "^que"
-                  }
-                ]
-              }
-            },
-            "required": ["sessionID", "requestID"],
             "additionalProperties": false
           }
         },
@@ -23381,19 +22673,16 @@
             "$ref": "#/components/schemas/session.forked"
           },
           {
-            "$ref": "#/components/schemas/session.input.promoted"
+            "$ref": "#/components/schemas/session.inbox.delivered"
           },
           {
-            "$ref": "#/components/schemas/session.input.admitted"
+            "$ref": "#/components/schemas/session.inbox.enqueued"
           },
           {
-            "$ref": "#/components/schemas/session.input.cancelled"
+            "$ref": "#/components/schemas/session.inbox.cancelled"
           },
           {
-            "$ref": "#/components/schemas/session.input.steered"
-          },
-          {
-            "$ref": "#/components/schemas/session.input.queued"
+            "$ref": "#/components/schemas/session.inbox.delivery.changed"
           },
           {
             "$ref": "#/components/schemas/session.execution.started"
@@ -23474,9 +22763,6 @@
             "$ref": "#/components/schemas/session.retry.scheduled"
           },
           {
-            "$ref": "#/components/schemas/session.compaction.admitted"
-          },
-          {
             "$ref": "#/components/schemas/session.compaction.started"
           },
           {
@@ -23516,7 +22802,10 @@
             "$ref": "#/components/schemas/plugin.updated"
           },
           {
-            "$ref": "#/components/schemas/project.directories.updated"
+            "$ref": "#/components/schemas/worktree.updated"
+          },
+          {
+            "$ref": "#/components/schemas/worktree.resolved"
           },
           {
             "$ref": "#/components/schemas/command.updated"
@@ -23547,15 +22836,6 @@
           },
           {
             "$ref": "#/components/schemas/shell.deleted"
-          },
-          {
-            "$ref": "#/components/schemas/question.asked"
-          },
-          {
-            "$ref": "#/components/schemas/question.replied"
-          },
-          {
-            "$ref": "#/components/schemas/question.rejected"
           },
           {
             "$ref": "#/components/schemas/form.created"
@@ -23738,70 +23018,6 @@
         "required": ["_tag", "id", "message"],
         "additionalProperties": false
       },
-      "Question.Request": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^que"
-              }
-            ]
-          },
-          "sessionID": {
-            "type": "string",
-            "allOf": [
-              {
-                "pattern": "^ses"
-              }
-            ]
-          },
-          "questions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Question.Info"
-            },
-            "description": "Questions to ask"
-          },
-          "tool": {
-            "$ref": "#/components/schemas/Question.Tool"
-          }
-        },
-        "required": ["id", "sessionID", "questions"],
-        "additionalProperties": false
-      },
-      "Question.Reply": {
-        "type": "object",
-        "properties": {
-          "answers": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Question.Answer"
-            },
-            "description": "User answers in order of questions (each answer is an array of selected labels)"
-          }
-        },
-        "required": ["answers"],
-        "additionalProperties": false
-      },
-      "QuestionNotFoundError": {
-        "type": "object",
-        "properties": {
-          "_tag": {
-            "type": "string",
-            "enum": ["QuestionNotFoundError"]
-          },
-          "requestID": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": ["_tag", "requestID", "message"],
-        "additionalProperties": false
-      },
       "Reference.LocalSource": {
         "type": "object",
         "properties": {
@@ -23877,7 +23093,26 @@
         "required": ["name", "path", "source"],
         "additionalProperties": false
       },
-      "ProjectCopy.Copy": {
+      "Worktree.Directory": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string"
+          },
+          "strategy": {
+            "type": "string"
+          }
+        },
+        "required": ["directory"],
+        "additionalProperties": false
+      },
+      "Worktree.List": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/Worktree.Directory"
+        }
+      },
+      "Worktree.Info": {
         "type": "object",
         "properties": {
           "directory": {
@@ -23887,12 +23122,12 @@
         "required": ["directory"],
         "additionalProperties": false
       },
-      "ProjectCopyError": {
+      "WorktreeError": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
-            "enum": ["ProjectCopyError"]
+            "enum": ["WorktreeError"]
           },
           "data": {
             "type": "object",
@@ -24280,6 +23515,24 @@
           }
         },
         "required": ["path"],
+        "additionalProperties": false
+      },
+      "ConfigWebSearch.Info": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["random"]
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "required": ["provider"],
         "additionalProperties": false
       },
       "Config.Plugin.Entry": {
@@ -24800,14 +24053,15 @@
             }
           },
           "websearch": {
-            "type": "object",
-            "properties": {
-              "provider": {
-                "type": "string"
+            "anyOf": [
+              {
+                "type": "boolean",
+                "enum": [false]
+              },
+              {
+                "$ref": "#/components/schemas/ConfigWebSearch.Info"
               }
-            },
-            "required": ["provider"],
-            "additionalProperties": false
+            ]
           },
           "plugins": {
             "type": "array",
@@ -24841,6 +24095,9 @@
           "experimental": {
             "type": "object",
             "properties": {
+              "portable_shell_scanner": {
+                "type": "boolean"
+              },
               "subagent_depth": {
                 "type": "integer",
                 "allOf": [
@@ -24907,20 +24164,6 @@
         "required": ["type", "path"],
         "additionalProperties": false
       },
-      "Config.File": {
-        "type": "object",
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["file"]
-          },
-          "path": {
-            "type": "string"
-          }
-        },
-        "required": ["type", "path"],
-        "additionalProperties": false
-      },
       "Config.AgentsDirectory": {
         "type": "object",
         "properties": {
@@ -24956,9 +24199,6 @@
           },
           {
             "$ref": "#/components/schemas/Config.Directory"
-          },
-          {
-            "$ref": "#/components/schemas/Config.File"
           },
           {
             "$ref": "#/components/schemas/Config.AgentsDirectory"
@@ -25022,7 +24262,7 @@
     },
     {
       "name": "project",
-      "description": "Location-scoped project routes."
+      "description": "Project routes."
     },
     {
       "name": "form",
@@ -25057,16 +24297,12 @@
       "description": "Experimental location-scoped shell command routes."
     },
     {
-      "name": "question",
-      "description": "Experimental session question routes."
-    },
-    {
       "name": "reference",
       "description": "Location-scoped project references."
     },
     {
-      "name": "projectCopy",
-      "description": "Project copy management routes."
+      "name": "worktree",
+      "description": "Project worktree management routes."
     },
     {
       "name": "vcs",

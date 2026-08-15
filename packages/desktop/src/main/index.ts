@@ -24,8 +24,7 @@ import {
   isOldLayoutEligible,
 } from "./onboarding"
 import { getDefaultServerUrl, preferAppEnv, setDefaultServerUrl } from "./server"
-import { setupAutoUpdater, showUpdaterDialog } from "./updater"
-import { registerUpdaterIpc } from "./updater-ipc"
+import { registerUpdaterIpc, setupAutoUpdater, showUpdaterDialog } from "./updater"
 import { safeWebContentsURL } from "./window-state"
 import {
   getLastFocusedWindow,
@@ -36,9 +35,7 @@ import {
   setDockIcon,
   restoreMainWindows,
 } from "./windows"
-import { createWslServersController } from "./wsl/servers"
 import { registerWslIpcHandlers } from "./wsl/ipc"
-import { spawnWslSidecar } from "./wsl/sidecar"
 import { migrate } from "./migrate"
 import { cleanupStoreFiles } from "./store-cleanup"
 import { startBackgroundCli } from "./background-cli"
@@ -134,25 +131,10 @@ const main = Effect.gen(function* () {
   logger = initLogging()
   initCrashReporter()
 
-  const wslServers = createWslServersController(
-    VERSION,
-    async (distro) => {
-      logger.log("spawning wsl sidecar", { distro })
-      return spawnWslSidecar(distro, {
-        onLine: (line) => logger.log("wsl sidecar", { distro, stream: line.stream, text: line.text }),
-      })
-    },
-    {
-      logger: {
-        log: (message, meta) => logger.log(message, meta),
-        error: (message, meta) => logger.error(message, meta),
-      },
-    },
-  )
-  const stopSidecars = async () => wslServers.stopAll()
+  let stopWslServers = async () => {}
   const relaunch = () => {
     setAppQuitting()
-    void stopSidecars().finally(() => {
+    void stopWslServers().finally(() => {
       app.relaunch()
       app.quit()
     })
@@ -205,12 +187,12 @@ const main = Effect.gen(function* () {
 
   app.on("before-quit", () => {
     setAppQuitting()
-    void stopSidecars()
+    void stopWslServers()
   })
 
   app.on("will-quit", () => {
     setAppQuitting()
-    void stopSidecars()
+    void stopWslServers()
   })
 
   app.on("child-process-gone", (_event, details) => {
@@ -228,7 +210,7 @@ const main = Effect.gen(function* () {
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => {
       setAppQuitting()
-      void stopSidecars().finally(() => app.quit())
+      void stopWslServers().finally(() => app.quit())
     })
   }
 
@@ -253,13 +235,13 @@ const main = Effect.gen(function* () {
   app.setAsDefaultProtocolClient("opencode")
   registerRendererProtocol()
   setDockIcon()
-  const updater = setupAutoUpdater(stopSidecars)
+  const updater = setupAutoUpdater(() => stopWslServers())
   const menuDeps = {
     trigger: (id: string) => {
       const win = getLastFocusedWindow()
       if (win) sendMenuCommand(win, id)
     },
-    checkForUpdates: () => void showUpdaterDialog(updater, true),
+    checkForUpdates: () => void showUpdaterDialog(updater),
     relaunch,
   }
   registerIpcHandlers({
@@ -284,7 +266,7 @@ const main = Effect.gen(function* () {
     setDisplayBackend: async () => undefined,
     checkAppExists: (appName) => checkAppExists(appName),
     resolveAppPath: async (appName) => resolveAppPath(appName),
-    showUpdater: () => showUpdaterDialog(updater, true),
+    showUpdater: () => showUpdaterDialog(updater),
     setBackgroundColor: (color) => setBackgroundColor(color),
     exportDebugLogs: () => exportDebugLogs(),
     recordFatalRendererError: (error) => writeLog("renderer", "fatal renderer error", { ...error }, "error"),
@@ -293,7 +275,6 @@ const main = Effect.gen(function* () {
     },
   })
   registerUpdaterIpc(updater)
-  registerWslIpcHandlers(wslServers)
   void updater.start()
   const updateTimer = setInterval(() => void updater.check(), 10 * 60 * 1000)
   updateTimer.unref()
@@ -311,16 +292,14 @@ const main = Effect.gen(function* () {
     useEnvProxy()
 
     logger.log("starting v2 background service")
-    const sidecar = yield* Effect.promise(() => startBackgroundCli(logger))
-    yield* Deferred.succeed(serverReady, {
-      url: sidecar.url,
-      username: sidecar.username,
-      password: sidecar.password,
-    })
+    const background = yield* Effect.promise(() => startBackgroundCli(logger))
+    stopWslServers = yield* Effect.promise(() => startWslServers(background))
 
-    if (process.platform === "win32") {
-      void wslServers.initialize().catch((error) => logger.error("wsl server initialization failed", error))
-    }
+    yield* Deferred.succeed(serverReady, {
+      url: background.url,
+      username: background.username,
+      password: background.password,
+    })
 
     logger.log("loading task finished")
   }).pipe(forwardInitializationFailure(serverReady), Effect.forkChild)
@@ -339,5 +318,42 @@ const main = Effect.gen(function* () {
   const windows = restoreMainWindows()
   if (windows.length) createMenu(menuDeps)
 })
+
+async function startWslServers(cli: { version: string; wslBuild?: { script: string; output: string } }) {
+  if (process.platform !== "win32") {
+    registerWslIpcHandlers()
+    return async () => {}
+  }
+
+  const { createWslServersController } = await import("./wsl/servers")
+  const { spawnWslSidecar } = await import("./wsl/sidecar")
+  const local = cli.wslBuild
+  const controller = createWslServersController({
+    cli: { version: cli.version },
+    installCli: local
+      ? async (distro) => {
+          const { buildLocalWslCli } = await import("./wsl/local")
+          const { installWslCli } = await import("./wsl/runtime")
+          await installWslCli(distro, {
+            version: cli.version,
+            binary: await buildLocalWslCli({ ...local, version: cli.version }),
+          })
+        }
+      : undefined,
+    spawnSidecar: async (distro) => {
+      logger.log("spawning wsl sidecar", { distro })
+      return spawnWslSidecar(distro, {
+        onLine: (line) => logger.log("wsl sidecar", { distro, stream: line.stream, text: line.text }),
+      })
+    },
+    logger: {
+      log: (message, meta) => logger.log(message, meta),
+      error: (message, meta) => logger.error(message, meta),
+    },
+  })
+  registerWslIpcHandlers(controller)
+  controller.startConfiguredServers()
+  return async () => controller.stopServers()
+}
 
 Effect.runFork(main)

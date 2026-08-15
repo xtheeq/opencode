@@ -12,6 +12,7 @@ import path from "path"
 import { useLocal } from "../../context/local"
 import { useTheme, useThemes } from "../../context/theme"
 import { tint } from "../../theme/color"
+import { createAnimatable, tween } from "../../ui/animation"
 import { EmptyBorder, SplitBorder } from "../../ui/border"
 import { useTuiPaths, useTuiTerminalEnvironment } from "../../context/runtime"
 import { useClipboard } from "../../context/clipboard"
@@ -60,7 +61,7 @@ import { useLocation } from "../../context/location"
 import { Keymap, type KeymapCommand } from "../../context/keymap"
 import { abbreviateHome } from "../../runtime"
 import { Slot } from "../../plugin/render"
-import type { SessionPending } from "@opencode-ai/schema/session-pending"
+import type { SessionInbox } from "@opencode-ai/schema/session-inbox"
 import {
   deduplicatePromptImages,
   preserveMentionlessPromptAttachments,
@@ -69,6 +70,7 @@ import {
 import { DialogImagePreview } from "../dialog-image-preview"
 import { useDirectoryRecents } from "../../prompt/directory-recents"
 import { directoryRecentValue } from "../../prompt/directory-completion"
+import { useWorkingDirectoryActions } from "../../ui/working-directory-actions"
 
 export type PromptProps = {
   sessionID?: string
@@ -105,6 +107,45 @@ function randomIndex(count: number) {
 
 function fadeColor(color: RGBA, alpha: number) {
   return RGBA.fromValues(color.r, color.g, color.b, color.a * alpha)
+}
+
+export function PromptInterruptStatus(props: {
+  armed: boolean
+  animations?: boolean
+  text: RGBA
+  subdued: RGBA
+  warning: RGBA
+  flash?: RGBA
+}) {
+  const ignition = createAnimatable(
+    { level: 0 },
+    { enabled: () => props.animations ?? false, transition: tween({ duration: 0.22 }) },
+  )
+  createEffect(
+    on(
+      () => props.armed,
+      (armed) => {
+        if (!armed || !props.animations) return ignition.jump({ level: 0 })
+        ignition.jump({ level: 0.75 })
+        ignition.animate({ level: 0 })
+      },
+      { defer: true },
+    ),
+  )
+  const armedColor = createMemo(() => {
+    const level = ignition.value().level
+    if (level === 0 || !props.flash) return props.warning
+    return tint(props.warning, props.flash, level)
+  })
+
+  return (
+    <text fg={props.armed ? armedColor() : props.text} wrapMode="none" truncate flexShrink={1}>
+      esc{" "}
+      <span style={{ fg: props.armed ? armedColor() : props.subdued }}>
+        {props.armed ? "again to interrupt" : "interrupt"}
+      </span>
+    </text>
+  )
 }
 
 function hasEditorRangeSelection(selection: EditorSelection["ranges"][number]) {
@@ -486,6 +527,7 @@ export function Prompt(props: PromptProps) {
           if (store.interrupt >= 2) {
             void client.api.session.interrupt({
               sessionID: props.sessionID,
+              continue: true,
             })
             setStore("interrupt", 0)
           }
@@ -660,10 +702,9 @@ export function Prompt(props: PromptProps) {
   // instance belongs to exactly one tab. Reading props.sessionID lazily would
   // observe the *next* route during onCleanup and stash under the wrong tab.
   const stashSessionID = props.sessionID
-  const stashKey = () => (config.experimental?.tab_drafts === true ? (stashSessionID ?? "home") : undefined)
 
   onMount(() => {
-    const saved = takeDraft(stashKey())
+    const saved = takeDraft(stashSessionID)
     if (store.prompt.text) return
     if (saved && saved.prompt.text) {
       input.setText(saved.prompt.text)
@@ -676,7 +717,7 @@ export function Prompt(props: PromptProps) {
   onCleanup(() => {
     disposed = true
     if (store.prompt.text) {
-      saveDraft(stashKey(), { prompt: unwrap(store.prompt), cursor: input.cursorOffset })
+      saveDraft(stashSessionID, { prompt: unwrap(store.prompt), cursor: input.cursorOffset })
     }
     setInputTarget(undefined)
     props.ref?.(undefined)
@@ -1030,7 +1071,7 @@ export function Prompt(props: PromptProps) {
   })
 
   let submitting = false
-  async function submit(delivery: SessionPending.Delivery = "steer") {
+  async function submit(delivery: SessionInbox.Delivery = "steer") {
     // Prevent overlapping invocations (e.g. a double-pressed Enter, or the
     // input's native onSubmit racing another dispatch). Without this guard,
     // a second call slips past the empty-input check before the first call
@@ -1046,7 +1087,7 @@ export function Prompt(props: PromptProps) {
     }
   }
 
-  async function submitInner(delivery: SessionPending.Delivery) {
+  async function submitInner(delivery: SessionInbox.Delivery) {
     // IME: double-defer may fire before onContentChange flushes the last
     // composed character (e.g. Korean hangul) to the store, so read
     // plainText directly and sync before any downstream reads.
@@ -1499,20 +1540,24 @@ export function Prompt(props: PromptProps) {
     const width = dimensions().width < 44 ? dimensions().width - 5 : Math.min(75, dimensions().width - 4) - 5
     return Locale.takeWidth(value, Math.max(1, width)).trimEnd()
   })
-  const locationLabel = createMemo(() => {
+  const footerLocation = createMemo(() => {
     if (!props.sessionID) {
       // No session yet: show where the next session will be created.
-      const location = currentLocation.ref ?? data.location.default()
-      const directory = abbreviateHome(location.directory, paths.home)
-      const branch = data.location.vcs.info(location)?.branch.current
-      return branch ? `${directory}:${branch}` : directory
+      return currentLocation.ref ?? data.location.default()
     }
     if (status() !== "idle") return
-    const location = data.session.get(props.sessionID)?.location
+    return data.session.get(props.sessionID)?.location
+  })
+  const locationLabel = createMemo(() => {
+    const location = footerLocation()
     if (!location) return
     const directory = abbreviateHome(location.directory, paths.home)
     const branch = data.location.vcs.info(location)?.branch.current
     return branch ? `${directory}:${branch}` : directory
+  })
+  const locationActions = useWorkingDirectoryActions({
+    directory: () => footerLocation()?.directory,
+    onMove: () => void move.open(),
   })
 
   const spinnerDef = createMemo(() => {
@@ -1804,21 +1849,14 @@ export function Prompt(props: PromptProps) {
                           <spinner color={spinnerDef().color} frames={spinnerDef().frames} interval={40} />
                         </Show>
                       </box>
-                      <text
-                        fg={store.interrupt > 0 ? theme.background.action.primary.default : theme.text.default}
-                        wrapMode="none"
-                        truncate
-                        flexShrink={1}
-                      >
-                        esc{" "}
-                        <span
-                          style={{
-                            fg: store.interrupt > 0 ? theme.background.action.primary.default : theme.text.subdued,
-                          }}
-                        >
-                          {store.interrupt > 0 ? "again to interrupt" : "interrupt"}
-                        </span>
-                      </text>
+                      <PromptInterruptStatus
+                        armed={store.interrupt > 0}
+                        animations={animationsEnabled()}
+                        text={theme.text.default}
+                        subdued={theme.text.subdued}
+                        warning={theme.text.feedback.warning.default}
+                        flash={theme.decrease(theme.text.feedback.warning.default, 2)}
+                      />
                     </box>
                   </Match>
                   <Match when={move.progress()}>
@@ -1834,14 +1872,24 @@ export function Prompt(props: PromptProps) {
                   <Match when={move.pendingNew()}>
                     <box paddingLeft={3} height={1} minHeight={0} flexShrink={1}>
                       <text fg={theme.hue.accent[500]} wrapMode="none" truncate>
-                        (new working copy)
+                        (new worktree)
                       </text>
                     </box>
                   </Match>
                   <Match when={true}>
                     <Show when={!props.hint && locationLabel()} fallback={props.hint ?? <text />}>
                       {(location) => (
-                        <text fg={theme.text.subdued} wrapMode="none" truncate flexGrow={1} flexShrink={1}>
+                        <text
+                          id="prompt.footer.location"
+                          fg={locationActions.hovered() ? theme.text.default : theme.text.subdued}
+                          wrapMode="none"
+                          truncate
+                          flexGrow={1}
+                          flexShrink={1}
+                          onMouseOver={locationActions.onMouseOver}
+                          onMouseOut={locationActions.onMouseOut}
+                          onMouseUp={locationActions.onMouseUp}
+                        >
                           {location()}
                         </text>
                       )}
