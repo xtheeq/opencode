@@ -21,7 +21,6 @@ const BASE_DELAY = 1_000;
 const MAX_DELAY = 30_000;
 const MAX_RECONNECT_ATTEMPTS = 6;
 const CONNECT_TIMEOUT = 2_000;
-const CONNECTION_HISTORY_LIMIT = 50;
 const FLUSH_INTERVAL_MS = 16;
 // Bounds how long a hydration window may hold live events before the UI
 // unblocks; a hung projection fetch must never freeze event dispatch.
@@ -65,7 +64,6 @@ class EventManager {
   private anyListeners = new Set<(event: V2Event) => void>();
   private appStateUnsub?: () => void;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private history: ConnectionStatusEvent[] = [];
   private pending: V2Event[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | undefined;
   private hydrating = false;
@@ -89,10 +87,6 @@ class EventManager {
     return this.status;
   }
 
-  getHistory(): ReadonlyArray<ConnectionStatusEvent> {
-    return this.history;
-  }
-
   onStatusChange(listener: (event: ConnectionStatusEvent) => void): () => void {
     this.statusListeners.add(listener);
     return () => this.statusListeners.delete(listener);
@@ -107,8 +101,6 @@ class EventManager {
       attempt: this.attempt,
       error,
     };
-    this.history.push(event);
-    if (this.history.length > CONNECTION_HISTORY_LIMIT) this.history.shift();
     for (const listener of this.statusListeners) {
       try {
         listener(event);
