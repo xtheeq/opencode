@@ -12,44 +12,40 @@ const permissionAsked = (overrides: Partial<V2Event> = {}): V2Event =>
     ...overrides,
   }) as V2Event;
 
-const inputAdmitted = (
+const inboxEnqueued = (
   sessionID: string,
-  inputID: string,
+  inboxID: string,
   delivery: "steer" | "queue" = "queue",
 ): V2Event =>
   ({
-    type: "session.input.admitted",
-    id: "evt_admitted",
+    type: "session.inbox.enqueued",
+    id: "evt_enqueued",
     created: 0,
     data: {
       sessionID,
-      inputID,
-      input: { type: "user", data: { text: "hello" }, delivery },
+      inboxID,
+      item: { type: "user", payload: { text: "hello" }, delivery },
     },
   }) as V2Event;
 
-const inputCancelled = (sessionID: string, inputID: string): V2Event =>
+const inboxCancelled = (sessionID: string, inboxID: string): V2Event =>
   ({
-    type: "session.input.cancelled",
+    type: "session.inbox.cancelled",
     id: "evt_cancelled",
     created: 0,
-    data: { sessionID, inputID },
+    data: { sessionID, inboxID },
   }) as V2Event;
 
-const inputSteered = (sessionID: string, inputID: string): V2Event =>
+const deliveryChanged = (
+  sessionID: string,
+  inboxID: string,
+  delivery: "steer" | "queue",
+): V2Event =>
   ({
-    type: "session.input.steered",
-    id: "evt_steered",
+    type: "session.inbox.delivery.changed",
+    id: "evt_delivery_changed",
     created: 0,
-    data: { sessionID, inputID },
-  }) as V2Event;
-
-const inputQueued = (sessionID: string, inputID: string): V2Event =>
-  ({
-    type: "session.input.queued",
-    id: "evt_queued",
-    created: 0,
-    data: { sessionID, inputID },
+    data: { sessionID, inboxID, delivery },
   }) as V2Event;
 
 const skillActivated = (sessionID: string): V2Event =>
@@ -107,34 +103,34 @@ describe("reducer permission.asked", () => {
   });
 });
 
-describe("reducer session.input.cancelled", () => {
-  test("removes the pending entry, input, and admitted message", () => {
+describe("reducer session.inbox.cancelled", () => {
+  test("removes the pending entry, input, and enqueued message", () => {
     resetStore();
-    handleEvent(inputAdmitted("ses_1", "inp_1", "queue"));
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
     let state = eventStore.getState();
     expect(state.session.pending["ses_1"]).toHaveLength(1);
     expect(state.session.input["ses_1"]).toEqual(["inp_1"]);
     expect(state.session.message["ses_1"].map((m) => m.id)).toEqual(["inp_1"]);
 
-    handleEvent(inputCancelled("ses_1", "inp_1"));
+    handleEvent(inboxCancelled("ses_1", "inp_1"));
     state = eventStore.getState();
     expect(state.session.pending["ses_1"]).toEqual([]);
     expect(state.session.input["ses_1"]).toEqual([]);
     expect(state.session.message["ses_1"]).toEqual([]);
   });
 
-  test("is a no-op when the input was never admitted", () => {
+  test("is a no-op when the inbox item was never enqueued", () => {
     resetStore();
-    handleEvent(inputCancelled("ses_1", "inp_missing"));
+    handleEvent(inboxCancelled("ses_1", "inp_missing"));
     expect(eventStore.getState().session.message["ses_1"]).toBeUndefined();
   });
 });
 
-describe("reducer session.input.steered / queued", () => {
+describe("reducer session.inbox.delivery.changed", () => {
   test("steer updates the pending delivery", () => {
     resetStore();
-    handleEvent(inputAdmitted("ses_1", "inp_1", "queue"));
-    handleEvent(inputSteered("ses_1", "inp_1"));
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
+    handleEvent(deliveryChanged("ses_1", "inp_1", "steer"));
     expect(eventStore.getState().session.pending["ses_1"][0]).toMatchObject({
       id: "inp_1",
       delivery: "steer",
@@ -143,8 +139,8 @@ describe("reducer session.input.steered / queued", () => {
 
   test("queue updates the pending delivery", () => {
     resetStore();
-    handleEvent(inputAdmitted("ses_1", "inp_1", "steer"));
-    handleEvent(inputQueued("ses_1", "inp_1"));
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "steer"));
+    handleEvent(deliveryChanged("ses_1", "inp_1", "queue"));
     expect(eventStore.getState().session.pending["ses_1"][0]).toMatchObject({
       id: "inp_1",
       delivery: "queue",
@@ -153,9 +149,9 @@ describe("reducer session.input.steered / queued", () => {
 
   test("does not rewrite an unchanged delivery", () => {
     resetStore();
-    handleEvent(inputAdmitted("ses_1", "inp_1", "queue"));
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
     const before = eventStore.getState().session.pending["ses_1"][0];
-    handleEvent(inputQueued("ses_1", "inp_1"));
+    handleEvent(deliveryChanged("ses_1", "inp_1", "queue"));
     expect(eventStore.getState().session.pending["ses_1"][0]).toBe(before);
   });
 });

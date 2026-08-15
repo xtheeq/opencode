@@ -13,7 +13,7 @@ const fakeClient = {
       title: "Session",
       time: { created: 0, updated: 0 },
     }),
-    pending: { list: async () => [] },
+    inbox: { list: async () => [] },
     list: async () => ({ data: [] }),
   },
   message: {

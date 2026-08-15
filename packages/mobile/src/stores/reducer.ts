@@ -152,18 +152,64 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
-    case "session.input.promoted": {
+    case "session.inbox.enqueued":
       eventStore.setState((s) => {
-        removePending(s, event.data.sessionID, event.data.inputID);
+        addPending(s, {
+          id: event.data.inboxID,
+          sessionID: event.data.sessionID,
+          timeCreated: event.created,
+          ...event.data.item,
+        });
+        const item = event.data.item;
+        if (item.type !== "user" && item.type !== "synthetic") return;
+        if (
+          !s.session.input[event.data.sessionID]?.includes(event.data.inboxID)
+        ) {
+          s.session.input[event.data.sessionID] = [
+            ...(s.session.input[event.data.sessionID] ?? []),
+            event.data.inboxID,
+          ];
+        }
         const idx = index(event.data.sessionID);
-        const existing = idx.get(event.data.inputID);
+        const messages = (s.session.message[event.data.sessionID] ??= []);
+        append(
+          messages,
+          idx,
+          item.type === "user"
+            ? {
+                id: event.data.inboxID,
+                type: "user",
+                text: item.payload.text,
+                files: item.payload.files,
+                agents: item.payload.agents,
+                skills: item.payload.skills,
+                metadata: item.payload.metadata,
+                time: { created: event.created },
+              }
+            : {
+                id: event.data.inboxID,
+                type: "synthetic",
+                text: item.payload.text,
+                description: item.payload.description,
+                metadata: item.payload.metadata,
+                time: { created: event.created },
+              },
+        );
+      });
+      break;
+
+    case "session.inbox.delivered": {
+      eventStore.setState((s) => {
+        removePending(s, event.data.sessionID, event.data.inboxID);
+        const idx = index(event.data.sessionID);
+        const existing = idx.get(event.data.inboxID);
         if (existing === undefined) return;
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const msg = messages[existing];
         if (
           !msg ||
-          !s.session.input[event.data.sessionID]?.includes(event.data.inputID)
+          !s.session.input[event.data.sessionID]?.includes(event.data.inboxID)
         )
           return;
         msg.time.created = event.created;
@@ -176,17 +222,17 @@ export function handleEvent(event: V2Event) {
         if (s.session.input[event.data.sessionID]) {
           s.session.input[event.data.sessionID] = s.session.input[
             event.data.sessionID
-          ].filter((id) => id !== event.data.inputID);
+          ].filter((id) => id !== event.data.inboxID);
         }
       });
       break;
     }
 
-    case "session.input.cancelled":
+    case "session.inbox.cancelled":
       eventStore.setState((s) => {
-        removePending(s, event.data.sessionID, event.data.inputID);
+        removePending(s, event.data.sessionID, event.data.inboxID);
         const idx = index(event.data.sessionID);
-        const position = idx.get(event.data.inputID);
+        const position = idx.get(event.data.inboxID);
         if (position === undefined) return;
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
@@ -198,58 +244,19 @@ export function handleEvent(event: V2Event) {
         if (s.session.input[event.data.sessionID]) {
           s.session.input[event.data.sessionID] = s.session.input[
             event.data.sessionID
-          ].filter((id) => id !== event.data.inputID);
+          ].filter((id) => id !== event.data.inboxID);
         }
       });
       break;
 
-    case "session.input.admitted":
+    case "session.inbox.delivery.changed":
       eventStore.setState((s) => {
-        addPending(s, {
-          id: event.data.inputID,
-          sessionID: event.data.sessionID,
-          timeCreated: event.created,
-          ...event.data.input,
-        });
-        if (
-          !s.session.input[event.data.sessionID]?.includes(event.data.inputID)
-        ) {
-          s.session.input[event.data.sessionID] = [
-            ...(s.session.input[event.data.sessionID] ?? []),
-            event.data.inputID,
-          ];
-        }
-        const idx = index(event.data.sessionID);
-        const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(
-          messages,
-          idx,
-          event.data.input.type === "user"
-            ? {
-                id: event.data.inputID,
-                type: "user",
-                ...event.data.input.data,
-                time: { created: event.created },
-              }
-            : {
-                id: event.data.inputID,
-                type: "synthetic",
-                ...event.data.input.data,
-                time: { created: event.created },
-              },
+        setDelivery(
+          s,
+          event.data.sessionID,
+          event.data.inboxID,
+          event.data.delivery,
         );
-      });
-      break;
-
-    case "session.input.steered":
-      eventStore.setState((s) => {
-        setDelivery(s, event.data.sessionID, event.data.inputID, "steer");
-      });
-      break;
-
-    case "session.input.queued":
-      eventStore.setState((s) => {
-        setDelivery(s, event.data.sessionID, event.data.inputID, "queue");
       });
       break;
 
@@ -666,17 +673,6 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
-    case "session.compaction.admitted":
-      eventStore.setState((s) => {
-        addPending(s, {
-          id: event.data.inputID,
-          sessionID: event.data.sessionID,
-          timeCreated: event.created,
-          type: "compaction",
-        });
-      });
-      break;
-
     case "session.compaction.started":
       eventStore.setState((s) => {
         removePending(s, event.data.sessionID, event.data.inputID);
@@ -938,14 +934,12 @@ export function handleEvent(event: V2Event) {
     case "filesystem.changed":
     case "plugin.added":
     case "plugin.updated":
-    case "project.directories.updated":
     case "pty.created":
     case "pty.updated":
     case "pty.exited":
     case "pty.deleted":
-    case "question.asked":
-    case "question.replied":
-    case "question.rejected":
+    case "worktree.updated":
+    case "worktree.resolved":
     case "session.status":
     case "session.idle":
     case "tui.prompt.append":

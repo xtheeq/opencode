@@ -280,7 +280,7 @@ async function doHydrate(sessionID: string) {
     const [session, messages, pending] = await Promise.all([
       getClient().session.get({ sessionID }),
       getClient().message.list({ sessionID, limit: 200, order: "desc" }),
-      getClient().session.pending.list({ sessionID }),
+      getClient().session.inbox.list({ sessionID }),
     ]);
     const [permissions, forms] = await Promise.allSettled([
       getClient().permission.list({ sessionID }),

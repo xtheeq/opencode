@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import type {
   OpenCodeClient,
+  SessionInboxInfo,
   SessionMessageInfo,
-  SessionPendingInfo,
 } from "@opencode-ai/client/promise";
 
 const calls = {
   sessionGet: 0,
   messageList: 0,
-  pendingList: 0,
+  inboxList: 0,
   permissionList: 0,
 };
 
@@ -24,9 +24,9 @@ const fakeClient = {
       calls.sessionGet += 1;
       return sessionInfo(sessionID);
     },
-    pending: {
+    inbox: {
       list: async () => {
-        calls.pendingList += 1;
+        calls.inboxList += 1;
         return [];
       },
     },
@@ -60,7 +60,7 @@ beforeEach(async () => {
   eventStore = storeModule.eventStore;
   calls.sessionGet = 0;
   calls.messageList = 0;
-  calls.pendingList = 0;
+  calls.inboxList = 0;
   calls.permissionList = 0;
   eventStore.setState((s) => {
     s.session = {
@@ -87,14 +87,15 @@ function cachedMessage(id: string): SessionMessageInfo {
   } as SessionMessageInfo;
 }
 
-function pendingUser(id: string): SessionPendingInfo {
+function pendingUser(id: string): SessionInboxInfo {
   return {
     id,
     sessionID: "ses_1",
     timeCreated: 0,
     type: "user",
-    data: { text: `text-${id}` },
-  } as SessionPendingInfo;
+    payload: { text: `text-${id}` },
+    delivery: "queue",
+  } as SessionInboxInfo;
 }
 
 describe("hydrateSession", () => {
@@ -110,7 +111,7 @@ describe("hydrateSession", () => {
     expect(calls).toEqual({
       sessionGet: 1,
       messageList: 1,
-      pendingList: 1,
+      inboxList: 1,
       permissionList: 1,
     });
   });

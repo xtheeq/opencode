@@ -20,7 +20,7 @@ import type {
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
   SessionInfo,
-  SessionPendingInfo,
+  SessionInboxInfo,
   ShellInfo,
   SkillInfo,
   WebSearchProvider,
@@ -83,7 +83,7 @@ export type Store = {
     family: Record<string, string[]>;
     active: Record<string, DataSessionStatus>;
     message: Record<string, SessionMessageInfo[]>;
-    pending: Record<string, SessionPendingInfo[]>;
+    pending: Record<string, SessionInboxInfo[]>;
     input: Record<string, string[]>;
     blocker: Record<string, Blocker[]>;
     // Per-session, in-memory only. Auto-approve is intentionally ephemeral:
@@ -255,7 +255,7 @@ export function registerSession(store: Store, sessionID: string) {
   if (!family.includes(sessionID)) family.push(sessionID);
 }
 
-export function addPending(store: Store, item: SessionPendingInfo) {
+export function addPending(store: Store, item: SessionInboxInfo) {
   if (store.session.pending[item.sessionID]?.some((p) => p.id === item.id))
     return;
   store.session.pending[item.sessionID] = [
