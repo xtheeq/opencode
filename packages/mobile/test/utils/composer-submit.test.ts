@@ -1,7 +1,14 @@
-import { describe, expect, test } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import type { ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
 import { buildPromptRequest, submitComposer, type ComposerApi } from "@/utils/composer-submit";
 import type { ComposerPart, ComposerState } from "@/types/composer";
+import { eventStore } from "@/stores/store";
+
+beforeEach(() => {
+  eventStore.setState((s) => {
+    s._defaultLocation = { directory: "/workspace" };
+  });
+});
 
 function state(overrides: Partial<ComposerState> = {}): ComposerState {
   return {
@@ -135,8 +142,8 @@ describe("submitComposer", () => {
     expect(calls).toEqual(["prompt"]);
   });
 
-  test("creates a session with the selection when none exists", async () => {
-    const created: { agent?: string; model?: ModelRef }[] = [];
+  test("creates a session with the selection and default location when none exists", async () => {
+    const created: { agent?: string; model?: ModelRef; location?: { directory: string } }[] = [];
     const { prompts } = recordingApi();
     const api: ComposerApi = {
       create: async (input) => {
@@ -156,7 +163,11 @@ describe("submitComposer", () => {
     });
 
     expect(created).toEqual([
-      { agent: "coder", model: { id: "gpt-5", providerID: "openai", variant: undefined } },
+      {
+        agent: "coder",
+        model: { id: "gpt-5", providerID: "openai", variant: undefined },
+        location: { directory: "/workspace" },
+      },
     ]);
     expect(result.sessionID).toBe("ses_new");
     expect(prompts[0].sessionID).toBe("ses_new");

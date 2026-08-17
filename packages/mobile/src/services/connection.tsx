@@ -8,6 +8,7 @@ import {
 import {
   getServerUrl,
   getServerPassword,
+  getLocation,
   setServerUrl,
   setServerPassword,
   clearServerConfig,
@@ -42,6 +43,7 @@ export function disconnect() {
   eventStore.setState((s) => {
     s._client = null;
     s._serverUrl = null;
+    s._defaultLocation = { directory: "" };
     s.connection = { status: "disconnected", attempt: 0, everConnected: false };
   });
   dismissCueKey(CONNECTION_CUE_KEY);
@@ -57,20 +59,27 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [storedUrl, storedPassword] = await Promise.all([
+      const [storedUrl, storedPassword, storedLocation] = await Promise.all([
         getServerUrl(),
         getServerPassword(),
+        getLocation(),
       ]);
       if (cancelled) return;
       if (storedUrl) {
         eventStore.setState((s) => {
           s._client = createClient(storedUrl, storedPassword ?? undefined);
           s._serverUrl = storedUrl;
+          // Restore the selected project before the event stream connects so
+          // session creation and catalog sync target the user's directory
+          // rather than the server daemon's process cwd. Falls back to the
+          // server-resolved default when nothing is stored.
+          if (storedLocation) s._defaultLocation = storedLocation;
         });
         createEventManager(getClient());
       }
       eventStore.setState((s) => {
         s._serverConfigLoaded = true;
+        s._locationLoaded = true;
       });
     })();
     return () => {

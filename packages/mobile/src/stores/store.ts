@@ -103,6 +103,7 @@ export type Store = {
   _defaultLocation: LocationRef;
   _client: OpenCodeClient | null;
   _serverConfigLoaded: boolean;
+  _locationLoaded: boolean;
   _serverUrl: string | null;
   connection: ConnectionSlice;
 };
@@ -136,6 +137,7 @@ export const eventStore = create<Store>()(
     _loadedSessions: false,
     _client: null,
     _serverConfigLoaded: false,
+    _locationLoaded: false,
     _serverUrl: null,
     connection: { status: "disconnected", attempt: 0, everConnected: false },
   })),

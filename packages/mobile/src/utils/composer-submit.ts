@@ -1,4 +1,4 @@
-import type { ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
+import type { LocationRef, ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
 import type {
   AgentPart,
   ComposerPart,
@@ -6,9 +6,10 @@ import type {
   FilePart,
   ModelSelection,
 } from "@/types/composer";
+import { eventStore } from "@/stores/store";
 
 export type ComposerApi = {
-  create(input: { agent?: string; model?: ModelRef }): Promise<{ id: string }>;
+  create(input: { agent?: string; model?: ModelRef; location: LocationRef }): Promise<{ id: string }>;
   switchAgent(input: { sessionID: string; agent: string }): Promise<unknown>;
   switchModel(input: { sessionID: string; model: ModelRef }): Promise<unknown>;
   prompt(input: SessionPromptInput): Promise<unknown>;
@@ -47,7 +48,9 @@ export async function submitComposer(
 
   const { agent, model } = input.state;
   const existing = input.session;
-  const sessionID = existing?.id ?? (await createSession(input.api, agent, model));
+  const sessionID =
+    existing?.id ??
+    (await createSession(input.api, agent, model, eventStore.getState()._defaultLocation));
   if (existing) {
     await syncSelection(input.api, sessionID, existing, agent, model);
   }
@@ -65,10 +68,12 @@ async function createSession(
   api: ComposerApi,
   agent: string | undefined,
   model: ModelSelection | undefined,
+  location: LocationRef,
 ): Promise<string> {
   const session = await api.create({
     agent,
     model: model ? toModelRef(model) : undefined,
+    location,
   });
   return session.id;
 }

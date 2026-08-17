@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { getClient } from "@/stores/store";
+import { eventStore, getClient } from "@/stores/store";
 
 export function useCreateSession() {
   const [isCreating, setIsCreating] = useState(false);
@@ -7,7 +7,9 @@ export function useCreateSession() {
   const createSession = useCallback(async () => {
     setIsCreating(true);
     try {
-      return await getClient().session.create();
+      return await getClient().session.create({
+        location: eventStore.getState()._defaultLocation,
+      });
     } finally {
       setIsCreating(false);
     }
