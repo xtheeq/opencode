@@ -20,8 +20,17 @@ import {
   locationQuery,
   type LocationData,
 } from "@/stores/store";
-import { commandSuggestions, contextSuggestions, searchContextFiles, sheetSuggestions } from "@/utils/composer-suggestions";
-import { useActiveLocation, useSessionActive, useSessionInfo } from "./use-store";
+import {
+  commandSuggestions,
+  contextSuggestions,
+  searchContextFiles,
+  sheetSuggestions,
+} from "@/utils/composer-suggestions";
+import {
+  useActiveLocation,
+  useSessionActive,
+  useSessionInfo,
+} from "./use-store";
 
 const EMPTY_LOCATION: LocationData = {};
 
@@ -42,7 +51,10 @@ export function composerLocation(
   return sessionInfo?.location ?? defaultLocation;
 }
 
-async function searchFiles(query: string, location: LocationRef): Promise<Suggestion[]> {
+async function searchFiles(
+  query: string,
+  location: LocationRef,
+): Promise<Suggestion[]> {
   if (!query.trim()) return [];
   return searchContextFiles(query, {
     find: async (q) => {
@@ -63,9 +75,16 @@ export function useComposer(sessionID: string) {
   const files = useComposerFiles(sessionID);
   const sessionInfo = useSessionInfo(sessionID);
   const defaultLocation = useActiveLocation();
-  const resolvedLocation = composerLocation(sessionID, sessionInfo, defaultLocation);
+  const resolvedLocation = composerLocation(
+    sessionID,
+    sessionInfo,
+    defaultLocation,
+  );
   const location = eventStore(
-    useShallow((state) => state.location[locationKey(resolvedLocation)] ?? EMPTY_LOCATION),
+    useShallow(
+      (state) =>
+        state.location[locationKey(resolvedLocation)] ?? EMPTY_LOCATION,
+    ),
   );
   const working = useSessionActive(sessionID) === "running";
   const text = draft.prompt.map((part) => part.content).join("");
@@ -88,13 +107,16 @@ export function useComposer(sessionID: string) {
     const info = eventStore.getState().session.info[sessionID];
     return composerSubmit(sessionID, {
       state: draft,
-      session: info ? { id: info.id, agent: info.agent, model: info.model } : undefined,
+      session: info
+        ? { id: info.id, agent: info.agent, model: info.model }
+        : undefined,
       api: getClient().session,
     });
   };
 
   const stop = async () => {
-    if (sessionID && !isNewSessionKey(sessionID)) await getClient().session.interrupt({ sessionID });
+    if (sessionID && !isNewSessionKey(sessionID))
+      await getClient().session.interrupt({ sessionID });
   };
 
   const runCommand = async (item: Suggestion) => {
@@ -116,7 +138,8 @@ export function useComposer(sessionID: string) {
       composerDispatch(sessionID, { type: "input.changed", value }, searchAt),
     onCursor: (cursor: number) => composerSetCursor(sessionID, cursor),
     openCommands: () => composerOpenCommands(sessionID),
-    select: (item: Suggestion) => composerSelect(sessionID, item, { runCommand, searchFiles: searchAt }),
+    select: (item: Suggestion) =>
+      composerSelect(sessionID, item, { runCommand, searchFiles: searchAt }),
     submit,
     stop,
     removeMention: (index: number) => composerRemoveMention(sessionID, index),

@@ -11,7 +11,11 @@ import {
   setText,
   setVariant,
 } from "@/utils/composer-store";
-import type { InteractionCommand, InteractionEvent, InteractionState } from "@/utils/composer-machine";
+import type {
+  InteractionCommand,
+  InteractionEvent,
+  InteractionState,
+} from "@/utils/composer-machine";
 import { createInteractionState, transition } from "@/utils/composer-machine";
 import type { ComposerSubmitInput } from "@/utils/composer-submit";
 import { submitComposer } from "@/utils/composer-submit";
@@ -44,15 +48,21 @@ export function composerDraft(sessionID: string): ComposerState {
 }
 
 export function useComposerDraft(sessionID: string): ComposerState {
-  return composerStore(useShallow((state) => state.drafts[sessionID] ?? EMPTY_DRAFT));
+  return composerStore(
+    useShallow((state) => state.drafts[sessionID] ?? EMPTY_DRAFT),
+  );
 }
 
 export function useComposerInteraction(sessionID: string): InteractionState {
-  return composerStore(useShallow((state) => state.interaction[sessionID] ?? EMPTY_INTERACTION));
+  return composerStore(
+    useShallow((state) => state.interaction[sessionID] ?? EMPTY_INTERACTION),
+  );
 }
 
 export function useComposerFiles(sessionID: string): Suggestion[] {
-  return composerStore(useShallow((state) => state.files[sessionID] ?? EMPTY_FILES));
+  return composerStore(
+    useShallow((state) => state.files[sessionID] ?? EMPTY_FILES),
+  );
 }
 
 export function composerUpdateDraft(
@@ -72,21 +82,31 @@ export function composerDispatch(
 ) {
   const state = composerStore.getState();
   const previous = state.interaction[sessionID] ?? EMPTY_INTERACTION;
-  const result = transition(previous, event, state.drafts[sessionID] ?? EMPTY_DRAFT);
+  const result = transition(
+    previous,
+    event,
+    state.drafts[sessionID] ?? EMPTY_DRAFT,
+  );
   composerStore.setState((s) => {
     s.interaction[sessionID] = result.state;
     const current = s.drafts[sessionID] ?? EMPTY_DRAFT;
     let draft = current;
-    for (const command of result.commands) draft = applyComposerCommand(draft, command);
+    for (const command of result.commands)
+      draft = applyComposerCommand(draft, command);
     if (draft !== current) s.drafts[sessionID] = draft;
   });
   refreshComposerSearch(sessionID, previous, result.state, searchFiles);
 }
 
-function applyComposerCommand(state: ComposerState, command: InteractionCommand): ComposerState {
+function applyComposerCommand(
+  state: ComposerState,
+  command: InteractionCommand,
+): ComposerState {
   if (command.type === "draft.setText") return setText(state, command.value);
   if (command.type === "mention.add") {
-    return command.item.mention ? addMention(state, command.item.mention) : state;
+    return command.item.mention
+      ? addMention(state, command.item.mention)
+      : state;
   }
   return state;
 }
@@ -103,7 +123,8 @@ function refreshComposerSearch(
     });
     return;
   }
-  const previousQuery = previous.popover.type === "context" ? previous.popover.query : undefined;
+  const previousQuery =
+    previous.popover.type === "context" ? previous.popover.query : undefined;
   if (next.popover.query !== previousQuery) {
     runComposerSearch(sessionID, next.popover.query, searchFiles);
   }
@@ -150,7 +171,11 @@ export function composerSelect(
     input.runCommand(item);
     return;
   }
-  composerDispatch(sessionID, { type: "popover.select", item }, input.searchFiles);
+  composerDispatch(
+    sessionID,
+    { type: "popover.select", item },
+    input.searchFiles,
+  );
 }
 
 export function composerOpenCommands(sessionID: string) {
@@ -169,7 +194,8 @@ export function composerOpenContext(sessionID: string) {
 export function composerClosePopover(sessionID: string) {
   composerStore.setState((s) => {
     const current = s.interaction[sessionID];
-    if (current) s.interaction[sessionID] = { ...current, popover: { type: "closed" } };
+    if (current)
+      s.interaction[sessionID] = { ...current, popover: { type: "closed" } };
   });
 }
 
@@ -194,7 +220,10 @@ export function composerRemoveMention(sessionID: string, index: number) {
   composerUpdateDraft(sessionID, (state) => removeMention(state, index));
 }
 
-export function composerSetModel(sessionID: string, model: ComposerState["model"]) {
+export function composerSetModel(
+  sessionID: string,
+  model: ComposerState["model"],
+) {
   composerUpdateDraft(sessionID, (state) => setModel(state, model));
 }
 
@@ -206,7 +235,10 @@ export function composerSetVariant(sessionID: string, variant: string | null) {
   composerUpdateDraft(sessionID, (state) => setVariant(state, variant));
 }
 
-export async function composerSubmit(sessionID: string, input: ComposerSubmitInput) {
+export async function composerSubmit(
+  sessionID: string,
+  input: ComposerSubmitInput,
+) {
   const result = await submitComposer(input);
   composerReset(sessionID);
   return result;

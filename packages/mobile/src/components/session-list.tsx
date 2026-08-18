@@ -98,7 +98,12 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
 
   if (view === "projects") {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background.default }]}>
+      <View
+        style={[
+          styles.container,
+          { backgroundColor: colors.background.default },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => setView("sessions")}
           activeOpacity={0.6}
@@ -120,7 +125,9 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background.default }]}
+    >
       <FlatList
         data={visibleSessions}
         keyExtractor={(item) => item.id}

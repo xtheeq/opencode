@@ -24,7 +24,9 @@ describe("connectionCue", () => {
   test("is silent before the first successful connection", () => {
     expect(cue({ status: "connecting" }, false)).toBeUndefined();
     expect(cue({ status: "reconnecting" }, false)).toBeUndefined();
-    expect(cue({ status: "disconnected", error: "down" }, false)).toBeUndefined();
+    expect(
+      cue({ status: "disconnected", error: "down" }, false),
+    ).toBeUndefined();
     expect(cue({ status: "connected" }, false)).toBeUndefined();
   });
 
@@ -39,18 +41,19 @@ describe("connectionCue", () => {
   });
 
   test("raises a sticky error with actions when the connection gives up", () => {
-    expect(cue({ status: "disconnected", error: "event stream disconnected" }))
-      .toMatchObject({
-        key: CONNECTION_CUE_KEY,
-        kind: "error",
-        title: "Connection lost",
-        description: "event stream disconnected",
-        sticky: true,
-        actions: [
-          { label: "Retry", onPress: actions.retry },
-          { label: "Change server", onPress: actions.disconnect },
-        ],
-      });
+    expect(
+      cue({ status: "disconnected", error: "event stream disconnected" }),
+    ).toMatchObject({
+      key: CONNECTION_CUE_KEY,
+      kind: "error",
+      title: "Connection lost",
+      description: "event stream disconnected",
+      sticky: true,
+      actions: [
+        { label: "Retry", onPress: actions.retry },
+        { label: "Change server", onPress: actions.disconnect },
+      ],
+    });
   });
 
   test("raises a transient success cue on reconnect", () => {

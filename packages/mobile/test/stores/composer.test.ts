@@ -28,7 +28,13 @@ const agent: Suggestion = {
   id: "agent:coder",
   kind: "agent",
   label: "@coder",
-  mention: { type: "agent", name: "coder", content: "@coder", start: 0, end: 0 },
+  mention: {
+    type: "agent",
+    name: "coder",
+    content: "@coder",
+    start: 0,
+    end: 0,
+  },
 };
 const command: Suggestion = {
   id: "custom.review",
@@ -42,7 +48,13 @@ const file: Suggestion = {
   kind: "file",
   label: "src/app.ts",
   path: "src/app.ts",
-  mention: { type: "file", path: "src/app.ts", content: "@src/app.ts", start: 0, end: 0 },
+  mention: {
+    type: "file",
+    path: "src/app.ts",
+    content: "@src/app.ts",
+    start: 0,
+    end: 0,
+  },
 };
 
 const noFiles = async (): Promise<Suggestion[]> => [];
@@ -104,7 +116,9 @@ describe("composer interaction helpers", () => {
     composerDispatch("s", { type: "input.changed", value: "hello" }, noFiles);
 
     expect(composerStore.getState().drafts.s?.prompt[0].content).toBe("hello");
-    expect(composerStore.getState().interaction.s).toEqual({ popover: { type: "closed" } });
+    expect(composerStore.getState().interaction.s).toEqual({
+      popover: { type: "closed" },
+    });
   });
 
   test("typing @ opens the context popover", () => {
@@ -156,8 +170,14 @@ describe("composer interaction helpers", () => {
     composerOpenContext("s");
     composerSelect("s", agent, { runCommand: () => {} });
 
-    expect(composerStore.getState().interaction.s).toEqual({ popover: { type: "closed" } });
-    expect(composerStore.getState().drafts.s?.prompt.some((part) => part.type === "agent")).toBe(true);
+    expect(composerStore.getState().interaction.s).toEqual({
+      popover: { type: "closed" },
+    });
+    expect(
+      composerStore
+        .getState()
+        .drafts.s?.prompt.some((part) => part.type === "agent"),
+    ).toBe(true);
   });
 
   test("selecting a command runs it instead of inserting slash text", () => {
@@ -170,7 +190,9 @@ describe("composer interaction helpers", () => {
     });
 
     expect(ran).toEqual(["review"]);
-    expect(composerStore.getState().interaction.s).toEqual({ popover: { type: "closed" } });
+    expect(composerStore.getState().interaction.s).toEqual({
+      popover: { type: "closed" },
+    });
     expect(composerStore.getState().drafts.s).toBeUndefined();
   });
 
@@ -234,7 +256,11 @@ describe("composer interaction helpers", () => {
   });
 
   test("model and agent setters update the draft", () => {
-    composerSetModel("s", { providerID: "openai", modelID: "gpt-5", variant: null });
+    composerSetModel("s", {
+      providerID: "openai",
+      modelID: "gpt-5",
+      variant: null,
+    });
     composerSetAgent("s", "coder");
     composerSetVariant("s", "thinking");
 

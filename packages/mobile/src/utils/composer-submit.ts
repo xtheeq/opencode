@@ -1,4 +1,8 @@
-import type { LocationRef, ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
+import type {
+  LocationRef,
+  ModelRef,
+  SessionPromptInput,
+} from "@opencode-ai/client/promise";
 import type {
   AgentPart,
   ComposerPart,
@@ -9,7 +13,11 @@ import type {
 import { eventStore } from "@/stores/store";
 
 export type ComposerApi = {
-  create(input: { agent?: string; model?: ModelRef; location: LocationRef }): Promise<{ id: string }>;
+  create(input: {
+    agent?: string;
+    model?: ModelRef;
+    location: LocationRef;
+  }): Promise<{ id: string }>;
   switchAgent(input: { sessionID: string; agent: string }): Promise<unknown>;
   switchModel(input: { sessionID: string; model: ModelRef }): Promise<unknown>;
   prompt(input: SessionPromptInput): Promise<unknown>;
@@ -50,7 +58,12 @@ export async function submitComposer(
   const existing = input.session;
   const sessionID =
     existing?.id ??
-    (await createSession(input.api, agent, model, eventStore.getState()._defaultLocation));
+    (await createSession(
+      input.api,
+      agent,
+      model,
+      eventStore.getState()._defaultLocation,
+    ));
   if (existing) {
     await syncSelection(input.api, sessionID, existing, agent, model);
   }
@@ -93,7 +106,10 @@ async function syncSelection(
   }
 }
 
-function sessionModelDiffers(current: ModelRef | undefined, selected: ModelSelection): boolean {
+function sessionModelDiffers(
+  current: ModelRef | undefined,
+  selected: ModelSelection,
+): boolean {
   if (!current) return true;
   return (
     current.providerID !== selected.providerID ||
@@ -103,5 +119,9 @@ function sessionModelDiffers(current: ModelRef | undefined, selected: ModelSelec
 }
 
 function toModelRef(model: ModelSelection): ModelRef {
-  return { id: model.modelID, providerID: model.providerID, variant: model.variant ?? undefined };
+  return {
+    id: model.modelID,
+    providerID: model.providerID,
+    variant: model.variant ?? undefined,
+  };
 }

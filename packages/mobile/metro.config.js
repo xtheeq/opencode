@@ -13,7 +13,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     moduleName.startsWith("../") ||
     path.isAbsolute(moduleName);
   if (isSource && moduleName.endsWith(".js")) {
-    const absolute = path.resolve(path.dirname(context.originModulePath), moduleName);
+    const absolute = path.resolve(
+      path.dirname(context.originModulePath),
+      moduleName,
+    );
     if (!fs.existsSync(absolute)) {
       moduleName = moduleName.replace(/\.js$/, "");
     }

@@ -69,14 +69,24 @@ describe("composer store", () => {
 
     expect(result.prompt).toEqual([
       { type: "text", content: "old", start: 0, end: 3 },
-      { type: "file", path: "src/app.ts", content: "@src/app.ts", start: 3, end: 14 },
+      {
+        type: "file",
+        path: "src/app.ts",
+        content: "@src/app.ts",
+        start: 3,
+        end: 14,
+      },
       { type: "text", content: " ", start: 14, end: 15 },
     ]);
   });
 
   test("model and agent setters update the selection", () => {
     const withVariant = setVariant(
-      setModel(draft("old"), { providerID: "anthropic", modelID: "claude-sonnet", variant: null }),
+      setModel(draft("old"), {
+        providerID: "anthropic",
+        modelID: "claude-sonnet",
+        variant: null,
+      }),
       "thinking",
     );
 
@@ -125,14 +135,22 @@ describe("composer store", () => {
   test("resetPrompt clears the prompt and cursor", () => {
     const result = resetPrompt(draft("hello"));
 
-    expect(result.prompt).toEqual([{ type: "text", content: "", start: 0, end: 0 }]);
+    expect(result.prompt).toEqual([
+      { type: "text", content: "", start: 0, end: 0 },
+    ]);
     expect(result.cursor).toBe(0);
   });
 
   test("setPrompt replaces the prompt", () => {
-    const result = setPrompt(draft("hello"), [{ type: "text", content: "x", start: 0, end: 1 }], 1);
+    const result = setPrompt(
+      draft("hello"),
+      [{ type: "text", content: "x", start: 0, end: 1 }],
+      1,
+    );
 
-    expect(result.prompt).toEqual([{ type: "text", content: "x", start: 0, end: 1 }]);
+    expect(result.prompt).toEqual([
+      { type: "text", content: "x", start: 0, end: 1 },
+    ]);
     expect(result.cursor).toBe(1);
   });
 });

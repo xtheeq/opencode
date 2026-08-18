@@ -108,7 +108,8 @@ export function ConnectionManager({ children }: { children: ReactNode }) {
           status: ev.status,
           attempt: ev.attempt,
           error: ev.error,
-          everConnected: s.connection.everConnected || ev.status === "connected",
+          everConnected:
+            s.connection.everConnected || ev.status === "connected",
         };
       });
       if (cue) raiseCue(cue);

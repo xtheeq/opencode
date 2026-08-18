@@ -28,10 +28,21 @@ const reference = (overrides: Partial<ReferenceInfo> = {}): ReferenceInfo =>
   }) as ReferenceInfo;
 
 const agent = (overrides: Partial<AgentInfo> = {}): AgentInfo =>
-  ({ id: "a", name: "coder", mode: "subagent", hidden: false, ...overrides }) as AgentInfo;
+  ({
+    id: "a",
+    name: "coder",
+    mode: "subagent",
+    hidden: false,
+    ...overrides,
+  }) as AgentInfo;
 
 const resource = (overrides: Partial<McpResource> = {}): McpResource =>
-  ({ server: "playwright", name: "spec", uri: "resource://pw/spec", ...overrides }) as McpResource;
+  ({
+    server: "playwright",
+    name: "spec",
+    uri: "resource://pw/spec",
+    ...overrides,
+  }) as McpResource;
 
 describe("referenceSuggestions", () => {
   test("filters hidden references", () => {
@@ -45,9 +56,16 @@ describe("referenceSuggestions", () => {
 
   test("uses git repository as the description fallback", () => {
     const suggestions = referenceSuggestions([
-      reference({ name: "repo", source: { type: "git", repository: "org/repo" } }),
+      reference({
+        name: "repo",
+        source: { type: "git", repository: "org/repo" },
+      }),
       reference({ name: "local", source: { type: "local", path: "/p/local" } }),
-      reference({ name: "described", description: "Explicit", source: { type: "local", path: "/p/d" } }),
+      reference({
+        name: "described",
+        description: "Explicit",
+        source: { type: "local", path: "/p/d" },
+      }),
     ]);
 
     expect(suggestions[0].description).toBe("org/repo");
@@ -56,7 +74,9 @@ describe("referenceSuggestions", () => {
   });
 
   test("builds a directory file mention", () => {
-    const [suggestion] = referenceSuggestions([reference({ name: "docs", path: "/p/docs" })]);
+    const [suggestion] = referenceSuggestions([
+      reference({ name: "docs", path: "/p/docs" }),
+    ]);
 
     expect(suggestion).toMatchObject({
       id: "reference:docs",
@@ -91,16 +111,36 @@ describe("agentSuggestions", () => {
   test("builds an agent mention", () => {
     const [suggestion] = agentSuggestions([agent({ name: "coder" })]);
 
-    expect(suggestion).toMatchObject({ id: "agent:coder", kind: "agent", label: "@coder" });
-    expect(suggestion.mention).toEqual({ type: "agent", name: "coder", content: "@coder", start: 0, end: 0 });
+    expect(suggestion).toMatchObject({
+      id: "agent:coder",
+      kind: "agent",
+      label: "@coder",
+    });
+    expect(suggestion.mention).toEqual({
+      type: "agent",
+      name: "coder",
+      content: "@coder",
+      start: 0,
+      end: 0,
+    });
   });
 });
 
 describe("resourceSuggestions", () => {
   test("maps server/uri ids and defaults the mime type", () => {
     const suggestions = resourceSuggestions([
-      resource({ server: "playwright", name: "spec", uri: "resource://pw/spec", mimeType: "text/markdown" }),
-      resource({ server: "files", name: "notes", uri: "resource://fs/notes", description: "Notes" }),
+      resource({
+        server: "playwright",
+        name: "spec",
+        uri: "resource://pw/spec",
+        mimeType: "text/markdown",
+      }),
+      resource({
+        server: "files",
+        name: "notes",
+        uri: "resource://fs/notes",
+        description: "Notes",
+      }),
     ]);
 
     expect(suggestions[0]).toMatchObject({
@@ -130,7 +170,11 @@ describe("contextSuggestions", () => {
       resources: [resource({})],
     });
 
-    expect(suggestions.map((s) => s.kind)).toEqual(["reference", "agent", "resource"]);
+    expect(suggestions.map((s) => s.kind)).toEqual([
+      "reference",
+      "agent",
+      "resource",
+    ]);
   });
 });
 
@@ -167,78 +211,138 @@ describe("filterSuggestions", () => {
   });
 
   test("matches labels case-insensitively", () => {
-    expect(filterSuggestions(items, "COD").map((s) => s.id)).toEqual(["agent:coder"]);
+    expect(filterSuggestions(items, "COD").map((s) => s.id)).toEqual([
+      "agent:coder",
+    ]);
     expect(filterSuggestions(items, "app.ts")).toEqual([items[2]]);
     expect(filterSuggestions(items, "nope")).toEqual([]);
   });
 
   test("matches titles, triggers, and descriptions for searchable sheets", () => {
     const commands: Suggestion[] = [
-      { id: "custom.review", kind: "command", label: "/review", trigger: "review", title: "Review", description: "Start a code review" },
-      { id: "agent:coder", kind: "agent", label: "@coder", description: "Writes the code" },
+      {
+        id: "custom.review",
+        kind: "command",
+        label: "/review",
+        trigger: "review",
+        title: "Review",
+        description: "Start a code review",
+      },
+      {
+        id: "agent:coder",
+        kind: "agent",
+        label: "@coder",
+        description: "Writes the code",
+      },
     ];
 
-    expect(filterSuggestions(commands, "review").map((s) => s.id)).toEqual(["custom.review"]);
-    expect(filterSuggestions(commands, "code review").map((s) => s.id)).toEqual(["custom.review"]);
-    expect(filterSuggestions(commands, "writes").map((s) => s.id)).toEqual(["agent:coder"]);
+    expect(filterSuggestions(commands, "review").map((s) => s.id)).toEqual([
+      "custom.review",
+    ]);
+    expect(filterSuggestions(commands, "code review").map((s) => s.id)).toEqual(
+      ["custom.review"],
+    );
+    expect(filterSuggestions(commands, "writes").map((s) => s.id)).toEqual([
+      "agent:coder",
+    ]);
   });
 });
 
 describe("sheetSuggestions", () => {
   const commands: Suggestion[] = [
-    { id: "custom.review", kind: "command", label: "/review", trigger: "review", title: "review" },
-    { id: "custom.plan", kind: "command", label: "/plan", trigger: "plan", title: "plan" },
+    {
+      id: "custom.review",
+      kind: "command",
+      label: "/review",
+      trigger: "review",
+      title: "review",
+    },
+    {
+      id: "custom.plan",
+      kind: "command",
+      label: "/plan",
+      trigger: "plan",
+      title: "plan",
+    },
   ];
   const context: Suggestion[] = [
     { id: "agent:coder", kind: "agent", label: "@coder" },
     { id: "reference:docs", kind: "reference", label: "@docs" },
   ];
   const files: Suggestion[] = [
-    { id: "file:src/app.ts", kind: "file", label: "src/app.ts", path: "src/app.ts" },
+    {
+      id: "file:src/app.ts",
+      kind: "file",
+      label: "src/app.ts",
+      path: "src/app.ts",
+    },
   ];
 
   test("returns nothing while the popover is closed", () => {
-    expect(sheetSuggestions({ popover: { type: "closed" } }, { commands, context, files })).toEqual([]);
+    expect(
+      sheetSuggestions(
+        { popover: { type: "closed" } },
+        { commands, context, files },
+      ),
+    ).toEqual([]);
   });
 
   test("filters commands for the command menu", () => {
-    const interaction: InteractionState = { popover: { type: "command-menu", query: "rev" } };
+    const interaction: InteractionState = {
+      popover: { type: "command-menu", query: "rev" },
+    };
 
-    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
-      "custom.review",
-    ]);
+    expect(
+      sheetSuggestions(interaction, { commands, context, files }).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["custom.review"]);
   });
 
   test("filters commands for an inline command popover", () => {
-    const interaction: InteractionState = { popover: { type: "command-inline", query: "" } };
+    const interaction: InteractionState = {
+      popover: { type: "command-inline", query: "" },
+    };
 
-    expect(sheetSuggestions(interaction, { commands, context, files })).toHaveLength(2);
+    expect(
+      sheetSuggestions(interaction, { commands, context, files }),
+    ).toHaveLength(2);
   });
 
   test("combines context and file results for the context popover", () => {
-    const interaction: InteractionState = { popover: { type: "context", query: "" } };
+    const interaction: InteractionState = {
+      popover: { type: "context", query: "" },
+    };
 
-    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
-      "agent:coder",
-      "reference:docs",
-      "file:src/app.ts",
-    ]);
+    expect(
+      sheetSuggestions(interaction, { commands, context, files }).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["agent:coder", "reference:docs", "file:src/app.ts"]);
   });
 
   test("filters catalog and file results together for a context query", () => {
-    const interaction: InteractionState = { popover: { type: "context", query: "cod" } };
+    const interaction: InteractionState = {
+      popover: { type: "context", query: "cod" },
+    };
 
-    expect(sheetSuggestions(interaction, { commands, context, files }).map((s) => s.id)).toEqual([
-      "agent:coder",
-    ]);
+    expect(
+      sheetSuggestions(interaction, { commands, context, files }).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["agent:coder"]);
   });
 
   test("returns only matching file results when the context catalog is empty", () => {
-    const interaction: InteractionState = { popover: { type: "context", query: "app" } };
+    const interaction: InteractionState = {
+      popover: { type: "context", query: "app" },
+    };
 
-    expect(sheetSuggestions(interaction, { commands, context: [], files }).map((s) => s.id)).toEqual([
-      "file:src/app.ts",
-    ]);
+    expect(
+      sheetSuggestions(interaction, { commands, context: [], files }).map(
+        (s) => s.id,
+      ),
+    ).toEqual(["file:src/app.ts"]);
   });
 });
 

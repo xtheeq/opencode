@@ -135,7 +135,11 @@ describe("connection status invalidation", () => {
       s.connection = { status: "connected", attempt: 0, everConnected: true };
     });
     eventStore.setState((s) => {
-      s.connection = { status: "reconnecting", attempt: 1, everConnected: true };
+      s.connection = {
+        status: "reconnecting",
+        attempt: 1,
+        everConnected: true,
+      };
     });
 
     await sync.run("key", async () => {

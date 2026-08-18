@@ -36,7 +36,12 @@ export type ComposerState = {
   agent?: string;
 };
 
-export type SuggestionKind = "agent" | "command" | "file" | "reference" | "resource";
+export type SuggestionKind =
+  | "agent"
+  | "command"
+  | "file"
+  | "reference"
+  | "resource";
 
 export type Suggestion = {
   id: string;

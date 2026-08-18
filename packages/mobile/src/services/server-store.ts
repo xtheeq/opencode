@@ -54,7 +54,10 @@ export async function getLocation(): Promise<LocationRef | null> {
 export async function setLocation(location: LocationRef): Promise<void> {
   await SecureStore.setItemAsync(
     KEYS.location,
-    JSON.stringify({ directory: location.directory, workspaceID: location.workspaceID }),
+    JSON.stringify({
+      directory: location.directory,
+      workspaceID: location.workspaceID,
+    }),
   );
 }
 

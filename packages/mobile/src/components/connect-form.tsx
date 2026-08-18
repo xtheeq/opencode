@@ -17,9 +17,9 @@ export function ConnectForm() {
 
   const url = draftUrl ?? storedUrl ?? "http://";
   const checking =
-    connection.status === "connecting" ||
-    connection.status === "reconnecting";
-  const failed = connection.status === "disconnected" && !connection.everConnected;
+    connection.status === "connecting" || connection.status === "reconnecting";
+  const failed =
+    connection.status === "disconnected" && !connection.everConnected;
   const disabled = checking || !url.trim();
 
   return (

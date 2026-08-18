@@ -1,4 +1,9 @@
-import { StyleSheet, TextInput as RNTextInput, TouchableOpacity, View } from "react-native";
+import {
+  StyleSheet,
+  TextInput as RNTextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import ArrowUp from "lucide-react-native/icons/arrow-up";
 import Square from "lucide-react-native/icons/square";
 import X from "lucide-react-native/icons/x";
@@ -55,12 +60,15 @@ export function Composer({
     }
   };
 
-  const buttonBackground = working || canSubmit ? colors.action.primary : colors.action.disabled;
+  const buttonBackground =
+    working || canSubmit ? colors.action.primary : colors.action.disabled;
   const buttonIconColor =
     working || canSubmit ? colors.action.primaryText : colors.icon.muted;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background.default }]}>
+    <View
+      style={[styles.container, { backgroundColor: colors.background.default }]}
+    >
       {sheetOpen && (
         <SuggestionSheet
           suggestions={suggestions}
@@ -84,7 +92,11 @@ export function Composer({
                   },
                 ]}
               >
-                <Text variant="caption" numberOfLines={1} style={styles.chipLabel}>
+                <Text
+                  variant="caption"
+                  numberOfLines={1}
+                  style={styles.chipLabel}
+                >
                   {label}
                 </Text>
                 <TouchableOpacity
@@ -111,12 +123,18 @@ export function Composer({
         ]}
       >
         <RNTextInput
-          style={[styles.input, typography.body, { color: colors.text.primary }]}
+          style={[
+            styles.input,
+            typography.body,
+            { color: colors.text.primary },
+          ]}
           placeholder="Message..."
           placeholderTextColor={colors.text.secondary}
           value={text}
           onChangeText={(value) => onChangeText(value)}
-          onSelectionChange={(event) => onCursor(event.nativeEvent.selection.end)}
+          onSelectionChange={(event) =>
+            onCursor(event.nativeEvent.selection.end)
+          }
           multiline
           textAlignVertical="center"
         />

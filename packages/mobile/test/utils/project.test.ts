@@ -43,7 +43,9 @@ describe("projectDisplayName", () => {
   });
 
   test("strips a trailing slash before taking the basename", () => {
-    expect(projectDisplayName(project({ canonical: "/workspace/repo/" }))).toBe("repo");
+    expect(projectDisplayName(project({ canonical: "/workspace/repo/" }))).toBe(
+      "repo",
+    );
   });
 
   test("keeps a root canonical as-is", () => {
@@ -75,15 +77,24 @@ describe("sortProjects", () => {
 
 describe("isProjectActive", () => {
   test("matches the canonical directory", () => {
-    expect(isProjectActive(project({ canonical: "/workspace/repo" }), "/workspace/repo")).toBe(true);
+    expect(
+      isProjectActive(
+        project({ canonical: "/workspace/repo" }),
+        "/workspace/repo",
+      ),
+    ).toBe(true);
   });
 
   test("returns false for a different directory", () => {
-    expect(isProjectActive(project({ canonical: "/workspace/repo" }), "/other")).toBe(false);
+    expect(
+      isProjectActive(project({ canonical: "/workspace/repo" }), "/other"),
+    ).toBe(false);
   });
 
   test("returns false when no directory is set", () => {
-    expect(isProjectActive(project({ canonical: "/workspace/repo" }), undefined)).toBe(false);
+    expect(
+      isProjectActive(project({ canonical: "/workspace/repo" }), undefined),
+    ).toBe(false);
   });
 });
 
@@ -96,11 +107,15 @@ describe("findActiveProject", () => {
   });
 
   test("returns undefined when nothing matches", () => {
-    expect(findActiveProject([project({ canonical: "/workspace/a" })], "/other")).toBeUndefined();
+    expect(
+      findActiveProject([project({ canonical: "/workspace/a" })], "/other"),
+    ).toBeUndefined();
   });
 
   test("returns undefined when no directory is set", () => {
-    expect(findActiveProject([project({ canonical: "/workspace/a" })], undefined)).toBeUndefined();
+    expect(
+      findActiveProject([project({ canonical: "/workspace/a" })], undefined),
+    ).toBeUndefined();
   });
 });
 
@@ -126,9 +141,21 @@ describe("sessionsForProject", () => {
   test("filters sessions to a project and sorts newest-updated first", () => {
     const result = sessionsForProject(
       [
-        session({ id: "a", projectID: "prj_1", time: { created: 0, updated: 10 } }),
-        session({ id: "b", projectID: "prj_2", time: { created: 0, updated: 99 } }),
-        session({ id: "c", projectID: "prj_1", time: { created: 0, updated: 30 } }),
+        session({
+          id: "a",
+          projectID: "prj_1",
+          time: { created: 0, updated: 10 },
+        }),
+        session({
+          id: "b",
+          projectID: "prj_2",
+          time: { created: 0, updated: 99 },
+        }),
+        session({
+          id: "c",
+          projectID: "prj_1",
+          time: { created: 0, updated: 30 },
+        }),
       ],
       "prj_1",
     );
@@ -137,6 +164,8 @@ describe("sessionsForProject", () => {
   });
 
   test("returns an empty list when the project has no sessions", () => {
-    expect(sessionsForProject([session({ projectID: "prj_2" })], "prj_1")).toEqual([]);
+    expect(
+      sessionsForProject([session({ projectID: "prj_2" })], "prj_1"),
+    ).toEqual([]);
   });
 });

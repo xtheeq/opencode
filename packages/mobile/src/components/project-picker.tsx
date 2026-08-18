@@ -1,4 +1,10 @@
-import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { Button, Text } from "@/components/primitives";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import type { Project } from "@opencode-ai/client/promise";
@@ -50,10 +56,7 @@ export function ProjectPicker({
       refreshing={refreshing ?? false}
       onRefresh={onRefresh}
       renderItem={({ item }) => (
-        <ProjectRow
-          project={item}
-          onPress={() => onSelect(item.canonical)}
-        />
+        <ProjectRow project={item} onPress={() => onSelect(item.canonical)} />
       )}
     />
   );

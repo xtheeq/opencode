@@ -8,7 +8,9 @@ import type {
 import type { Suggestion } from "@/types/composer";
 import type { InteractionState } from "./composer-machine";
 
-export function referenceSuggestions(references: ReferenceInfo[]): Suggestion[] {
+export function referenceSuggestions(
+  references: ReferenceInfo[],
+): Suggestion[] {
   return references
     .filter((reference) => !reference.hidden)
     .map((reference) => ({
@@ -16,7 +18,8 @@ export function referenceSuggestions(references: ReferenceInfo[]): Suggestion[] 
       kind: "reference",
       label: `@${reference.name}`,
       path: reference.path,
-      description: reference.description ?? referenceSourceDescription(reference),
+      description:
+        reference.description ?? referenceSourceDescription(reference),
       mention: {
         type: "file",
         path: reference.path,
@@ -30,7 +33,9 @@ export function referenceSuggestions(references: ReferenceInfo[]): Suggestion[] 
 }
 
 function referenceSourceDescription(reference: ReferenceInfo): string {
-  return reference.source.type === "git" ? reference.source.repository : reference.source.path;
+  return reference.source.type === "git"
+    ? reference.source.repository
+    : reference.source.path;
 }
 
 export function agentSuggestions(agents: AgentInfo[]): Suggestion[] {
@@ -96,12 +101,15 @@ export function commandSuggestions(commands: CommandInfo[]): Suggestion[] {
   }));
 }
 
-export function filterSuggestions(items: Suggestion[], query: string): Suggestion[] {
+export function filterSuggestions(
+  items: Suggestion[],
+  query: string,
+): Suggestion[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return items;
   return items.filter((item) =>
-    [item.label, item.title, item.trigger, item.description].some(
-      (field) => field?.toLowerCase().includes(needle),
+    [item.label, item.title, item.trigger, item.description].some((field) =>
+      field?.toLowerCase().includes(needle),
     ),
   );
 }
@@ -111,7 +119,10 @@ export function sheetSuggestions(
   input: { commands: Suggestion[]; context: Suggestion[]; files: Suggestion[] },
 ): Suggestion[] {
   if (interaction.popover.type === "context") {
-    return filterSuggestions([...input.context, ...input.files], interaction.popover.query);
+    return filterSuggestions(
+      [...input.context, ...input.files],
+      interaction.popover.query,
+    );
   }
   if (
     interaction.popover.type === "command-menu" ||

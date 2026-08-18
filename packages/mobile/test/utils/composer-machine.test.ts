@@ -18,8 +18,16 @@ function persisted(value = ""): ComposerState {
 describe("composer interaction machine", () => {
   test("opens inline commands only when slash is the entire prompt", () => {
     const state = createInteractionState();
-    const open = transition(state, { type: "input.changed", value: "/re" }, persisted());
-    const closed = transition(state, { type: "input.changed", value: "explain /re" }, persisted());
+    const open = transition(
+      state,
+      { type: "input.changed", value: "/re" },
+      persisted(),
+    );
+    const closed = transition(
+      state,
+      { type: "input.changed", value: "explain /re" },
+      persisted(),
+    );
 
     expect(open.state.popover).toEqual({ type: "command-inline", query: "re" });
     expect(closed.state.popover).toEqual({ type: "closed" });
@@ -32,10 +40,20 @@ describe("composer interaction machine", () => {
       persisted(),
     );
     const item = { ...command, label: "/review/nested" };
-    const selected = transition(open.state, { type: "popover.select", item }, persisted("/review/"));
+    const selected = transition(
+      open.state,
+      { type: "popover.select", item },
+      persisted("/review/"),
+    );
 
-    expect(open.state.popover).toEqual({ type: "command-inline", query: "review/" });
-    expect(selected.commands).toContainEqual({ type: "draft.setText", value: "/review/nested " });
+    expect(open.state.popover).toEqual({
+      type: "command-inline",
+      query: "review/",
+    });
+    expect(selected.commands).toContainEqual({
+      type: "draft.setText",
+      value: "/review/nested ",
+    });
   });
 
   test("opens context completion for an @ at the end of the input", () => {
@@ -99,7 +117,11 @@ describe("composer interaction machine", () => {
       popover: { type: "context" as const, query: "index" },
     };
 
-    const selected = transition(state, { type: "popover.select", item }, persisted("@index"));
+    const selected = transition(
+      state,
+      { type: "popover.select", item },
+      persisted("@index"),
+    );
 
     expect(selected.commands).toContainEqual({ type: "mention.add", item });
   });
@@ -110,9 +132,16 @@ describe("composer interaction machine", () => {
       popover: { type: "context" as const, query: "sr", activeID: "first" },
     };
 
-    const result = transition(state, { type: "input.changed", value: "plain" }, persisted());
+    const result = transition(
+      state,
+      { type: "input.changed", value: "plain" },
+      persisted(),
+    );
 
-    expect(result.commands).toContainEqual({ type: "draft.setText", value: "plain" });
+    expect(result.commands).toContainEqual({
+      type: "draft.setText",
+      value: "plain",
+    });
     expect(result.state.popover).toEqual({ type: "closed" });
   });
 
@@ -123,16 +152,27 @@ describe("composer interaction machine", () => {
       persisted("existing"),
     );
 
-    const result = transition(open.state, { type: "input.changed", value: "existing" }, persisted("existing"));
+    const result = transition(
+      open.state,
+      { type: "input.changed", value: "existing" },
+      persisted("existing"),
+    );
 
     expect(result.state.popover).toEqual({ type: "command-menu", query: "" });
   });
 
   test("opens context completion from an explicit trigger", () => {
-    const result = transition(createInteractionState(), { type: "context.open" }, persisted("hello"));
+    const result = transition(
+      createInteractionState(),
+      { type: "context.open" },
+      persisted("hello"),
+    );
 
     expect(result.state.popover).toEqual({ type: "context", query: "" });
-    expect(result.commands).toContainEqual({ type: "draft.setText", value: "hello@" });
+    expect(result.commands).toContainEqual({
+      type: "draft.setText",
+      value: "hello@",
+    });
   });
 
   test("filters the popover query and resets the active item", () => {
@@ -141,10 +181,22 @@ describe("composer interaction machine", () => {
       popover: { type: "context" as const, query: "ab", activeID: "x" },
     };
 
-    const result = transition(state, { type: "popover.query", value: "a" }, persisted());
+    const result = transition(
+      state,
+      { type: "popover.query", value: "a" },
+      persisted(),
+    );
 
-    expect(result.state.popover).toEqual({ type: "context", query: "a", activeID: undefined });
-    expect(result.commands).toContainEqual({ type: "popover.filter", popover: "context", query: "a" });
+    expect(result.state.popover).toEqual({
+      type: "context",
+      query: "a",
+      activeID: undefined,
+    });
+    expect(result.commands).toContainEqual({
+      type: "popover.filter",
+      popover: "context",
+      query: "a",
+    });
   });
 
   test("activates the first result when the active item is stale", () => {
@@ -153,9 +205,17 @@ describe("composer interaction machine", () => {
       popover: { type: "context" as const, query: "", activeID: "stale" },
     };
 
-    const result = transition(state, { type: "popover.results", ids: ["a", "b"] }, persisted());
+    const result = transition(
+      state,
+      { type: "popover.results", ids: ["a", "b"] },
+      persisted(),
+    );
 
-    expect(result.state.popover).toEqual({ type: "context", query: "", activeID: "a" });
+    expect(result.state.popover).toEqual({
+      type: "context",
+      query: "",
+      activeID: "a",
+    });
   });
 
   test("closes the popover explicitly", () => {

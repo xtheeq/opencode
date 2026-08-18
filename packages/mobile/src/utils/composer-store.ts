@@ -53,15 +53,24 @@ export function setModel(
   return { ...state, model };
 }
 
-export function setAgent(state: ComposerState, agent: string | undefined): ComposerState {
+export function setAgent(
+  state: ComposerState,
+  agent: string | undefined,
+): ComposerState {
   return { ...state, agent };
 }
 
-export function setVariant(state: ComposerState, variant: string | null): ComposerState {
+export function setVariant(
+  state: ComposerState,
+  variant: string | null,
+): ComposerState {
   return state.model ? { ...state, model: { ...state.model, variant } } : state;
 }
 
-export function addMention(state: ComposerState, mention: FilePart | AgentPart): ComposerState {
+export function addMention(
+  state: ComposerState,
+  mention: FilePart | AgentPart,
+): ComposerState {
   const text = partsText(state.prompt);
   const end = state.cursor ?? text.length;
   const start = text.slice(0, end).lastIndexOf("@");
@@ -72,7 +81,10 @@ export function addMention(state: ComposerState, mention: FilePart | AgentPart):
   };
 }
 
-export function removeMention(state: ComposerState, index: number): ComposerState {
+export function removeMention(
+  state: ComposerState,
+  index: number,
+): ComposerState {
   if (index < 0 || index >= state.prompt.length) return state;
   const prompt = state.prompt.filter((_, i) => i !== index);
   return {
@@ -90,7 +102,11 @@ function partsLength(prompt: ComposerPart[]): number {
   return prompt.reduce((length, part) => length + part.content.length, 0);
 }
 
-function insertText(prompt: ComposerPart[], cursor: number, content: string): ComposerPart[] {
+function insertText(
+  prompt: ComposerPart[],
+  cursor: number,
+  content: string,
+): ComposerPart[] {
   let position = 0;
   let inserted = false;
   const parts = prompt.flatMap<ComposerPart>((part) => {
@@ -100,7 +116,15 @@ function insertText(prompt: ComposerPart[], cursor: number, content: string): Co
     if (part.type === "text" && cursor >= start && cursor <= position) {
       inserted = true;
       const offset = cursor - start;
-      return [{ ...part, content: part.content.slice(0, offset) + content + part.content.slice(offset) }];
+      return [
+        {
+          ...part,
+          content:
+            part.content.slice(0, offset) +
+            content +
+            part.content.slice(offset),
+        },
+      ];
     }
     if (cursor > start) return [part];
     inserted = true;
@@ -120,11 +144,14 @@ function insertMention(
   const parts = prompt.flatMap<ComposerPart>((part) => {
     const partStart = position;
     position += part.content.length;
-    if (part.type !== "text" || start < partStart || end > position) return [part];
+    if (part.type !== "text" || start < partStart || end > position)
+      return [part];
     const before = part.content.slice(0, start - partStart);
     const after = part.content.slice(end - partStart);
     return [
-      ...(before ? [{ type: "text" as const, content: before, start: 0, end: 0 }] : []),
+      ...(before
+        ? [{ type: "text" as const, content: before, start: 0, end: 0 }]
+        : []),
       mention,
       { type: "text" as const, content: ` ${after}`, start: 0, end: 0 },
     ];

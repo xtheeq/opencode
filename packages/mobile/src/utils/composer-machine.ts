@@ -64,7 +64,9 @@ function inputChanged(
   event: Extract<InteractionEvent, { type: "input.changed" }>,
 ): Transition {
   const setText: InteractionCommand[] =
-    event.persist !== false ? [{ type: "draft.setText", value: event.value }] : [];
+    event.persist !== false
+      ? [{ type: "draft.setText", value: event.value }]
+      : [];
   // End-anchored: the caret position from the native selection event can lag the
   // text-change event, so detect the trigger against the full value instead.
   const context = event.value.match(/(?:^|\s)@([^\s@]*)$/);
@@ -84,24 +86,39 @@ function inputChanged(
     ]);
   }
   return changed(
-    { ...state, popover: state.popover.type === "command-menu" ? state.popover : { type: "closed" } },
+    {
+      ...state,
+      popover:
+        state.popover.type === "command-menu"
+          ? state.popover
+          : { type: "closed" },
+    },
     setText,
   );
 }
 
-function openCommands(state: InteractionState, persisted: ComposerState): Transition {
+function openCommands(
+  state: InteractionState,
+  persisted: ComposerState,
+): Transition {
   if (!populated(persisted)) {
-    return changed({ ...state, popover: { type: "command-inline", query: "" } }, [
-      { type: "draft.setText", value: promptText(persisted) + "/" },
-      { type: "popover.filter", popover: "command", query: "" },
-    ]);
+    return changed(
+      { ...state, popover: { type: "command-inline", query: "" } },
+      [
+        { type: "draft.setText", value: promptText(persisted) + "/" },
+        { type: "popover.filter", popover: "command", query: "" },
+      ],
+    );
   }
   return changed({ ...state, popover: { type: "command-menu", query: "" } }, [
     { type: "popover.filter", popover: "command", query: "" },
   ]);
 }
 
-function openContext(state: InteractionState, persisted: ComposerState): Transition {
+function openContext(
+  state: InteractionState,
+  persisted: ComposerState,
+): Transition {
   return changed({ ...state, popover: { type: "context", query: "" } }, [
     { type: "draft.setText", value: promptText(persisted) + "@" },
     { type: "popover.filter", popover: "context", query: "" },
@@ -111,21 +128,28 @@ function openContext(state: InteractionState, persisted: ComposerState): Transit
 function queryChanged(state: InteractionState, value: string): Transition {
   if (state.popover.type === "closed") return changed(state);
   const popover = state.popover.type === "context" ? "context" : "command";
-  return changed({ ...state, popover: { ...state.popover, query: value, activeID: undefined } }, [
-    { type: "popover.filter", popover, query: value },
-  ]);
+  return changed(
+    {
+      ...state,
+      popover: { ...state.popover, query: value, activeID: undefined },
+    },
+    [{ type: "popover.filter", popover, query: value }],
+  );
 }
 
 function resultsChanged(state: InteractionState, ids: string[]): Transition {
   if (state.popover.type === "closed") return changed(state);
   const activeID =
-    state.popover.activeID && ids.includes(state.popover.activeID) ? state.popover.activeID : ids[0];
+    state.popover.activeID && ids.includes(state.popover.activeID)
+      ? state.popover.activeID
+      : ids[0];
   if (activeID === state.popover.activeID) return changed(state);
   return changed({ ...state, popover: { ...state.popover, activeID } });
 }
 
 function activeChanged(state: InteractionState, id: string): Transition {
-  if (state.popover.type === "closed" || state.popover.activeID === id) return changed(state);
+  if (state.popover.type === "closed" || state.popover.activeID === id)
+    return changed(state);
   return changed({ ...state, popover: { ...state.popover, activeID: id } });
 }
 
@@ -153,18 +177,31 @@ function suggestionSelected(
 }
 
 function promptText(state: ComposerState) {
-  return state.prompt.map((part) => (part.type === "text" ? part.content : "")).join("");
+  return state.prompt
+    .map((part) => (part.type === "text" ? part.content : ""))
+    .join("");
 }
 
 function populated(state: ComposerState) {
-  return !!promptText(state).trim() || state.prompt.some((part) => part.type === "file");
+  return (
+    !!promptText(state).trim() ||
+    state.prompt.some((part) => part.type === "file")
+  );
 }
 
-function replaceTrigger(value: string, trigger: "@" | "/", replacement: string) {
-  const index = trigger === "/" ? value.indexOf(trigger) : value.lastIndexOf(trigger);
+function replaceTrigger(
+  value: string,
+  trigger: "@" | "/",
+  replacement: string,
+) {
+  const index =
+    trigger === "/" ? value.indexOf(trigger) : value.lastIndexOf(trigger);
   return index < 0 ? replacement : value.slice(0, index) + replacement;
 }
 
-function changed(state: InteractionState, commands: InteractionCommand[] = []): Transition {
+function changed(
+  state: InteractionState,
+  commands: InteractionCommand[] = [],
+): Transition {
   return { state, commands };
 }

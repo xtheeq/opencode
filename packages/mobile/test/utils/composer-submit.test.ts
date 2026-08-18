@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import type { ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
-import { buildPromptRequest, submitComposer, type ComposerApi } from "@/utils/composer-submit";
+import {
+  buildPromptRequest,
+  submitComposer,
+  type ComposerApi,
+} from "@/utils/composer-submit";
 import type { ComposerPart, ComposerState } from "@/types/composer";
 import { eventStore } from "@/stores/store";
 
@@ -44,7 +48,14 @@ describe("buildPromptRequest", () => {
   test("joins all part contents into the request text", () => {
     const prompt: ComposerPart[] = [
       { type: "text", content: "A ", start: 0, end: 2 },
-      { type: "file", path: "/p/one.ts", content: "@/p/one.ts", start: 2, end: 13, filename: "one.ts" },
+      {
+        type: "file",
+        path: "/p/one.ts",
+        content: "@/p/one.ts",
+        start: 2,
+        end: 13,
+        filename: "one.ts",
+      },
       { type: "text", content: " B", start: 13, end: 15 },
     ];
 
@@ -52,7 +63,11 @@ describe("buildPromptRequest", () => {
 
     expect(request.text).toBe("A @/p/one.ts B");
     expect(request.files).toEqual([
-      { uri: "file:///p/one.ts", name: "one.ts", mention: { start: 2, end: 13, text: "@/p/one.ts" } },
+      {
+        uri: "file:///p/one.ts",
+        name: "one.ts",
+        mention: { start: 2, end: 13, text: "@/p/one.ts" },
+      },
     ]);
     expect(request.agents).toEqual([]);
   });
@@ -76,11 +91,15 @@ describe("buildPromptRequest", () => {
   });
 
   test("maps agent parts to agent attachments", () => {
-    const prompt: ComposerPart[] = [{ type: "agent", name: "coder", content: "@coder", start: 0, end: 6 }];
+    const prompt: ComposerPart[] = [
+      { type: "agent", name: "coder", content: "@coder", start: 0, end: 6 },
+    ];
 
     const request = buildPromptRequest(prompt);
 
-    expect(request.agents).toEqual([{ name: "coder", mention: { start: 0, end: 6, text: "@coder" } }]);
+    expect(request.agents).toEqual([
+      { name: "coder", mention: { start: 0, end: 6, text: "@coder" } },
+    ]);
   });
 });
 
@@ -106,7 +125,10 @@ describe("submitComposer", () => {
     const { api, calls } = recordingApi();
 
     await submitComposer({
-      state: state({ agent: "coder", model: { providerID: "openai", modelID: "gpt-5", variant: null } }),
+      state: state({
+        agent: "coder",
+        model: { providerID: "openai", modelID: "gpt-5", variant: null },
+      }),
       session: {
         id: "ses_1",
         agent: "planner",
@@ -122,8 +144,17 @@ describe("submitComposer", () => {
     const { api, calls } = recordingApi();
 
     await submitComposer({
-      state: state({ model: { providerID: "anthropic", modelID: "claude", variant: "thinking" } }),
-      session: { id: "ses_1", model: { id: "claude", providerID: "anthropic", variant: undefined } },
+      state: state({
+        model: {
+          providerID: "anthropic",
+          modelID: "claude",
+          variant: "thinking",
+        },
+      }),
+      session: {
+        id: "ses_1",
+        model: { id: "claude", providerID: "anthropic", variant: undefined },
+      },
       api,
     });
 
@@ -135,7 +166,11 @@ describe("submitComposer", () => {
 
     await submitComposer({
       state: state(),
-      session: { id: "ses_1", agent: "planner", model: { id: "claude", providerID: "anthropic" } },
+      session: {
+        id: "ses_1",
+        agent: "planner",
+        model: { id: "claude", providerID: "anthropic" },
+      },
       api,
     });
 
@@ -143,7 +178,11 @@ describe("submitComposer", () => {
   });
 
   test("creates a session with the selection and default location when none exists", async () => {
-    const created: { agent?: string; model?: ModelRef; location?: { directory: string } }[] = [];
+    const created: {
+      agent?: string;
+      model?: ModelRef;
+      location?: { directory: string };
+    }[] = [];
     const { prompts } = recordingApi();
     const api: ComposerApi = {
       create: async (input) => {
@@ -158,7 +197,10 @@ describe("submitComposer", () => {
     };
 
     const result = await submitComposer({
-      state: state({ agent: "coder", model: { providerID: "openai", modelID: "gpt-5", variant: null } }),
+      state: state({
+        agent: "coder",
+        model: { providerID: "openai", modelID: "gpt-5", variant: null },
+      }),
       api,
     });
 
@@ -184,7 +226,12 @@ describe("submitComposer", () => {
   test("passes through queue delivery", async () => {
     const { api, prompts } = recordingApi();
 
-    await submitComposer({ state: state(), session: { id: "ses_1" }, api, delivery: "queue" });
+    await submitComposer({
+      state: state(),
+      session: { id: "ses_1" },
+      api,
+      delivery: "queue",
+    });
 
     expect(prompts[0].delivery).toBe("queue");
   });
@@ -194,7 +241,10 @@ describe("submitComposer", () => {
 
     await expect(
       submitComposer({
-        state: { prompt: [{ type: "text", content: "", start: 0, end: 0 }], cursor: 0 },
+        state: {
+          prompt: [{ type: "text", content: "", start: 0, end: 0 }],
+          cursor: 0,
+        },
         api,
       }),
     ).rejects.toThrow();
