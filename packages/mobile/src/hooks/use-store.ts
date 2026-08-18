@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { eventStore } from "@/stores/store";
 import { hydrateSession } from "@/stores/sync";
+import { sortProjects } from "@/utils/project";
 import type {
   SessionInfo,
   SessionMessageInfo,
@@ -45,7 +46,7 @@ export function useSessionsLoaded() {
 
 export function useProjects() {
   const projects = eventStore(useShallow((s) => Object.values(s.project.info)));
-  return [...projects].sort((a, b) => b.time.updated - a.time.updated);
+  return sortProjects(projects);
 }
 
 export function useProjectsLoaded() {
