@@ -9,7 +9,13 @@ import { borderRadius, spacing, typography, useTheme } from "@/theme";
 import type { AgentPart, FilePart } from "@/types/composer";
 import { SuggestionSheet } from "./suggestion-sheet";
 
-export function Composer({ sessionID }: { sessionID: string }) {
+export function Composer({
+  sessionID,
+  onSubmitted,
+}: {
+  sessionID: string;
+  onSubmitted?: (sessionID: string) => void;
+}) {
   const {
     text,
     parts,
@@ -38,7 +44,8 @@ export function Composer({ sessionID }: { sessionID: string }) {
     }
     if (!canSubmit) return;
     try {
-      await submit();
+      const result = await submit();
+      onSubmitted?.(result.sessionID);
     } catch (error) {
       raiseCue({
         kind: "error",

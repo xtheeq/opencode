@@ -5,29 +5,24 @@ import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
 import { AppHeader } from "@/components/app-header";
-import { PromptInput } from "@/components/prompt-input";
+import { Composer } from "@/components/composer";
 import { ProjectPicker } from "@/components/project-picker";
-import { useCreateSession } from "@/hooks/use-create-session";
-import {
-  useActiveLocation,
-  useProjects,
-  useProjectsLoaded,
-} from "@/hooks/use-store";
+import { composerReset } from "@/stores/composer";
+import { useActiveLocation, useProjects, useProjectsLoaded } from "@/hooks/use-store";
 import { activateDefaultLocation, selectProject } from "@/stores/project";
-import { getClient } from "@/stores/store";
 import { syncProjectList } from "@/stores/sync";
+
+// Reserved key for the "new session" composer on this screen. Real session ids
+// are `ses_*`, so this cannot collide with an existing session.
+const NEW_SESSION_KEY = "new";
 
 export default function HomeScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { createSession } = useCreateSession();
   const projects = useProjects();
   const projectsLoaded = useProjectsLoaded();
-  const activeLocation = useActiveLocation();
-  const [mode, setMode] = useState<"picker" | "compose">(
-    activeLocation.directory ? "compose" : "picker",
-  );
-  const [switching, setSwitching] = useState(false);
+  const { directory } = useActiveLocation();
+  const [selecting, setSelecting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Cold launch with no selected project lands on the picker. The project list
@@ -37,25 +32,34 @@ export default function HomeScreen() {
     if (!projectsLoaded) void syncProjectList().catch(() => undefined);
   }, [projectsLoaded]);
 
-  const select = async (directory: string) => {
-    if (switching) return;
-    setSwitching(true);
+  // A new session is scoped to the selected project; switching it (via the
+  // drawer) clears any half-typed draft so mentions never reference the old
+  // project. Track the previous directory so the initial mount never wipes a
+  // draft.
+  const [previousDirectory, setPreviousDirectory] = useState(directory);
+  useEffect(() => {
+    if (directory === previousDirectory) return;
+    composerReset(NEW_SESSION_KEY);
+    setPreviousDirectory(directory);
+  }, [directory, previousDirectory]);
+
+  const select = async (nextDirectory: string) => {
+    if (selecting) return;
+    setSelecting(true);
     try {
-      await selectProject(directory);
-      setMode("compose");
+      await selectProject(nextDirectory);
     } finally {
-      setSwitching(false);
+      setSelecting(false);
     }
   };
 
   const useDefault = async () => {
-    if (switching) return;
-    setSwitching(true);
+    if (selecting) return;
+    setSelecting(true);
     try {
       await activateDefaultLocation();
-      setMode("compose");
     } finally {
-      setSwitching(false);
+      setSelecting(false);
     }
   };
 
@@ -65,35 +69,8 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
 
-  async function handleInitialSend(text: string) {
-    const session = await createSession();
-    await getClient().session.prompt({
-      sessionID: session.id,
-      text,
-      delivery: "steer",
-    });
-    router.push({ pathname: "/session/[id]", params: { id: session.id } });
-  }
-
-  if (mode === "picker") {
-    return (
-      <View
-        style={[
-          styles.connectedContainer,
-          { backgroundColor: colors.background.default },
-        ]}
-      >
-        <AppHeader />
-        <ProjectPicker
-          projects={projects}
-          loaded={projectsLoaded}
-          onSelect={select}
-          onUseDefault={useDefault}
-          refreshing={refreshing}
-          onRefresh={refreshProjects}
-        />
-      </View>
-    );
+  function navigateToSession(sessionID: string) {
+    router.push({ pathname: "/session/[id]", params: { id: sessionID } });
   }
 
   return (
@@ -104,13 +81,23 @@ export default function HomeScreen() {
       ]}
     >
       <AppHeader />
-      <View style={{ flex: 1 }} />
-      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
-        <PromptInput
-          onSubmit={handleInitialSend}
-          placeholder="Start a new session..."
+      {directory ? (
+        <>
+          <View style={{ flex: 1 }} />
+          <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+            <Composer sessionID={NEW_SESSION_KEY} onSubmitted={navigateToSession} />
+          </KeyboardStickyView>
+        </>
+      ) : (
+        <ProjectPicker
+          projects={projects}
+          loaded={projectsLoaded}
+          onSelect={select}
+          onUseDefault={useDefault}
+          refreshing={refreshing}
+          onRefresh={refreshProjects}
         />
-      </KeyboardStickyView>
+      )}
     </View>
   );
 }
