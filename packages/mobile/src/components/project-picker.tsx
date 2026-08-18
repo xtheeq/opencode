@@ -50,7 +50,7 @@ export function ProjectPicker({
       data={projects}
       keyExtractor={(project) => project.id}
       contentContainerStyle={styles.list}
-      refreshing={refreshing}
+      refreshing={refreshing ?? false}
       onRefresh={onRefresh}
       renderItem={({ item }) => (
         <ProjectRow
