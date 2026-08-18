@@ -1,14 +1,12 @@
 import { ActivityIndicator, FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
-import CircleCheck from "lucide-react-native/icons/circle-check";
 import { Button, Text } from "@/components/primitives";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import type { Project } from "@opencode-ai/client/promise";
-import { isProjectActive, projectDisplayName } from "@/utils/project";
+import { projectDisplayName } from "@/utils/project";
 
 export function ProjectPicker({
   projects,
   loaded,
-  activeDirectory,
   onSelect,
   onUseDefault,
   refreshing,
@@ -16,7 +14,6 @@ export function ProjectPicker({
 }: {
   projects: Project[];
   loaded: boolean;
-  activeDirectory?: string;
   onSelect: (directory: string) => void;
   onUseDefault?: () => void;
   refreshing?: boolean;
@@ -55,7 +52,6 @@ export function ProjectPicker({
       renderItem={({ item }) => (
         <ProjectRow
           project={item}
-          active={isProjectActive(item, activeDirectory)}
           onPress={() => onSelect(item.canonical)}
         />
       )}
@@ -65,11 +61,9 @@ export function ProjectPicker({
 
 function ProjectRow({
   project,
-  active,
   onPress,
 }: {
   project: Project;
-  active: boolean;
   onPress: () => void;
 }) {
   const { colors } = useTheme();
@@ -81,7 +75,6 @@ function ProjectRow({
       activeOpacity={0.7}
       accessibilityRole="button"
       accessibilityLabel={name}
-      accessibilityState={{ selected: active }}
       style={[
         styles.row,
         {
@@ -113,7 +106,6 @@ function ProjectRow({
           </Text>
         </View>
       ) : null}
-      {active ? <CircleCheck size={18} color={colors.action.primary} /> : null}
     </TouchableOpacity>
   );
 }
