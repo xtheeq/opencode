@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Part as PartType } from "@opencode-ai/sdk/v2"
+import type { Part } from "../presentation"
 import { partDefaultOpen } from "./part-default-open"
 
 describe("partDefaultOpen", () => {
@@ -71,12 +71,13 @@ describe("partDefaultOpen", () => {
     ).toBe(true)
   })
 
-  test("preserves shell defaults", () => {
+  test("applies shell defaults to console tools", () => {
     expect(partDefaultOpen(tool("shell", {}), true, false)).toBe(true)
+    expect(partDefaultOpen(tool("execute", {}), true, false)).toBe(true)
   })
 })
 
-function tool(name: string, metadata: Record<string, unknown>): PartType {
+function tool(name: string, metadata: Record<string, unknown>): Part {
   return {
     id: `part_${name}`,
     sessionID: "session",
