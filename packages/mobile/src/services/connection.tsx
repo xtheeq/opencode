@@ -44,6 +44,7 @@ export function disconnect() {
     s._client = null;
     s._serverUrl = null;
     s._defaultLocation = { directory: "" };
+    s._loadedProjects = false;
     s.connection = { status: "disconnected", attempt: 0, everConnected: false };
   });
   dismissCueKey(CONNECTION_CUE_KEY);

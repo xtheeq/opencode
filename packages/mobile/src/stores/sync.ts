@@ -400,6 +400,7 @@ export async function syncProjectList() {
       for (const project of projects) {
         s.project.info[project.id] = project;
       }
+      s._loadedProjects = true;
     });
   });
 }

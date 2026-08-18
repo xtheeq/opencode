@@ -43,6 +43,19 @@ export function useSessionsLoaded() {
   return eventStore((s) => s._loadedSessions);
 }
 
+export function useProjects() {
+  const projects = eventStore(useShallow((s) => Object.values(s.project.info)));
+  return [...projects].sort((a, b) => b.time.updated - a.time.updated);
+}
+
+export function useProjectsLoaded() {
+  return eventStore((s) => s._loadedProjects);
+}
+
+export function useActiveLocation() {
+  return eventStore((s) => s._defaultLocation);
+}
+
 export function useSessionInfo(sessionID: string) {
   return eventStore((s) => s.session.info[sessionID]);
 }

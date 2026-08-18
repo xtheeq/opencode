@@ -100,6 +100,7 @@ export type Store = {
   // session that has a key here.
   _hydration: Record<string, HydrationStatus>;
   _loadedSessions: boolean;
+  _loadedProjects: boolean;
   _defaultLocation: LocationRef;
   _client: OpenCodeClient | null;
   _serverConfigLoaded: boolean;
@@ -135,6 +136,7 @@ export const eventStore = create<Store>()(
     _defaultLocation: { directory: "" },
     _hydration: {},
     _loadedSessions: false,
+    _loadedProjects: false,
     _client: null,
     _serverConfigLoaded: false,
     _locationLoaded: false,
