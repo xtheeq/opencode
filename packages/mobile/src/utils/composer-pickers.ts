@@ -72,6 +72,19 @@ export function modelDisplayName(
   );
 }
 
+// Variant ids for a base model: empty when it has none, undefined when unknown.
+export function modelVariants(
+  models: ModelInfo[],
+  model: ModelSelection,
+): string[] | undefined {
+  return models
+    .find(
+      (item) =>
+        item.providerID === model.providerID && item.modelID === model.modelID,
+    )
+    ?.variants.map((variant) => variant.id);
+}
+
 // Draft pick wins, then the session's committed model, then the primary
 // agent's configured model. Never invents a default from the catalog.
 export function resolveCurrentModel(

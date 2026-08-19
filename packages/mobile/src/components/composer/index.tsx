@@ -13,10 +13,11 @@ import { Text } from "@/components/primitives";
 import { useComposer } from "@/hooks/use-composer";
 import { raiseCue } from "@/stores/cues";
 import { borderRadius, spacing, typography, useTheme } from "@/theme";
-import type { AgentPart, FilePart } from "@/types/composer";
+import type { AgentPart, FilePart, ModelSelection } from "@/types/composer";
 import { modelSelectionKey } from "@/utils/composer-pickers";
 import { ModelPicker } from "./model-picker";
 import { SuggestionSheet } from "./suggestion-sheet";
+import { VariantPicker } from "./variant-picker";
 
 export function Composer({
   sessionID,
@@ -35,6 +36,8 @@ export function Composer({
     model,
     modelName,
     sections,
+    variantsFor,
+    modelNameOf,
     setModel,
     onChangeText,
     onCursor,
@@ -45,6 +48,7 @@ export function Composer({
   } = useComposer(sessionID);
   const { colors, effects } = useTheme();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [variantPickerOpen, setVariantPickerOpen] = useState(false);
 
   const popover = interaction.popover;
   const sheetOpen = popover.type !== "closed";
@@ -73,6 +77,23 @@ export function Composer({
     working || canSubmit ? colors.action.primary : colors.action.disabled;
   const buttonIconColor =
     working || canSubmit ? colors.action.primaryText : colors.icon.muted;
+
+  const currentBase = model;
+  const currentVariants = currentBase ? (variantsFor(currentBase) ?? []) : [];
+  const showVariantControl = currentVariants.length > 0;
+
+  const handleModelSelect = (next: ModelSelection) => {
+    const preserved =
+      model && modelSelectionKey(model) === modelSelectionKey(next)
+        ? (model.variant ?? undefined)
+        : undefined;
+    setModel({ ...next, variant: preserved });
+  };
+
+  const handleVariantSelect = (variant: string | undefined) => {
+    if (currentBase) setModel({ ...currentBase, variant });
+    setVariantPickerOpen(false);
+  };
 
   return (
     <View
@@ -167,6 +188,26 @@ export function Composer({
               </Text>
               <ChevronDown size={14} color={colors.icon.muted} />
             </TouchableOpacity>
+            {showVariantControl ? (
+              <TouchableOpacity
+                onPress={() => setVariantPickerOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Choose variant"
+                style={[
+                  styles.modelButton,
+                  { borderColor: colors.border.subtle },
+                ]}
+              >
+                <Text
+                  variant="label"
+                  numberOfLines={1}
+                  style={styles.modelButtonLabel}
+                >
+                  {model?.variant ?? "Default"}
+                </Text>
+                <ChevronDown size={14} color={colors.icon.muted} />
+              </TouchableOpacity>
+            ) : null}
           </View>
           <TouchableOpacity
             style={[styles.sendButton, { backgroundColor: buttonBackground }]}
@@ -188,7 +229,15 @@ export function Composer({
         onClose={() => setModelPickerOpen(false)}
         sections={sections}
         currentKey={model ? modelSelectionKey(model) : undefined}
-        onSelect={setModel}
+        onSelect={handleModelSelect}
+      />
+      <VariantPicker
+        visible={variantPickerOpen}
+        onClose={() => setVariantPickerOpen(false)}
+        baseName={currentBase ? modelNameOf(currentBase) : ""}
+        variants={currentVariants}
+        currentVariant={currentBase?.variant ?? undefined}
+        onSelect={handleVariantSelect}
       />
     </View>
   );
@@ -243,6 +292,9 @@ const styles = StyleSheet.create({
   },
   toolbarLeading: {
     flex: 1,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
   },
   modelButton: {
     flexDirection: "row",
@@ -250,6 +302,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     alignSelf: "flex-start",
     maxWidth: "100%",
+    flexShrink: 1,
     borderWidth: 1,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.sm,

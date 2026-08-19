@@ -30,6 +30,7 @@ import {
 import {
   modelDisplayName,
   modelSections,
+  modelVariants,
   resolveCurrentModel,
 } from "@/utils/composer-pickers";
 import type { ModelSelection } from "@/types/composer";
@@ -110,6 +111,8 @@ export function useComposer(sessionID: string) {
   );
   const modelName = model ? modelDisplayName(models, model) : undefined;
   const sections = modelSections(models, providers);
+  const variantsFor = (base: ModelSelection) => modelVariants(models, base);
+  const modelNameOf = (base: ModelSelection) => modelDisplayName(models, base);
 
   const suggestions = sheetSuggestions(interaction, {
     commands: commandSuggestions(location.command ?? []),
@@ -157,6 +160,8 @@ export function useComposer(sessionID: string) {
     model,
     modelName,
     sections,
+    variantsFor,
+    modelNameOf,
     setModel: (next: ModelSelection | undefined) =>
       composerSetModel(sessionID, next),
     onChangeText: (value: string) =>

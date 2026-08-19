@@ -11,6 +11,7 @@ import {
   modelRefToSelection,
   modelSections,
   modelSelectionKey,
+  modelVariants,
   resolveCurrentModel,
   type ModelSection,
 } from "@/utils/composer-pickers";
@@ -179,6 +180,35 @@ describe("modelDisplayName", () => {
     expect(modelDisplayName([], { providerID: "openai", modelID: "gpt" })).toBe(
       "gpt",
     );
+  });
+});
+
+describe("modelVariants", () => {
+  test("returns the variant ids for a known base model", () => {
+    const models = [
+      model({
+        modelID: "claude",
+        variants: [{ id: "sonnet" }, { id: "opus" }],
+      }),
+    ];
+    expect(
+      modelVariants(models, { providerID: "openai", modelID: "claude" }),
+    ).toEqual(["sonnet", "opus"]);
+  });
+
+  test("returns an empty list for a base model with no variants", () => {
+    expect(
+      modelVariants([model({ modelID: "claude" })], {
+        providerID: "openai",
+        modelID: "claude",
+      }),
+    ).toEqual([]);
+  });
+
+  test("returns undefined for an unknown base model", () => {
+    expect(
+      modelVariants([], { providerID: "openai", modelID: "missing" }),
+    ).toBeUndefined();
   });
 });
 
