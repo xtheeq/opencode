@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   StyleSheet,
   TextInput as RNTextInput,
@@ -5,6 +6,7 @@ import {
   View,
 } from "react-native";
 import ArrowUp from "lucide-react-native/icons/arrow-up";
+import ChevronDown from "lucide-react-native/icons/chevron-down";
 import Square from "lucide-react-native/icons/square";
 import X from "lucide-react-native/icons/x";
 import { Text } from "@/components/primitives";
@@ -12,6 +14,8 @@ import { useComposer } from "@/hooks/use-composer";
 import { raiseCue } from "@/stores/cues";
 import { borderRadius, spacing, typography, useTheme } from "@/theme";
 import type { AgentPart, FilePart } from "@/types/composer";
+import { modelSelectionKey } from "@/utils/composer-pickers";
+import { ModelPicker } from "./model-picker";
 import { SuggestionSheet } from "./suggestion-sheet";
 
 export function Composer({
@@ -28,6 +32,10 @@ export function Composer({
     working,
     interaction,
     suggestions,
+    model,
+    modelName,
+    sections,
+    setModel,
     onChangeText,
     onCursor,
     select,
@@ -36,6 +44,7 @@ export function Composer({
     removeMention,
   } = useComposer(sessionID);
   const { colors, effects } = useTheme();
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   const popover = interaction.popover;
   const sheetOpen = popover.type !== "closed";
@@ -139,6 +148,26 @@ export function Composer({
           textAlignVertical="center"
         />
         <View style={styles.toolbar}>
+          <View style={styles.toolbarLeading}>
+            <TouchableOpacity
+              onPress={() => setModelPickerOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Choose model"
+              style={[
+                styles.modelButton,
+                { borderColor: colors.border.subtle },
+              ]}
+            >
+              <Text
+                variant="label"
+                numberOfLines={1}
+                style={styles.modelButtonLabel}
+              >
+                {modelName ?? "Model"}
+              </Text>
+              <ChevronDown size={14} color={colors.icon.muted} />
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity
             style={[styles.sendButton, { backgroundColor: buttonBackground }]}
             onPress={handleSubmit}
@@ -154,6 +183,13 @@ export function Composer({
           </TouchableOpacity>
         </View>
       </View>
+      <ModelPicker
+        visible={modelPickerOpen}
+        onClose={() => setModelPickerOpen(false)}
+        sections={sections}
+        currentKey={model ? modelSelectionKey(model) : undefined}
+        onSelect={setModel}
+      />
     </View>
   );
 }
@@ -200,9 +236,27 @@ const styles = StyleSheet.create({
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    gap: spacing.sm,
     minHeight: 44,
     paddingHorizontal: spacing.xs,
+  },
+  toolbarLeading: {
+    flex: 1,
+  },
+  modelButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    borderWidth: 1,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  modelButtonLabel: {
+    flexShrink: 1,
   },
   sendButton: {
     padding: spacing.sm,

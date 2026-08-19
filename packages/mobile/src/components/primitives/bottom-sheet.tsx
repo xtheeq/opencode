@@ -15,6 +15,7 @@ export interface BottomSheetProps {
   enablePanDownToClose?: boolean;
   snapPoints?: (string | number)[];
   initialIndex?: number;
+  fillContent?: boolean;
   children?: ReactNode;
 }
 
@@ -27,6 +28,7 @@ export function BottomSheet({
   enablePanDownToClose = true,
   snapPoints,
   initialIndex = 0,
+  fillContent = false,
   children,
 }: BottomSheetProps) {
   const { colors } = useTheme();
@@ -42,7 +44,11 @@ export function BottomSheet({
       onClose={onClose}
     >
       <View
-        style={[styles.content, { paddingBottom: insets.bottom + spacing.md }]}
+        style={[
+          styles.content,
+          fillContent && styles.contentFill,
+          { paddingBottom: insets.bottom + spacing.md },
+        ]}
       >
         {title || showCloseButton ? (
           <View style={styles.header}>
@@ -71,6 +77,10 @@ export function BottomSheet({
 const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.md,
+  },
+  contentFill: {
+    flexGrow: 1,
+    height: 0,
   },
   header: {
     flexDirection: "row",

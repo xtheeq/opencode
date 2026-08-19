@@ -8,6 +8,7 @@ import {
   composerReset,
   composerSelect,
   composerSetCursor,
+  composerSetModel,
   composerSubmit,
   useComposerDraft,
   useComposerFiles,
@@ -26,6 +27,12 @@ import {
   searchContextFiles,
   sheetSuggestions,
 } from "@/utils/composer-suggestions";
+import {
+  modelDisplayName,
+  modelSections,
+  resolveCurrentModel,
+} from "@/utils/composer-pickers";
+import type { ModelSelection } from "@/types/composer";
 import {
   useActiveLocation,
   useSessionActive,
@@ -91,6 +98,19 @@ export function useComposer(sessionID: string) {
   const parts = draft.prompt;
   const canSubmit = text.trim().length > 0;
 
+  const models = location.model ?? [];
+  const providers = location.provider ?? [];
+  const primaryAgentModel = location.agent?.find(
+    (agent) => agent.mode === "primary",
+  )?.model;
+  const model = resolveCurrentModel(
+    draft.model,
+    sessionInfo?.model,
+    primaryAgentModel,
+  );
+  const modelName = model ? modelDisplayName(models, model) : undefined;
+  const sections = modelSections(models, providers);
+
   const suggestions = sheetSuggestions(interaction, {
     commands: commandSuggestions(location.command ?? []),
     context: contextSuggestions({
@@ -134,6 +154,11 @@ export function useComposer(sessionID: string) {
     working,
     interaction,
     suggestions,
+    model,
+    modelName,
+    sections,
+    setModel: (next: ModelSelection | undefined) =>
+      composerSetModel(sessionID, next),
     onChangeText: (value: string) =>
       composerDispatch(sessionID, { type: "input.changed", value }, searchAt),
     onCursor: (cursor: number) => composerSetCursor(sessionID, cursor),
