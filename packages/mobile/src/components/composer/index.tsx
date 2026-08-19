@@ -114,7 +114,7 @@ export function Composer({
       )}
       <View
         style={[
-          styles.inputWrapper,
+          styles.shell,
           {
             backgroundColor: colors.background.surface,
             borderColor: colors.border.default,
@@ -138,19 +138,21 @@ export function Composer({
           multiline
           textAlignVertical="center"
         />
-        <TouchableOpacity
-          style={[styles.sendButton, { backgroundColor: buttonBackground }]}
-          onPress={handleSubmit}
-          disabled={!working && !canSubmit}
-          accessibilityRole="button"
-          accessibilityLabel={working ? "Stop" : "Send"}
-        >
-          {working ? (
-            <Square size={18} color={colors.action.primaryText} />
-          ) : (
-            <ArrowUp size={18} color={buttonIconColor} />
-          )}
-        </TouchableOpacity>
+        <View style={styles.toolbar}>
+          <TouchableOpacity
+            style={[styles.sendButton, { backgroundColor: buttonBackground }]}
+            onPress={handleSubmit}
+            disabled={!working && !canSubmit}
+            accessibilityRole="button"
+            accessibilityLabel={working ? "Stop" : "Send"}
+          >
+            {working ? (
+              <Square size={18} color={colors.action.primaryText} />
+            ) : (
+              <ArrowUp size={18} color={buttonIconColor} />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -185,19 +187,22 @@ const styles = StyleSheet.create({
   chipLabel: {
     flexShrink: 1,
   },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    borderRadius: borderRadius.xxl,
+  shell: {
+    borderRadius: borderRadius.xl,
     borderWidth: 1,
-    padding: spacing.xs,
   },
   input: {
-    flex: 1,
     paddingVertical: spacing.sm,
     paddingLeft: spacing.md,
     paddingRight: spacing.sm,
     maxHeight: typography.body.lineHeight * 5,
+  },
+  toolbar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    minHeight: 44,
+    paddingHorizontal: spacing.xs,
   },
   sendButton: {
     padding: spacing.sm,
