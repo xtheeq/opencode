@@ -1,80 +1,45 @@
+import Wrench from "lucide-react-native/icons/wrench";
 import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
 import { Text } from "@/components/primitives";
-
-function toolLabel(part: SessionMessageAssistantTool) {
-  const { state } = part;
-  switch (state.status) {
-    case "streaming":
-      return `${part.name} ${state.input}`;
-    case "running":
-    case "completed":
-    case "error":
-      return part.name;
-  }
-  const exhaustive: never = state;
-  return exhaustive;
-}
-
-function ToolContent({ part }: { part: SessionMessageAssistantTool }) {
-  const { state } = part;
-  switch (state.status) {
-    case "streaming":
-      return null;
-    case "running":
-      if (Object.keys(state.metadata).length === 0) return null;
-      return <Text variant="caption">{JSON.stringify(state.metadata)}</Text>;
-    case "completed":
-      return (
-        <>
-          {state.content.map((item, i) =>
-            item.type === "text" ? (
-              <Text key={i} variant="caption">
-                {item.text}
-              </Text>
-            ) : (
-              <Text key={i} variant="caption">
-                {item.name ?? item.mime}: {item.uri}
-              </Text>
-            ),
-          )}
-          {state.metadata && Object.keys(state.metadata).length > 0 && (
-            <Text variant="caption">{JSON.stringify(state.metadata)}</Text>
-          )}
-        </>
-      );
-    case "error":
-      return (
-        <>
-          {state.content?.map((item, i) =>
-            item.type === "text" ? (
-              <Text key={i} variant="caption">
-                {item.text}
-              </Text>
-            ) : (
-              <Text key={i} variant="caption">
-                {item.name ?? item.mime}: {item.uri}
-              </Text>
-            ),
-          )}
-          {state.metadata && Object.keys(state.metadata).length > 0 && (
-            <Text variant="caption">{JSON.stringify(state.metadata)}</Text>
-          )}
-        </>
-      );
-  }
-  const exhaustive: never = state;
-  return exhaustive;
-}
+import { BasicTool } from "./basic-tool";
+import {
+  stripAnsi,
+  toolArgs,
+  toolError,
+  toolInput,
+  toolLabel,
+  toolOutput,
+} from "@/utils/tool-state";
 
 export function GenericTool({ part }: { part: SessionMessageAssistantTool }) {
+  const input = toolInput(part);
+  const output = toolOutput(part);
+  const error = toolError(part);
+  const skipped = part.executed === false;
+
+  const body = error ? (
+    <Text variant="caption" color="error">
+      {error}
+    </Text>
+  ) : output ? (
+    <Text variant="mono" selectable>
+      {stripAnsi(output)}
+    </Text>
+  ) : skipped ? (
+    <Text variant="caption" color="secondary">
+      (skipped)
+    </Text>
+  ) : undefined;
+
   return (
-    <>
-      {part.executed === false && <Text variant="caption">(skipped)</Text>}
-      <Text variant="caption">{toolLabel(part)}</Text>
-      <ToolContent part={part} />
-      {part.state.status === "error" && (
-        <Text variant="caption">{part.state.error.message}</Text>
-      )}
-    </>
+    <BasicTool
+      icon={Wrench}
+      title={`Called \`${part.name}\``}
+      subtitle={toolLabel(input)}
+      args={toolArgs(input)}
+      status={part.state.status}
+    >
+      {body}
+    </BasicTool>
   );
 }
