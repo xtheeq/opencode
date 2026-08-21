@@ -34,7 +34,9 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
       recycleItems
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
-      maintainScrollAtEnd
+      maintainScrollAtEnd={{
+        on: { dataChange: true, itemLayout: false, layout: false, footerLayout: false },
+      }}
       alignItemsAtEnd
       keyboardOffset={insets.bottom}
       keyboardDismissMode="interactive"

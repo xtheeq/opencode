@@ -80,6 +80,13 @@ const synthetic = (): V2Event =>
     data: { sessionID: "ses_1", text: "hello" },
   }) as V2Event;
 
+const textDelta = (): V2Event =>
+  ({
+    id: "evt_text_delta",
+    type: "session.text.delta",
+    data: { sessionID: "ses_1", assistantMessageID: "msg_1", ordinal: 0, delta: "hi" },
+  }) as V2Event;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 afterEach(() => {
@@ -208,6 +215,51 @@ describe("EventManager hydration window", () => {
 
     expect(dispatched.map((event) => event.type)).toEqual([
       "server.connected",
+      "session.renamed",
+    ]);
+  });
+});
+
+describe("EventManager flush cadence", () => {
+  test("delta events batch on the slower cadence instead of flushing immediately", async () => {
+    const feed = createFeed();
+    const mgr = createEventManager(client(feed));
+    const dispatched: V2Event[] = [];
+    mgr.onAny((event) => dispatched.push(event));
+
+    await mgr.connect();
+    feed.push(connected());
+    await sleep(30);
+
+    feed.push(textDelta());
+    await sleep(20);
+    expect(dispatched.map((event) => event.type)).toEqual(["server.connected"]);
+
+    await sleep(120);
+    expect(dispatched.map((event) => event.type)).toEqual([
+      "server.connected",
+      "session.text.delta",
+    ]);
+  });
+
+  test("a structural event flushes queued deltas immediately, in order", async () => {
+    const feed = createFeed();
+    const mgr = createEventManager(client(feed));
+    const dispatched: V2Event[] = [];
+    mgr.onAny((event) => dispatched.push(event));
+
+    await mgr.connect();
+    feed.push(connected());
+    await sleep(30);
+
+    feed.push(textDelta());
+    await sleep(10);
+    feed.push(renamed());
+    await sleep(30);
+
+    expect(dispatched.map((event) => event.type)).toEqual([
+      "server.connected",
+      "session.text.delta",
       "session.renamed",
     ]);
   });

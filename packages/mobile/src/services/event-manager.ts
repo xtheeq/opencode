@@ -2,7 +2,10 @@ import { AppState, type AppStateStatus } from "react-native";
 import { type OpenCodeClient, type V2Event } from "@opencode-ai/client/promise";
 import type { ConnectionStatus } from "@/types/connection";
 import { isTransientError } from "@/services/transient-error";
-import { coalesceEvents } from "@/services/event-coalesce";
+import {
+  coalesceEvents,
+  isDeltaEvent,
+} from "@/services/event-coalesce";
 
 type EventMap = { [K in V2Event["type"]]: Extract<V2Event, { type: K }> };
 
@@ -21,7 +24,10 @@ const BASE_DELAY = 1_000;
 const MAX_DELAY = 30_000;
 const MAX_RECONNECT_ATTEMPTS = 6;
 const CONNECT_TIMEOUT = 2_000;
-const FLUSH_INTERVAL_MS = 16;
+// Streaming deltas batch on this cadence so the store fold — and the whole
+// list reconciliation it triggers — runs a fraction as often per generation.
+// Structural events bypass it and flush immediately, in order.
+const DELTA_FLUSH_INTERVAL_MS = 50;
 // Bounds how long a hydration window may hold live events before the UI
 // unblocks; a hung projection fetch must never freeze event dispatch.
 const HYDRATION_TIMEOUT_MS = 10_000;
@@ -136,9 +142,23 @@ class EventManager {
   }
 
   private emit(event: V2Event) {
+    if (this.hydrating) {
+      this.pending.push(event);
+      return;
+    }
     this.pending.push(event);
-    if (this.flushTimer || this.hydrating) return;
-    this.flushTimer = setTimeout(() => this.flushEvents(), FLUSH_INTERVAL_MS);
+    const immediate = !isDeltaEvent(event);
+    // A structural event shortens a pending delta batch to "now" so blockers,
+    // tool-called, step-ended, etc. are not held for the full delta window.
+    if (immediate && this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = undefined;
+    }
+    if (this.flushTimer) return;
+    this.flushTimer = setTimeout(
+      () => this.flushEvents(),
+      immediate ? 0 : DELTA_FLUSH_INTERVAL_MS,
+    );
   }
 
   private flushEvents() {
