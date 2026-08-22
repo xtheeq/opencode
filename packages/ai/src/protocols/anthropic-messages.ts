@@ -33,6 +33,18 @@ export const DEFAULT_BASE_URL = "https://api.anthropic.com/v1"
 export const PATH = "/messages"
 export const DEFAULT_MAX_TOKENS = 32_000
 
+const SSE_EVENTS = new Set([
+  "message",
+  "message_start",
+  "message_delta",
+  "message_stop",
+  "content_block_start",
+  "content_block_delta",
+  "content_block_stop",
+  "error",
+])
+export const framing = Framing.sseEvents(SSE_EVENTS)
+
 export type ThinkingInput =
   | {
       readonly type: "adaptive"
@@ -234,7 +246,7 @@ export type AnthropicMessagesBody = Schema.Schema.Type<typeof AnthropicMessagesB
 
 const AnthropicUsage = Schema.StructWithRest(
   Schema.Struct({
-    input_tokens: Schema.optional(Schema.Number),
+    input_tokens: optionalNull(Schema.Number),
     output_tokens: Schema.optional(Schema.Number),
     cache_creation_input_tokens: optionalNull(Schema.Number),
     cache_read_input_tokens: optionalNull(Schema.Number),
@@ -362,16 +374,18 @@ const lowerToolChoice = (toolChoice: NonNullable<LLMRequest["toolChoice"]>) =>
     tool: (name) => ({ type: "tool" as const, name }),
   })
 
+const scrubToolCallID = (id: string) => id.replace(/[^a-zA-Z0-9_-]/g, "_")
+
 const lowerToolCall = (part: ToolCallPart): AnthropicToolUseBlock => ({
   type: "tool_use",
-  id: part.id,
+  id: scrubToolCallID(part.id),
   name: part.name,
   input: part.input,
 })
 
 const lowerServerToolCall = (part: ToolCallPart): AnthropicServerToolUseBlock => ({
   type: "server_tool_use",
-  id: part.id,
+  id: scrubToolCallID(part.id),
   name: part.name,
   input: part.input,
 })
@@ -393,7 +407,7 @@ const lowerServerToolResult = Effect.fn("AnthropicMessages.lowerServerToolResult
   // Prefer the provider-owned replay payload; fall back to the result value for
   // histories constructed directly from provider events.
   const payload = part.providerMetadata?.anthropic?.["result"] ?? part.result.value
-  return { type: wireType, tool_use_id: part.id, content: payload } satisfies AnthropicServerToolResultBlock
+  return { type: wireType, tool_use_id: scrubToolCallID(part.id), content: payload } satisfies AnthropicServerToolResultBlock
 })
 
 const lowerMedia = Effect.fn("AnthropicMessages.lowerMedia")(function* (part: MediaPart) {
@@ -575,7 +589,7 @@ const lowerMessages = Effect.fn("AnthropicMessages.lowerMessages")(function* (
         return yield* ProviderShared.unsupportedContent("Anthropic Messages", "tool", ["tool-result"])
       content.push({
         type: "tool_result",
-        tool_use_id: part.id,
+        tool_use_id: scrubToolCallID(part.id),
         content: yield* lowerToolResultContent(part),
         is_error: part.result.type === "error" ? true : undefined,
         cache_control: cacheControl(breakpoints, part.cache),
@@ -692,7 +706,7 @@ const mapFinishReason = (reason: string | null | undefined): FinishReason => {
 // expose that subset through `output_tokens_details.thinking_tokens`.
 const mapUsage = (usage: AnthropicUsage | undefined): Usage | undefined => {
   if (!usage) return undefined
-  const nonCached = usage.input_tokens
+  const nonCached = usage.input_tokens ?? undefined
   const cacheRead = usage.cache_read_input_tokens ?? undefined
   const cacheWrite = usage.cache_creation_input_tokens ?? undefined
   const inputTokens = ProviderShared.sumTokens(nonCached, cacheRead, cacheWrite)
@@ -1039,7 +1053,7 @@ export const route = Route.make({
   protocol,
   endpoint: Endpoint.path(PATH, { baseURL: DEFAULT_BASE_URL }),
   auth: Auth.none,
-  framing: Framing.sse,
+  framing,
   headers: () => ({ "anthropic-version": "2023-06-01" }),
 })
 

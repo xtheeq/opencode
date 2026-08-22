@@ -378,16 +378,16 @@ const pluginSupervisor = Layer.succeed(
 )
 const promptCatalog = Layer.mock(Catalog.Service, {
   provider: {
-    get: () => Effect.succeed(undefined),
+    get: () => Effect.undefined,
     all: () => Effect.succeed([]),
     available: () => Effect.succeed([]),
   },
   model: {
-    get: () => Effect.succeed(undefined),
+    get: () => Effect.undefined,
     all: () => Effect.succeed([]),
     available: () => Effect.succeed([]),
-    default: () => Effect.succeed(undefined),
-    small: () => Effect.succeed(undefined),
+    default: () => Effect.undefined,
+    small: () => Effect.undefined,
   },
 })
 const runnerLayer = AppNodeBuilder.build(SessionRunnerLLM.node, [
@@ -558,6 +558,17 @@ const providerUnavailable = () =>
       message: "Provider unavailable",
       transport: "http",
       operation: "request",
+    }),
+  })
+
+const streamDisconnected = () =>
+  new AIError({
+    module: "test",
+    method: "stream",
+    reason: new TransportReason({
+      message: "The socket connection was closed unexpectedly",
+      transport: "http",
+      operation: "read",
     }),
   })
 
@@ -2115,7 +2126,7 @@ describe("SessionRunnerLLM", () => {
       const active = yield* session.resume(sessionID).pipe(Effect.forkChild)
       yield* stream.started
 
-      const first = yield* session.compact({ sessionID })
+      const first = yield* session.compact({ sessionID, delivery: "queue" })
       expect(yield* SessionInbox.find((yield* Database.Service).db, first.id)).toMatchObject({
         id: first.id,
       })
@@ -2228,6 +2239,68 @@ describe("SessionRunnerLLM", () => {
         type: "compaction",
         status: "completed",
         summary: "Manual summary",
+      })
+    }),
+  )
+
+  it.effect("runs manual compaction at the next step boundary before queued prompts", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      currentModel = recoveryModel
+      const stream = yield* TestLLM.gate
+      yield* TestLLM.push(
+        TestLLM.text("Active complete", "text-active-steer-compact"),
+        [LLMEvent.textDelta({ id: "summary", text: "durable summary" })],
+        TestLLM.text("Queue complete", "text-queue-after-compact"),
+      )
+      yield* admit(session, "Active work")
+      const active = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* stream.started
+
+      const compaction = yield* session.compact({ sessionID })
+      yield* session.prompt({ sessionID, text: "Queued prompt", delivery: "queue", resume: false })
+      yield* stream.release
+      yield* Fiber.join(active)
+
+      // Steer-delivered compaction runs at the boundary after the active step, ahead of
+      // the queued prompt, and consuming it does not trigger an input-free model call.
+      expect(requests).toHaveLength(3)
+      expect(userTexts(requests[1])[0]).toContain("Create a new anchored summary")
+      expect(userTexts(requests[2])).toContain("Queued prompt")
+      expect(yield* SessionInbox.find((yield* Database.Service).db, compaction.id)).toBeUndefined()
+      expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
+        type: "compaction",
+        status: "completed",
+        summary: "durable summary",
+      })
+    }),
+  )
+
+  it.effect("runs manual compaction before the continuation of an active tool turn", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      currentModel = recoveryModel
+      const stream = yield* TestLLM.gate
+      yield* TestLLM.push(
+        TestLLM.tool("call-active", "echo", { text: "active" }),
+        [LLMEvent.textDelta({ id: "summary", text: "durable summary" })],
+        TestLLM.text("Continued", "text-continued-after-compact"),
+      )
+      yield* admit(session, "Active work")
+      const active = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* stream.started
+
+      const compaction = yield* session.compact({ sessionID })
+      yield* stream.release
+      yield* Fiber.join(active)
+
+      // The compaction summary is requested before the tool turn's continuation step.
+      expect(requests).toHaveLength(3)
+      expect(userTexts(requests[1])[0]).toContain("Create a new anchored summary")
+      expect((yield* session.messages({ sessionID })).find((message) => message.id === compaction.id)).toMatchObject({
+        type: "compaction",
+        status: "completed",
+        summary: "durable summary",
       })
     }),
   )
@@ -4446,6 +4519,31 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("retries an unknown finish before output", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      yield* admit(session, "Retry unknown finish")
+      yield* TestLLM.push([
+        LLMEvent.stepStart({ index: 0 }),
+        LLMEvent.stepFinish({ index: 0, reason: { normalized: "unknown" } }),
+        LLMEvent.finish({ reason: { normalized: "unknown" } }),
+      ])
+      yield* TestLLM.push(TestLLM.text("Recovered", "unknown-finish-success"))
+
+      const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* TestLLM.wait(1)
+      yield* TestClock.adjust("2400 millis")
+      yield* Fiber.join(run)
+
+      expect(requests).toHaveLength(2)
+      expect(yield* recordedEventTypes(sessionID)).toContain("session.retry.scheduled.1")
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user" },
+        { type: "assistant", finish: "stop", content: [{ type: "text", text: "Recovered" }] },
+      ])
+    }),
+  )
+
   it.effect("uses a larger provider retry-after delay", () =>
     Effect.gen(function* () {
       const session = yield* setup
@@ -4521,6 +4619,39 @@ describe("SessionRunnerLLM", () => {
     }),
   )
 
+  it.effect("continues an unknown finish after observable text", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      yield* admit(session, "Continue unknown finish")
+      yield* TestLLM.push([
+        LLMEvent.stepStart({ index: 0 }),
+        LLMEvent.textStart({ id: "unknown-partial" }),
+        LLMEvent.textDelta({ id: "unknown-partial", text: "Partial" }),
+        LLMEvent.textEnd({ id: "unknown-partial" }),
+        LLMEvent.stepFinish({ index: 0, reason: { normalized: "unknown" } }),
+        LLMEvent.finish({ reason: { normalized: "unknown" } }),
+      ])
+      yield* TestLLM.push(TestLLM.text(" continuation", "unknown-continuation"))
+
+      const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* TestLLM.wait(1)
+      yield* TestClock.adjust("2400 millis")
+      yield* Fiber.join(run)
+
+      expect(requests).toHaveLength(2)
+      expect(requests[1]?.messages.at(-1)).toMatchObject({
+        role: "user",
+        content: [{ type: "text", text: INCOMPLETE_STREAM_CONTINUATION }],
+      })
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user" },
+        { type: "assistant", finish: "error", content: [{ type: "text", text: "Partial" }] },
+        { type: "synthetic", text: INCOMPLETE_STREAM_CONTINUATION },
+        { type: "assistant", finish: "stop", content: [{ type: "text", text: " continuation" }] },
+      ])
+    }),
+  )
+
   it.effect("lowers interrupted reasoning before continuing an incomplete stream", () =>
     Effect.gen(function* () {
       const session = yield* setup
@@ -4557,6 +4688,54 @@ describe("SessionRunnerLLM", () => {
         { type: "user" },
         { type: "assistant", finish: "error", content: [{ type: "reasoning", text: "Partial thought" }] },
         { type: "synthetic" },
+        { type: "assistant", finish: "stop", content: [{ type: "text", text: "Recovered" }] },
+      ])
+    }),
+  )
+
+  it.effect("continues after a transport read failure with durable reasoning state", () =>
+    Effect.gen(function* () {
+      const session = yield* setup
+      yield* admit(session, "Recover disconnected reasoning")
+      yield* TestLLM.push(
+        TestLLM.failAfter(
+          streamDisconnected(),
+          LLMEvent.stepStart({ index: 0 }),
+          LLMEvent.reasoningStart({
+            id: "disconnected-reasoning",
+            providerMetadata: {
+              openai: { itemId: "rs_disconnected", reasoningEncryptedContent: "encrypted-state" },
+            },
+          }),
+        ),
+      )
+      yield* TestLLM.push(TestLLM.text("Recovered", "reasoning-transport-recovery"))
+
+      const run = yield* session.resume(sessionID).pipe(Effect.forkChild)
+      yield* TestLLM.wait(1)
+      yield* TestClock.adjust("2400 millis")
+      yield* Fiber.join(run)
+
+      expect(requests).toHaveLength(2)
+      expect(yield* recordedEventTypes(sessionID)).toContain("session.retry.scheduled.1")
+      expect(requests[1]?.messages.slice(-2)).toMatchObject([
+        { role: "user", content: [{ type: "text", text: "Recover disconnected reasoning" }] },
+        { role: "user", content: [{ type: "text", text: INCOMPLETE_STREAM_CONTINUATION }] },
+      ])
+      expect(yield* session.context(sessionID)).toMatchObject([
+        { type: "user" },
+        {
+          type: "assistant",
+          finish: "error",
+          content: [
+            {
+              type: "reasoning",
+              text: "",
+              state: { itemId: "rs_disconnected", reasoningEncryptedContent: "encrypted-state" },
+            },
+          ],
+        },
+        { type: "synthetic", text: INCOMPLETE_STREAM_CONTINUATION },
         { type: "assistant", finish: "stop", content: [{ type: "text", text: "Recovered" }] },
       ])
     }),

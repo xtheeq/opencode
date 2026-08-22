@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { Ipc } from "../../shared/ipc-contract"
-import { initializationData, initializationReady } from "./initialization"
+import { initializationData } from "./initialization"
 
 describe("desktop renderer initialization", () => {
   test("throws the original initialization error before rendering server providers", () => {
@@ -15,10 +14,8 @@ describe("desktop renderer initialization", () => {
     }
   })
 
-  test("removes Electron's remote invocation wrapper from startup errors", () => {
-    const error = new Error(
-      `Error invoking remote method '${Ipc.app.awaitInitialization}': Error: Cannot migrate session_message projections`,
-    )
+  test("preserves clean RPC startup errors", () => {
+    const error = new Error("Cannot migrate session_message projections")
 
     try {
       initializationData(Object.assign(() => undefined, { error }))
@@ -47,28 +44,5 @@ describe("desktop renderer initialization", () => {
     if (!(caught instanceof Error)) return
     expect(caught.message).toBe("")
     expect((caught as Error & { localServerStartup?: boolean }).localServerStartup).toBe(true)
-  })
-
-  test("checks initialization errors before rendering server providers", () => {
-    const error = new Error("sidecar startup failed")
-
-    expect(() => initializationReady(Object.assign(() => undefined, { error, loading: false }))).toThrow(error)
-  })
-
-  test("waits for pending initialization without reading it", () => {
-    let reads = 0
-
-    expect(
-      initializationReady(
-        Object.assign(
-          () => {
-            reads++
-            return undefined
-          },
-          { error: undefined, loading: true },
-        ),
-      ),
-    ).toBe(false)
-    expect(reads).toBe(0)
   })
 })

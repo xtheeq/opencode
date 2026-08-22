@@ -156,6 +156,8 @@ export type SessionStatus =
     }
   | { type: "busy" }
 
+export type PtyTicketConnectToken = { ticket: string; expires_in: number }
+
 export type ReferenceLocalSource = { type: "local"; path: string; description?: string; hidden?: boolean }
 
 export type ReferenceGitSource = {
@@ -261,6 +263,8 @@ export type SessionInboxCompaction = {
 
 export type InstructionEntryInfo = { key: InstructionEntryKey; value: JsonValue }
 
+export type InstructionEntrySnapshot = Array<{ key: InstructionEntryKey; value: JsonValue; removed: boolean }>
+
 export type SessionCreated = {
   id: string
   created: number
@@ -322,6 +326,16 @@ export type SessionRenamed = {
   data: { sessionID: string; title: string }
 }
 
+export type SessionViewed = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.viewed"
+  durable: { aggregateID: string; seq: number; version: 1 }
+  location?: LocationRef
+  data: { sessionID: string; idle: number }
+}
+
 export type SessionDeleted = {
   id: string
   created: number
@@ -330,16 +344,6 @@ export type SessionDeleted = {
   durable: { aggregateID: string; seq: number; version: 2 }
   location?: LocationRef
   data: { sessionID: string }
-}
-
-export type SessionForked = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "session.forked"
-  durable: { aggregateID: string; seq: number; version: 2 }
-  location?: LocationRef
-  data: { sessionID: string; parentID: string; boundary: SessionForkBoundary; instructions?: { [x: string]: string } }
 }
 
 export type SessionInboxDelivered = {
@@ -994,7 +998,12 @@ export type ProviderInfo = {
   body?: { [x: string]: any }
 }
 
-export type ModelCapabilities = { tools: boolean; input: Array<string>; output: Array<string> }
+export type ModelCapabilities = {
+  tools: boolean
+  input: Array<string>
+  output: Array<string>
+  responsesWebsockets?: boolean
+}
 
 export type ModelCost = {
   tier?: { type: "context"; size: number }
@@ -1080,7 +1089,7 @@ export type PtyUpdated = {
   data: { info: Pty }
 }
 
-export type SessionStatus2 = {
+export type SessionStatusUpdated = {
   id: string
   created: number
   metadata?: { [x: string]: any }
@@ -1294,6 +1303,22 @@ export type FormWhen = {
 }
 
 export type ToolContent = ToolTextContent | ToolFileContent
+
+export type SessionForked = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "session.forked"
+  durable: { aggregateID: string; seq: number; version: 2 }
+  location?: LocationRef
+  data: {
+    sessionID: string
+    parentID: string
+    boundary: SessionForkBoundary
+    instructions?: { [x: string]: string }
+    instructionEntries?: InstructionEntrySnapshot
+  }
+}
 
 export type SessionShellStarted = {
   id: string
@@ -1657,7 +1682,8 @@ export type SessionInfo = {
   model?: ModelRef
   cost: MoneyUSD
   tokens: TokenUsageInfo
-  time: { created: number; updated: number; archived?: number }
+  outcome?: "succeeded" | "failed" | "interrupted"
+  time: { created: number; updated: number; idle?: number; viewed?: number; archived?: number }
   title?: string
   location: LocationRef
   subpath?: string
@@ -1942,6 +1968,7 @@ export type SessionEventDurable =
   | SessionModelSelected
   | SessionMoved
   | SessionRenamed
+  | SessionViewed
   | SessionDeleted
   | SessionForked
   | SessionInboxDelivered
@@ -2027,6 +2054,7 @@ export type V2Event =
   | SessionModelSelected
   | SessionMoved
   | SessionRenamed
+  | SessionViewed
   | SessionUsageUpdated
   | SessionDeleted
   | SessionForked
@@ -2089,7 +2117,7 @@ export type V2Event =
   | FormReplied
   | FormCancelled
   | WebsearchUpdated
-  | SessionStatus2
+  | SessionStatusUpdated
   | SessionIdle
   | TuiPromptAppend
   | TuiCommandExecute
@@ -2272,6 +2300,10 @@ export const isPermissionNotFoundError = (value: unknown): value is PermissionNo
 export type PtyNotFoundError = { readonly _tag: "PtyNotFoundError"; readonly ptyID: string; readonly message: string }
 export const isPtyNotFoundError = (value: unknown): value is PtyNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "PtyNotFoundError"
+
+export type ForbiddenError = { readonly _tag: "ForbiddenError"; readonly message: string }
+export const isForbiddenError = (value: unknown): value is ForbiddenError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ForbiddenError"
 
 export type ShellNotFoundError = { readonly _tag: "ShellNotFoundError"; readonly id: string; readonly message: string }
 export const isShellNotFoundError = (value: unknown): value is ShellNotFoundError =>
@@ -2499,7 +2531,14 @@ export type SessionImportInput = {
         readonly reasoning: number
         readonly cache: { readonly read: number; readonly write: number }
       }
-      readonly time: { readonly created: number; readonly updated: number; readonly archived?: number }
+      readonly outcome?: "succeeded" | "failed" | "interrupted"
+      readonly time: {
+        readonly created: number
+        readonly updated: number
+        readonly idle?: number
+        readonly viewed?: number
+        readonly archived?: number
+      }
       readonly title?: string
       readonly location: { readonly directory: string; readonly workspaceID?: string }
       readonly subpath?: string
@@ -2767,7 +2806,14 @@ export type SessionImportInput = {
         readonly reasoning: number
         readonly cache: { readonly read: number; readonly write: number }
       }
-      readonly time: { readonly created: number; readonly updated: number; readonly archived?: number }
+      readonly outcome?: "succeeded" | "failed" | "interrupted"
+      readonly time: {
+        readonly created: number
+        readonly updated: number
+        readonly idle?: number
+        readonly viewed?: number
+        readonly archived?: number
+      }
       readonly title?: string
       readonly location: { readonly directory: string; readonly workspaceID?: string }
       readonly subpath?: string
@@ -3035,7 +3081,14 @@ export type SessionImportInput = {
         readonly reasoning: number
         readonly cache: { readonly read: number; readonly write: number }
       }
-      readonly time: { readonly created: number; readonly updated: number; readonly archived?: number }
+      readonly outcome?: "succeeded" | "failed" | "interrupted"
+      readonly time: {
+        readonly created: number
+        readonly updated: number
+        readonly idle?: number
+        readonly viewed?: number
+        readonly archived?: number
+      }
       readonly title?: string
       readonly location: { readonly directory: string; readonly workspaceID?: string }
       readonly subpath?: string
@@ -3968,6 +4021,13 @@ export type SessionEnvironmentInput = {
 }
 
 export type SessionEnvironmentOutput = void
+
+export type SessionViewInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly idle: { readonly idle: number }["idle"]
+}
+
+export type SessionViewOutput = void
 
 export type MessageListInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
@@ -5466,6 +5526,19 @@ export type PtyRemoveInput = {
 }
 
 export type PtyRemoveOutput = void
+
+export type PtyConnectTokenInput = {
+  readonly ptyID: { readonly ptyID: string }["ptyID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+  readonly "x-opencode-ticket"?: { readonly "x-opencode-ticket"?: string | undefined }["x-opencode-ticket"]
+}
+
+export type PtyConnectTokenOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  data: PtyTicketConnectToken
+}
 
 export type ShellListInput = {
   readonly location?: {
