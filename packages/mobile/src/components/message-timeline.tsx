@@ -37,6 +37,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
       maintainScrollAtEnd={{
         on: { dataChange: true, itemLayout: false, layout: false, footerLayout: false },
       }}
+      maintainVisibleContentPosition
       alignItemsAtEnd
       keyboardOffset={insets.bottom}
       keyboardDismissMode="interactive"
