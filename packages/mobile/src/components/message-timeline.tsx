@@ -30,6 +30,7 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     <KeyboardAwareLegendList
       data={rows}
       keyExtractor={rowKey}
+      getItemType={(row) => row.type}
       renderItem={({ item }) => <RowRenderer row={item} />}
       recycleItems
       style={{ backgroundColor: colors.background.default, flex: 1 }}
