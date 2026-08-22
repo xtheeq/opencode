@@ -152,6 +152,17 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
+    case "session.viewed":
+      eventStore.setState((s) => {
+        const info = s.session.info[event.data.sessionID];
+        if (!info) return;
+        info.time.viewed = Math.max(
+          event.data.idle,
+          info.time.viewed ?? event.data.idle,
+        );
+      });
+      break;
+
     case "session.inbox.enqueued":
       eventStore.setState((s) => {
         addPending(s, {
