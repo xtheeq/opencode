@@ -4,8 +4,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, useTheme } from "@/theme";
 import { RowRenderer } from "@/components/message/row";
 import { projectRows } from "@/hooks/project-rows";
-import { rowKey } from "@/types/rows";
+import { rowKey, type SessionRow } from "@/types/rows";
 import { useSessionMessages } from "@/hooks/use-store";
+
+function sameRowEntry(a: SessionRow, b: SessionRow) {
+  return rowKey(a) === rowKey(b);
+}
 
 export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme();
@@ -33,12 +37,15 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
       getItemType={(row) => row.type}
       renderItem={({ item }) => <RowRenderer row={item} />}
       recycleItems
+      itemsAreEqual={sameRowEntry}
+      extraData={messages}
+      estimatedItemSize={60}
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
       maintainScrollAtEnd={{
-        on: { dataChange: true, itemLayout: false, layout: false, footerLayout: false },
+        on: { dataChange: true, itemLayout: true, layout: false, footerLayout: false },
       }}
-      maintainVisibleContentPosition
+      maintainVisibleContentPosition={false}
       alignItemsAtEnd
       keyboardOffset={insets.bottom}
       keyboardDismissMode="interactive"
