@@ -29,7 +29,6 @@ export function MarkdownPart({
     <EnrichedMarkdownText
       markdown={text}
       flavor="github"
-      streamingAnimation
       selectable
       selectionHandleColor={colors.action.primary}
       selectionColor={colors.action.primary + "33"}
