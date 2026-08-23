@@ -11,6 +11,10 @@ function sameRowEntry(a: SessionRow, b: SessionRow) {
   return rowKey(a) === rowKey(b);
 }
 
+function rowType(row: SessionRow): string {
+  return row.type === "assistant-part" ? `${row.type}-${row.part.type}` : row.type;
+}
+
 export function MessageTimeline({ sessionID }: { sessionID: string }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -34,18 +38,17 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
     <KeyboardAwareLegendList
       data={rows}
       keyExtractor={rowKey}
-      getItemType={(row) => row.type}
+      getItemType={rowType}
       renderItem={({ item }) => <RowRenderer row={item} />}
       recycleItems
       itemsAreEqual={sameRowEntry}
       extraData={messages}
-      estimatedItemSize={60}
+      drawDistance={1000}
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
       maintainScrollAtEnd={{
         on: { dataChange: true, itemLayout: true, layout: false, footerLayout: false },
       }}
-      maintainVisibleContentPosition={false}
       alignItemsAtEnd
       keyboardOffset={insets.bottom}
       keyboardDismissMode="interactive"
