@@ -1,7 +1,8 @@
 import { View, StyleSheet, ActivityIndicator } from "react-native";
 import type { SessionMessageCompaction } from "@opencode-ai/client/promise";
+import { MarkdownPart } from "@/components/markdown";
 import { Text } from "@/components/primitives";
-import { spacing, useTheme } from "@/theme";
+import { spacing, typography, useTheme } from "@/theme";
 
 export function CompactionMessage({
   message,
@@ -11,23 +12,24 @@ export function CompactionMessage({
   const { colors } = useTheme();
 
   switch (message.status) {
-    case "running": {
-      const label = message.summary ?? "Compacting...";
+    case "running":
       return (
         <View style={styles.row}>
           <ActivityIndicator size="small" color={colors.text.secondary} />
           <Text variant="caption" color="secondary" style={styles.label}>
-            {label}
+            {message.summary || "Compacting..."}
           </Text>
         </View>
       );
-    }
     case "completed":
       return (
         <>
-          <Text variant="caption" color="secondary" style={styles.summary}>
-            {message.summary ?? "Compact"}
-          </Text>
+          {message.summary.trim() && (
+            <MarkdownPart
+              text={message.summary}
+              baseFontSize={typography.caption.fontSize}
+            />
+          )}
           {message.recent && (
             <Text variant="caption" color="secondary">
               {message.recent}
@@ -36,9 +38,16 @@ export function CompactionMessage({
         </>
       );
     case "failed":
+      if (message.error.type === "aborted") {
+        return (
+          <Text variant="caption" color="secondary">
+            Compaction cancelled
+          </Text>
+        );
+      }
       return (
         <Text variant="caption" color="error">
-          {message.error.type}: {message.error.message}
+          {message.error.message}
         </Text>
       );
   }
@@ -54,8 +63,5 @@ const styles = StyleSheet.create({
   },
   label: {
     marginLeft: spacing.xs,
-  },
-  summary: {
-    textAlign: "center",
   },
 });
