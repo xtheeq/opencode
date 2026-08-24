@@ -12,6 +12,7 @@ export function SystemMessageRow({ message }: { message: SessionMessageInfo }) {
         return <SystemMessage message={message} />;
       case "agent-switched":
       case "model-switched":
+      case "location-switched":
         return <SwitchMessage message={message} />;
       case "skill":
         return <SkillMessage message={message} />;

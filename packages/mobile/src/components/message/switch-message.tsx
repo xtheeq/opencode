@@ -1,10 +1,14 @@
 import type {
   SessionMessageAgentSelected,
+  SessionMessageLocationSwitched,
   SessionMessageModelSelected,
 } from "@opencode-ai/client/promise";
 import { Text } from "@/components/primitives";
 
-type SwitchMessage = SessionMessageAgentSelected | SessionMessageModelSelected;
+type SwitchMessage =
+  | SessionMessageAgentSelected
+  | SessionMessageModelSelected
+  | SessionMessageLocationSwitched;
 
 export function SwitchMessage({ message }: { message: SwitchMessage }) {
   switch (message.type) {
@@ -12,6 +16,12 @@ export function SwitchMessage({ message }: { message: SwitchMessage }) {
       return (
         <Text variant="caption" color="secondary">
           Switched agent to {message.agent}
+        </Text>
+      );
+    case "location-switched":
+      return (
+        <Text variant="caption" color="secondary">
+          Moved to {message.location.directory}
         </Text>
       );
     case "model-switched": {
