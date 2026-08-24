@@ -1,5 +1,6 @@
 import type { SessionMessageShell } from "@opencode-ai/client/promise";
 import { Text } from "@/components/primitives";
+import { stripAnsi } from "@/utils/tool-state";
 
 function statusLabel(message: SessionMessageShell) {
   switch (message.status) {
@@ -19,14 +20,16 @@ function statusLabel(message: SessionMessageShell) {
 export function ShellMessage({ message }: { message: SessionMessageShell }) {
   return (
     <>
-      <Text variant="caption">{message.command}</Text>
+      <Text variant="mono">$ {message.command}</Text>
       {message.output && (
-        <Text variant="caption" numberOfLines={5}>
-          {message.output.output}
+        <Text variant="mono" color="secondary" numberOfLines={5} selectable>
+          {stripAnsi(message.output.output)}
           {message.output.truncated ? " … (truncated)" : ""}
         </Text>
       )}
-      <Text variant="caption">{statusLabel(message)}</Text>
+      <Text variant="caption" color="secondary">
+        {statusLabel(message)}
+      </Text>
     </>
   );
 }
