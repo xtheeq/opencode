@@ -33,7 +33,7 @@ import { IconButton } from "@opencode-ai/ui/icon-button"
 import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 import { AnimatedCountList } from "../components/tool-count-summary"
 import { ToolStatusTitle } from "../components/tool-status-title"
-import { patchFileGroups } from "../components/apply-patch-file"
+import { changedFileDiff, patchFileGroups } from "../components/apply-patch-file"
 import { animate } from "motion"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
 import type { SessionMessageAssistantTool, SessionMessageShell } from "@opencode-ai/client/promise"
@@ -487,45 +487,43 @@ export function CurrentContextToolGroup(props: {
   }
 
   return (
-    <Collapsible
-      open={props.open}
-      onOpenChange={change}
-      variant="ghost"
-      class="tool-collapsible"
-      data-timeline-part-ids={props.tools.map((tool) => tool.id).join(",")}
-    >
-      <Collapsible.Trigger>
-        <div data-component="context-tool-group-trigger">
-          <span
-            data-slot="context-tool-group-title"
-            class="min-w-0 flex items-center gap-2 text-14-medium text-text-strong"
-          >
-            <span data-slot="context-tool-group-label" class="shrink-0">
-              <ToolStatusTitle
-                active={pending()}
-                activeText={i18n.t("ui.sessionTurn.status.gatheringContext")}
-                doneText={i18n.t("ui.sessionTurn.status.gatheredContext")}
-                split={false}
-              />
+    <div data-timeline-part-ids={props.tools.map((tool) => tool.id).join(",")}>
+      <BasicTool
+        icon="glasses"
+        status={pending() ? "running" : "completed"}
+        compact
+        rail={false}
+        allowOpenWhilePending
+        open={props.open}
+        onOpenChange={change}
+        trigger={
+          <div data-component="context-tool-group-trigger">
+            <span data-slot="context-tool-group-title" class="min-w-0 flex items-center gap-2">
+              <span data-slot="basic-tool-tool-title" class="shrink-0">
+                <ToolStatusTitle
+                  active={pending()}
+                  activeText={i18n.t("ui.sessionTurn.status.gatheringContext")}
+                  doneText={i18n.t("ui.sessionTurn.status.gatheredContext")}
+                  split={false}
+                />
+              </span>
+              <span
+                data-slot="basic-tool-tool-subtitle"
+                class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
+              >
+                <AnimatedCountList
+                  items={[
+                    { key: "ui.messagePart.context.read", count: summary().read },
+                    { key: "ui.messagePart.context.search", count: summary().search },
+                    { key: "ui.messagePart.context.list", count: summary().list },
+                  ]}
+                  fallback=""
+                />
+              </span>
             </span>
-            <span
-              data-slot="context-tool-group-summary"
-              class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-text-base"
-            >
-              <AnimatedCountList
-                items={[
-                  { key: "ui.messagePart.context.read", count: summary().read },
-                  { key: "ui.messagePart.context.search", count: summary().search },
-                  { key: "ui.messagePart.context.list", count: summary().list },
-                ]}
-                fallback=""
-              />
-            </span>
-          </span>
-          <Collapsible.Arrow />
-        </div>
-      </Collapsible.Trigger>
-      <Collapsible.Content>
+          </div>
+        }
+      >
         <div data-component="context-tool-group-list">
           <Index each={props.tools}>
             {(tool) => {
@@ -548,6 +546,10 @@ export function CurrentContextToolGroup(props: {
                               {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
                             </For>
                           </div>
+                          <Show when={trigger().matches}>
+                            <span data-slot="context-tool-group-dot" />
+                            <span data-slot="context-tool-group-matches">{trigger().matches}</span>
+                          </Show>
                         </div>
                       </div>
                     </div>
@@ -557,8 +559,8 @@ export function CurrentContextToolGroup(props: {
             }}
           </Index>
         </div>
-      </Collapsible.Content>
-    </Collapsible>
+      </BasicTool>
+    </div>
   )
 }
 
@@ -647,23 +649,22 @@ function currentContextToolTrigger(tool: SessionMessageAssistantTool, i18n: Retu
       ...(typeof input.offset === "number" ? [`offset=${input.offset}`] : []),
       ...(typeof input.limit === "number" ? [`limit=${input.limit}`] : []),
     ]
-    return { title: i18n.t("ui.tool.read"), subtitle: getFilename(path), args }
+    return { title: i18n.t("ui.tool.read"), subtitle: getFilename(path), args, matches: undefined }
   }
-  if (tool.name === "list") return { title: i18n.t("ui.tool.list"), subtitle: displayDirectory(path), args: [] }
+  if (tool.name === "list")
+    return { title: i18n.t("ui.tool.list"), subtitle: displayDirectory(path), args: [], matches: undefined }
   if (tool.name === "glob")
     return {
       title: i18n.t("ui.tool.glob"),
       subtitle: displayDirectory(path),
-      args: [...(pattern ? [`pattern=${pattern}`] : []), ...(matches ? [matches] : [])],
+      args: pattern ? [`pattern=${pattern}`] : [],
+      matches,
     }
   return {
     title: i18n.t("ui.tool.grep"),
     subtitle: displayDirectory(path),
-    args: [
-      ...(pattern ? [`pattern=${pattern}`] : []),
-      ...(include ? [`include=${include}`] : []),
-      ...(matches ? [matches] : []),
-    ],
+    args: [...(pattern ? [`pattern=${pattern}`] : []), ...(include ? [`include=${include}`] : [])],
+    matches,
   }
 }
 
@@ -775,6 +776,7 @@ export function ToolDisplay(
     if (typeof value === "string" && value) return value
     return taskId()
   })
+  const errorSubtitle = createMemo(() => toolErrorSubtitle(props, i18n))
   const error = createMemo(() => toolDisplayError(props, i18n.t("ui.toolErrorCard.failed")))
   const render = createMemo(() => ToolRegistry.render(props.tool) ?? GenericTool)
 
@@ -802,7 +804,7 @@ export function ToolDisplay(
                   defaultOpen={props.defaultOpen}
                   open={props.open}
                   onOpenChange={props.onOpenChange}
-                  subtitle={taskSubtitle()}
+                  subtitle={taskSubtitle() ?? errorSubtitle()}
                   href={taskHref()}
                   onSubtitleClick={(event) => {
                     if (!data.navigateToSession) return
@@ -823,6 +825,32 @@ export function ToolDisplay(
       </div>
     </Show>
   )
+}
+
+// Each branch must stay in sync with its tool trigger's subtitle expression so
+// failed rows read like their non-error counterparts ("Shell sleep 30").
+function toolErrorSubtitle(props: ToolProps, i18n: UiI18n) {
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined)
+  if (props.tool === "shell") return text(props.input.command) ?? text(props.metadata.command)
+  if (props.tool === "execute") return text(props.input.code)
+  if (props.tool === "read") return getFilename(readToolPath(props.input) ?? "")
+  if (props.tool === "edit" || props.tool === "write") return getFilename(text(props.input.path) ?? "")
+  if (props.tool === "list" || props.tool === "glob" || props.tool === "grep")
+    return displayDirectory(text(props.input.path) ?? "/")
+  if (props.tool === "webfetch") return text(props.input.url)
+  if (props.tool === "websearch") return text(props.input.query)
+  if (props.tool === "skill") return skillToolName(props.input, props.metadata)
+  if (props.tool === "patch") {
+    const count = patchFileGroups(props.metadata.files).length
+    if (count === 0) return undefined
+    return `${count} ${i18n.plural("ui.common.file", count)}`
+  }
+  if (props.tool === "question") {
+    const count = Array.isArray(props.input.questions) ? props.input.questions.filter(questionInfo).length : 0
+    if (count === 0) return undefined
+    return `${count} ${i18n.plural("ui.common.question", count)}`
+  }
+  return undefined
 }
 
 function toolDisplayError(props: ToolProps & { error?: string }, fallback: string) {
@@ -1175,20 +1203,17 @@ ToolRegistry.register({
       >
         <div
           data-component="task-tool-delegating"
-          class="flex h-9 w-fit max-w-full items-center gap-2 rounded-[8px] bg-v2-background-bg-layer-01 p-2.5"
+          class="flex h-9 w-fit max-w-full items-center gap-2 rounded-[8px] bg-v2-background-bg-layer-01 p-2.5 text-[13px] font-[530] leading-text-compact tracking-[-0.04px]"
         >
           <Icon name="subagent" size="small" class="shrink-0 text-v2-icon-icon-faint" />
-          <TextShimmer
-            text={i18n.t("ui.tool.agent.delegating")}
-            class="min-w-0 truncate text-[13px] font-[530] leading-none tracking-[-0.04px]"
-          />
+          <TextShimmer text={i18n.t("ui.tool.agent.delegating")} class="min-w-0 truncate" />
         </div>
       </Show>
     )
   },
 })
 
-function ConsoleOutput(props: { copy: string; children: JSX.Element }) {
+function ConsoleOutput(props: { copy: string; children: JSX.Element; variant?: "shell" }) {
   const i18n = useI18n()
   const [copied, setCopied] = createSignal(false)
 
@@ -1200,7 +1225,7 @@ function ConsoleOutput(props: { copy: string; children: JSX.Element }) {
   }
 
   return (
-    <div data-component="bash-output" dir="ltr">
+    <div data-component="bash-output" data-variant={props.variant} dir="ltr">
       <div data-slot="bash-copy">
         <Tooltip value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")} placement="top">
           <IconButton
@@ -1234,34 +1259,32 @@ ToolRegistry.register({
     const i18n = useI18n()
     const pending = () => props.status === "streaming" || props.status === "running"
     const code = createMemo(() => (typeof props.input.code === "string" ? props.input.code : ""))
-    const text = createMemo(() => {
-      const output = stripAnsi(props.output ?? "").replace(/\r\n?/g, "\n")
-      return `${code()}${output ? "\n\n" + output : ""}`
-    })
+    const output = createMemo(() => stripAnsi(props.output ?? "").replace(/\r\n?/g, "\n"))
     const sawPending = pending()
     return (
       <BasicTool
         {...props}
         icon="console"
         rail={false}
+        compact
         allowOpenWhilePending
         trigger={(open) => (
           <div data-slot="basic-tool-tool-info-structured">
-            <span data-slot="basic-tool-tool-indicator">
-              <Icon name="console" size="small" />
-            </span>
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
                 <TextShimmer text={i18n.t("ui.tool.execute")} active={pending()} />
               </span>
               <Show when={!open() && code()}>
-                <ShellSubmessage text={code()} animate={sawPending} />
+                <ShellSubmessage text={code().split("\n")[0]} animate={sawPending} />
               </Show>
             </div>
           </div>
         )}
       >
-        <ConsoleOutput copy={text()}>{text()}</ConsoleOutput>
+        <ConsoleOutput copy={code()} variant="shell">
+          <span data-slot="bash-command">{code()}</span>
+          <Show when={output()}>{(value) => <span data-slot="bash-result">{value()}</span>}</Show>
+        </ConsoleOutput>
       </BasicTool>
     )
   },
@@ -1279,10 +1302,7 @@ ToolRegistry.register({
       if (typeof props.metadata.command === "string") return props.metadata.command
       return ""
     }
-    const text = createMemo(() => {
-      const out = stripAnsi(props.output ?? "").replace(/\r\n?/g, "\n")
-      return `${command()}${out ? "\n\n" + out : ""}`
-    })
+    const output = createMemo(() => stripAnsi(props.output ?? "").replace(/\r\n?/g, "\n"))
     return (
       <BasicTool
         {...props}
@@ -1294,10 +1314,7 @@ ToolRegistry.register({
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
-                <TextShimmer
-                  text={i18n.t("ui.tool.shell")}
-                  active={pending()}
-                />
+                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
               </span>
               <Show when={!open()}>
                 <Show
@@ -1315,11 +1332,9 @@ ToolRegistry.register({
           </div>
         )}
       >
-        <ConsoleOutput copy={command()}>
-          <span data-slot="bash-prompt" aria-hidden="true">
-            {"$ "}
-          </span>
-          {text()}
+        <ConsoleOutput copy={command()} variant="shell">
+          <span data-slot="bash-command">{command()}</span>
+          <Show when={output()}>{(value) => <span data-slot="bash-result">{value()}</span>}</Show>
         </ConsoleOutput>
       </BasicTool>
     )
@@ -1363,11 +1378,7 @@ ToolRegistry.register({
     const diff = createMemo(() => {
       const files = props.metadata.files
       if (!Array.isArray(files)) return undefined
-      const value = files.find(
-        (file) => !!file && typeof file === "object" && "file" in file && typeof file.file === "string",
-      )
-      if (!value || typeof value !== "object") return undefined
-      return value
+      return files.find(changedFileDiff)
     })
     const diagnostics = createMemo(() => getDiagnostics(props.metadata.diagnostics, inputPath()))
     const path = createMemo(() => {

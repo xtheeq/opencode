@@ -10,7 +10,6 @@ import { CurrentContextToolGroup, CurrentFileToolGroup, ToolDisplay } from "../t
 import { currentToolError, currentToolInput, currentToolMetadata, currentToolOutput } from "./current-tool-state"
 
 export type { SessionUserActions, SessionUserComment } from "../actions"
-export { MessageDivider } from "./message-content"
 export { SessionShellMessage } from "../tools/tool-renderer"
 export { currentContentDefaultOpen } from "./current-tool-state"
 
@@ -41,7 +40,7 @@ export function SessionAssistantContent(props: {
   content: SessionMessageAssistant["content"][number]
   contentID: string
   showAssistantCopyPartID?: string | null
-  turnDurationMs?: number
+  turnDurationMs?: number | null
   defaultOpen?: boolean
   toolOpen?: boolean
   onToolOpenChange?: (open: boolean) => void
