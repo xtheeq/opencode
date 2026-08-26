@@ -37,6 +37,19 @@ export type FileDiffInfo = {
   status: "added" | "deleted" | "modified"
 }
 
+export type SessionStatsToolTotals = { calls: number; succeeded: number; failed: number; unfinished: number }
+
+export type SessionStatsToolUsage = {
+  name: string
+  calls: number
+  succeeded: number
+  failed: number
+  unfinished: number
+  durationP50?: number
+}
+
+export type SessionStatsActivity = { date: string; steps: number }
+
 export type SessionMessageAgentSelected = {
   id: string
   metadata?: { [x: string]: JsonValue }
@@ -162,6 +175,8 @@ export type SessionMessageProviderState1 = { [x: string]: any }
 export type ToolFileContent1 = { type: "file"; uri: string; mime: string; name?: string | undefined }
 
 export type EventLogSynced = { type: "log.synced"; aggregateID: string; seq?: number }
+
+export type SessionInterruptResponse = { interrupted: boolean }
 
 export type ModelReasoningField = "reasoning" | "reasoning_content" | "reasoning_text" | (string & {})
 
@@ -298,6 +313,8 @@ export type PermissionSavedInfo = { id: string; projectID: string; action: strin
 
 export type FileSystemEntry = { path: string; type: "file" | "directory" }
 
+export type CommandInfo = { name: string; description?: string }
+
 export type SkillInfo = {
   id: string
   name: string
@@ -319,6 +336,21 @@ export type Pty = {
   status: "running" | "exited"
   pid: number
   exitCode?: number
+}
+
+export type PersistentPtyInfo = {
+  id: string
+  title: string
+  command: string
+  args: Array<string>
+  cwd: string
+  status: "running" | "exited"
+  pid: number
+  exitCode?: number
+  sessionID: string
+  foregroundProcess: string | null
+  size: { cols: number; rows: number }
+  output: { head: number; tail: number }
 }
 
 export type FormMetadata1 = { [x: string]: any }
@@ -365,6 +397,8 @@ export type WorktreeDirectory = { directory: string; strategy?: string }
 
 export type WorktreeInfo = { directory: string }
 
+export type WorkspaceDestroyResult = { destroyed: boolean }
+
 export type VcsBranch = { current?: string; default?: string }
 
 export type VcsFileStatus = {
@@ -374,18 +408,11 @@ export type VcsFileStatus = {
   status: "added" | "deleted" | "modified"
 }
 
+export type VcsBranchList = Array<string>
+
 export type WebSearchProvider = { id: string; name: string }
 
 export type WebSearchResult = { url: string; title?: string; content?: string; time: { published?: number } }
-
-export type CommandInfo = {
-  name: string
-  template: string
-  description?: string
-  agent?: string
-  model?: ModelRef
-  subtask?: boolean
-}
 
 export type ProviderRequest = {
   settings: ProviderSettings
@@ -422,6 +449,13 @@ export type V2EventServerConnected = {
 
 export type SessionRevert = { messageID: string; partID?: string; snapshot?: string; files?: Array<FileDiffInfo> }
 
+export type SessionStatsTools =
+  | { mode: "none" }
+  | { mode: "summary"; totals: SessionStatsToolTotals }
+  | { mode: "detail"; totals: SessionStatsToolTotals; usage: Array<SessionStatsToolUsage> }
+
+export type SessionStatsModelUsage = { model: ModelRef; steps: number; tokens: TokenUsageInfo; cost: MoneyUSD }
+
 export type SessionMessageModelSelected = {
   id: string
   metadata?: { [x: string]: JsonValue }
@@ -442,7 +476,7 @@ export type PromptFileAttachment = {
 
 export type PromptAgentAttachment = { name: string; mention?: PromptMention }
 
-export type PromptSkillAttachment = { id: string; name: string; mention?: PromptMention }
+export type PromptSkillAttachment = { id: string; name: string; text?: string; mention?: PromptMention }
 
 export type SessionMessageAssistantText = { type: "text"; text: string; state?: SessionMessageProviderState }
 
@@ -789,6 +823,24 @@ export type ModelsDevRefreshed = {
   data: {}
 }
 
+export type CredentialUpdated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "credential.updated"
+  location?: LocationRef
+  data: {}
+}
+
+export type CredentialSwitched = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "credential.switched"
+  location?: LocationRef
+  data: { integrationID: string; credentialID: string | null }
+}
+
 export type IntegrationUpdated = {
   id: string
   created: number
@@ -796,15 +848,6 @@ export type IntegrationUpdated = {
   type: "integration.updated"
   location?: LocationRef
   data: {}
-}
-
-export type IntegrationConnectionUpdated = {
-  id: string
-  created: number
-  metadata?: { [x: string]: any }
-  type: "integration.connection.updated"
-  location?: LocationRef
-  data: { integrationID: string }
 }
 
 export type CatalogUpdated = {
@@ -931,7 +974,7 @@ export type WorktreeResolved = {
   type: "worktree.resolved"
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
-  data: { projectID: string; directory: string; previous: string }
+  data: { projectID: string; directory: string; previous: string; adopted?: Array<string> }
 }
 
 export type CommandUpdated = {
@@ -977,6 +1020,15 @@ export type PtyDeleted = {
   type: "pty.deleted"
   location?: LocationRef
   data: { id: string }
+}
+
+export type PersistentPtyRemoved = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "persistent-pty.removed"
+  location?: LocationRef
+  data: { sessionID: string; ptyID: string }
 }
 
 export type ShellExited = {
@@ -1267,8 +1319,10 @@ export type ToolContent1 = ToolTextContent | ToolFileContent1
 
 export type ModelCompatibility = {
   reasoningField?: ModelReasoningField
+  requireReasoning?: boolean
   maxTokensField?: ModelMaxTokensField
   requireFinishReason?: boolean
+  requireAssistantAfterTool?: boolean
 }
 
 export type ModelCost = {
@@ -1364,6 +1418,24 @@ export type Project = {
   sandboxes: Array<string>
 }
 
+export type ProjectUpdated = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "project.updated"
+  location?: LocationRef
+  data: {
+    id: string
+    canonical: string
+    vcs?: ProjectVcs
+    name?: string
+    icon?: ProjectIcon
+    commands?: ProjectCommands
+    time: ProjectTime
+    sandboxes: Array<string>
+  }
+}
+
 export type FormAnswer = { [x: string]: FormValue }
 
 export type PermissionRequest = {
@@ -1374,6 +1446,7 @@ export type PermissionRequest = {
   save?: Array<string>
   metadata?: { [x: string]: JsonValue }
   source?: PermissionSource
+  message?: string
 }
 
 export type PermissionAsked = {
@@ -1390,6 +1463,7 @@ export type PermissionAsked = {
     save?: Array<string>
     metadata?: { [x: string]: any }
     source?: PermissionSource
+    message?: string
   }
 }
 
@@ -1418,6 +1492,22 @@ export type PtyUpdated = {
   type: "pty.updated"
   location?: LocationRef
   data: { info: Pty }
+}
+
+export type PersistentPtyAdded = {
+  id: string
+  created: number
+  metadata?: { [x: string]: any }
+  type: "persistent-pty.added"
+  location?: LocationRef
+  data: { sessionID: string; terminal: PersistentPtyInfo }
+}
+
+export type PersistentPtySnapshot = {
+  info: PersistentPtyInfo
+  text: string
+  checkpoint: string
+  cursor: { x: number; y: number }
 }
 
 export type FormStringField1 = {
@@ -1536,6 +1626,21 @@ export type SessionRevertStaged = {
   durable: { aggregateID: string; seq: number; version: 1 }
   location?: LocationRef
   data: { sessionID: string; revert: SessionRevert }
+}
+
+export type SessionStatsInfo = {
+  range: { from: number; to: number }
+  sessions: number
+  subagents: number
+  prompts: number
+  steps: number
+  tokens: TokenUsageInfo
+  cost: MoneyUSD
+  tools: SessionStatsTools
+  activeDays: number
+  streak: number
+  activity: Array<SessionStatsActivity>
+  models: Array<SessionStatsModelUsage>
 }
 
 export type SessionMessageUser = {
@@ -2028,14 +2133,16 @@ export type SessionMessagesResponse = {
 export type IntegrationInfo = {
   id: string
   name: string
+  metadata?: { [x: string]: any }
   methods: Array<IntegrationMethod>
   connections: Array<ConnectionInfo>
 }
 
 export type V2Event =
   | ModelsDevRefreshed
+  | CredentialUpdated
+  | CredentialSwitched
   | IntegrationUpdated
-  | IntegrationConnectionUpdated
   | CatalogUpdated
   | AgentUpdated
   | SessionCreated
@@ -2090,6 +2197,7 @@ export type V2Event =
   | PermissionReplied
   | PluginAdded
   | PluginUpdated
+  | ProjectUpdated
   | WorktreeUpdated
   | WorktreeResolved
   | CommandUpdated
@@ -2099,6 +2207,8 @@ export type V2Event =
   | PtyUpdated
   | PtyExited
   | PtyDeleted
+  | PersistentPtyAdded
+  | PersistentPtyRemoved
   | ShellCreated
   | ShellExited
   | ShellDeleted
@@ -2185,13 +2295,13 @@ export type CommandNotFoundError = {
 export const isCommandNotFoundError = (value: unknown): value is CommandNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "CommandNotFoundError"
 
-export type CommandEvaluationError = {
-  readonly _tag: "CommandEvaluationError"
+export type CommandExecutionError = {
+  readonly _tag: "CommandExecutionError"
   readonly command: string
   readonly message: string
 }
-export const isCommandEvaluationError = (value: unknown): value is CommandEvaluationError =>
-  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "CommandEvaluationError"
+export const isCommandExecutionError = (value: unknown): value is CommandExecutionError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "CommandExecutionError"
 
 export type SkillNotFoundError = {
   readonly _tag: "SkillNotFoundError"
@@ -2244,6 +2354,14 @@ export type McpServerNotFoundError = {
 }
 export const isMcpServerNotFoundError = (value: unknown): value is McpServerNotFoundError =>
   typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "McpServerNotFoundError"
+
+export type ProjectNotFoundError = {
+  readonly _tag: "ProjectNotFoundError"
+  readonly projectID: string
+  readonly message: string
+}
+export const isProjectNotFoundError = (value: unknown): value is ProjectNotFoundError =>
+  typeof value === "object" && value !== null && "_tag" in value && value["_tag"] === "ProjectNotFoundError"
 
 export type FormNotFoundError = { readonly _tag: "FormNotFoundError"; readonly id: string; readonly message: string }
 export const isFormNotFoundError = (value: unknown): value is FormNotFoundError =>
@@ -2446,6 +2564,46 @@ export type SessionListInput = {
 
 export type SessionListOutput = SessionsResponse
 
+export type SessionStatsInput = {
+  readonly from?: {
+    readonly from?: number | undefined
+    readonly to?: number | undefined
+    readonly project?: string | undefined
+    readonly timezone?: string | undefined
+    readonly tools?: "none" | "summary" | "detail" | undefined
+  }["from"]
+  readonly to?: {
+    readonly from?: number | undefined
+    readonly to?: number | undefined
+    readonly project?: string | undefined
+    readonly timezone?: string | undefined
+    readonly tools?: "none" | "summary" | "detail" | undefined
+  }["to"]
+  readonly project?: {
+    readonly from?: number | undefined
+    readonly to?: number | undefined
+    readonly project?: string | undefined
+    readonly timezone?: string | undefined
+    readonly tools?: "none" | "summary" | "detail" | undefined
+  }["project"]
+  readonly timezone?: {
+    readonly from?: number | undefined
+    readonly to?: number | undefined
+    readonly project?: string | undefined
+    readonly timezone?: string | undefined
+    readonly tools?: "none" | "summary" | "detail" | undefined
+  }["timezone"]
+  readonly tools?: {
+    readonly from?: number | undefined
+    readonly to?: number | undefined
+    readonly project?: string | undefined
+    readonly timezone?: string | undefined
+    readonly tools?: "none" | "summary" | "detail" | undefined
+  }["tools"]
+}
+
+export type SessionStatsOutput = { data: SessionStatsInfo }["data"]
+
 export type SessionCreateInput = {
   readonly id?: {
     readonly id?: string | null
@@ -2582,6 +2740,7 @@ export type SessionImportInput = {
           readonly skills?: ReadonlyArray<{
             readonly id: string
             readonly name: string
+            readonly text?: string
             readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
           }>
           readonly type: "user"
@@ -2857,6 +3016,7 @@ export type SessionImportInput = {
           readonly skills?: ReadonlyArray<{
             readonly id: string
             readonly name: string
+            readonly text?: string
             readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
           }>
           readonly type: "user"
@@ -3132,6 +3292,7 @@ export type SessionImportInput = {
           readonly skills?: ReadonlyArray<{
             readonly id: string
             readonly name: string
+            readonly text?: string
             readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
           }>
           readonly type: "user"
@@ -3562,35 +3723,9 @@ export type SessionPromptOutput = { data: SessionInboxUser }["data"]
 
 export type SessionCommandInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
-  readonly id?: {
-    readonly id?: string | null
-    readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
-    readonly files?: ReadonlyArray<{
-      readonly uri: string
-      readonly name?: string
-      readonly description?: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly agents?: ReadonlyArray<{
-      readonly name: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly skills?: ReadonlyArray<{
-      readonly id: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
-  }["id"]
   readonly command: {
-    readonly id?: string | null
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3606,14 +3741,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
   }["command"]
-  readonly arguments?: {
-    readonly id?: string | null
+  readonly text: {
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3629,60 +3760,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
-  }["arguments"]
-  readonly agent?: {
-    readonly id?: string | null
-    readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
-    readonly files?: ReadonlyArray<{
-      readonly uri: string
-      readonly name?: string
-      readonly description?: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly agents?: ReadonlyArray<{
-      readonly name: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly skills?: ReadonlyArray<{
-      readonly id: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
-  }["agent"]
-  readonly model?: {
-    readonly id?: string | null
-    readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
-    readonly files?: ReadonlyArray<{
-      readonly uri: string
-      readonly name?: string
-      readonly description?: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly agents?: ReadonlyArray<{
-      readonly name: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly skills?: ReadonlyArray<{
-      readonly id: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
-  }["model"]
+  }["text"]
   readonly files?: {
-    readonly id?: string | null
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3698,14 +3779,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
   }["files"]
   readonly agents?: {
-    readonly id?: string | null
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3721,14 +3798,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
   }["agents"]
   readonly skills?: {
-    readonly id?: string | null
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3744,14 +3817,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
   }["skills"]
   readonly delivery?: {
-    readonly id?: string | null
     readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
+    readonly text: string
     readonly files?: ReadonlyArray<{
       readonly uri: string
       readonly name?: string
@@ -3767,34 +3836,10 @@ export type SessionCommandInput = {
       readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
     }>
     readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
   }["delivery"]
-  readonly resume?: {
-    readonly id?: string | null
-    readonly command: string
-    readonly arguments?: string | null
-    readonly agent?: string | null
-    readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
-    readonly files?: ReadonlyArray<{
-      readonly uri: string
-      readonly name?: string
-      readonly description?: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly agents?: ReadonlyArray<{
-      readonly name: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly skills?: ReadonlyArray<{
-      readonly id: string
-      readonly mention?: { readonly start: number; readonly end: number; readonly text: string }
-    }>
-    readonly delivery?: ("steer" | "queue") | null
-    readonly resume?: boolean | null
-  }["resume"]
 }
 
-export type SessionCommandOutput = { data: SessionInboxUser }["data"]
+export type SessionCommandOutput = void
 
 export type SessionSkillInput = {
   readonly sessionID: { readonly sessionID: string }["sessionID"]
@@ -3978,7 +4023,7 @@ export type SessionInterruptInput = {
   readonly continue?: { readonly continue?: boolean | undefined }["continue"]
 }
 
-export type SessionInterruptOutput = void
+export type SessionInterruptOutput = SessionInterruptResponse
 
 export type SessionBackgroundInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
 
@@ -4049,9 +4094,6 @@ export type ModelDefaultOutput = {
 }
 
 export type GenerateTextInput = {
-  readonly location?: {
-    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
-  }["location"]
   readonly prompt: {
     readonly prompt: string
     readonly model?: { readonly id: string; readonly providerID: string; readonly variant?: string } | null
@@ -4344,6 +4386,15 @@ export type CredentialUpdateInput = {
 
 export type CredentialUpdateOutput = void
 
+export type CredentialActivateInput = {
+  readonly credentialID: { readonly credentialID: string }["credentialID"]
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+  }["location"]
+}
+
+export type CredentialActivateOutput = void
+
 export type CredentialRemoveInput = {
   readonly credentialID: { readonly credentialID: string }["credentialID"]
   readonly location?: {
@@ -4354,6 +4405,27 @@ export type CredentialRemoveInput = {
 export type CredentialRemoveOutput = void
 
 export type ProjectListOutput = Array<Project>
+
+export type ProjectUpdateInput = {
+  readonly projectID: { readonly projectID: string }["projectID"]
+  readonly name?: {
+    readonly name?: string
+    readonly icon?: { readonly url?: string; readonly override?: string; readonly color?: string }
+    readonly commands?: { readonly start?: string }
+  }["name"]
+  readonly icon?: {
+    readonly name?: string
+    readonly icon?: { readonly url?: string; readonly override?: string; readonly color?: string }
+    readonly commands?: { readonly start?: string }
+  }["icon"]
+  readonly commands?: {
+    readonly name?: string
+    readonly icon?: { readonly url?: string; readonly override?: string; readonly color?: string }
+    readonly commands?: { readonly start?: string }
+  }["commands"]
+}
+
+export type ProjectUpdateOutput = Project
 
 export type ProjectCurrentInput = {
   readonly location?: {
@@ -5516,6 +5588,99 @@ export type PtyConnectTokenOutput = {
   data: PtyTicketConnectToken
 }
 
+export type ExperimentalPersistentPtyListInput = { readonly sessionID: { readonly sessionID: string }["sessionID"] }
+
+export type ExperimentalPersistentPtyListOutput = { data: Array<PersistentPtyInfo> }["data"]
+
+export type ExperimentalPersistentPtyCreateInput = {
+  readonly sessionID: { readonly sessionID: string }["sessionID"]
+  readonly command: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["command"]
+  readonly args: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["args"]
+  readonly cwd: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["cwd"]
+  readonly title: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["title"]
+  readonly env: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["env"]
+  readonly size?: {
+    readonly command: string
+    readonly args: ReadonlyArray<string>
+    readonly cwd: string
+    readonly title: string
+    readonly env: { readonly [x: string]: string }
+    readonly size?: { readonly cols: number; readonly rows: number }
+  }["size"]
+}
+
+export type ExperimentalPersistentPtyCreateOutput = { data: PersistentPtyInfo }["data"]
+
+export type ExperimentalPersistentPtyShutdownOutput = void
+
+export type ExperimentalPersistentPtyGetInput = { readonly ptyID: { readonly ptyID: string }["ptyID"] }
+
+export type ExperimentalPersistentPtyGetOutput = { data: PersistentPtyInfo }["data"]
+
+export type ExperimentalPersistentPtyUpdateInput = {
+  readonly ptyID: { readonly ptyID: string }["ptyID"]
+  readonly attachmentID?: {
+    readonly attachmentID?: string
+    readonly size: { readonly cols: number; readonly rows: number }
+  }["attachmentID"]
+  readonly size: {
+    readonly attachmentID?: string
+    readonly size: { readonly cols: number; readonly rows: number }
+  }["size"]
+}
+
+export type ExperimentalPersistentPtyUpdateOutput = { data: PersistentPtyInfo }["data"]
+
+export type ExperimentalPersistentPtySnapshotInput = { readonly ptyID: { readonly ptyID: string }["ptyID"] }
+
+export type ExperimentalPersistentPtySnapshotOutput = { data: PersistentPtySnapshot }["data"]
+
+export type ExperimentalPersistentPtyRemoveInput = { readonly ptyID: { readonly ptyID: string }["ptyID"] }
+
+export type ExperimentalPersistentPtyRemoveOutput = void
+
+export type ExperimentalPersistentPtyConnectTokenInput = {
+  readonly ptyID: { readonly ptyID: string }["ptyID"]
+  readonly "x-opencode-ticket"?: { readonly "x-opencode-ticket"?: string | undefined }["x-opencode-ticket"]
+}
+
+export type ExperimentalPersistentPtyConnectTokenOutput = { data: PtyTicketConnectToken }["data"]
+
 export type ShellListInput = {
   readonly location?: {
     readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
@@ -5640,24 +5805,35 @@ export type WorktreeCreateInput = {
   readonly strategy: {
     readonly strategy: string
     readonly from?: string
+    readonly branch?: string
     readonly directory: string
     readonly name?: string
   }["strategy"]
   readonly from?: {
     readonly strategy: string
     readonly from?: string
+    readonly branch?: string
     readonly directory: string
     readonly name?: string
   }["from"]
+  readonly branch?: {
+    readonly strategy: string
+    readonly from?: string
+    readonly branch?: string
+    readonly directory: string
+    readonly name?: string
+  }["branch"]
   readonly directory: {
     readonly strategy: string
     readonly from?: string
+    readonly branch?: string
     readonly directory: string
     readonly name?: string
   }["directory"]
   readonly name?: {
     readonly strategy: string
     readonly from?: string
+    readonly branch?: string
     readonly directory: string
     readonly name?: string
   }["name"]
@@ -5676,6 +5852,17 @@ export type WorktreeRemoveOutput = void
 export type WorktreeRefreshInput = { readonly projectID: { readonly projectID: string }["projectID"] }
 
 export type WorktreeRefreshOutput = void
+
+export type WorkspaceCreateInput = {
+  readonly id?: { readonly id?: string | undefined; readonly provider: string }["id"]
+  readonly provider: { readonly id?: string | undefined; readonly provider: string }["provider"]
+}
+
+export type WorkspaceCreateOutput = { data: string }["data"]
+
+export type WorkspaceDestroyInput = { readonly workspaceID: { readonly workspaceID: string }["workspaceID"] }
+
+export type WorkspaceDestroyOutput = WorkspaceDestroyResult
 
 export type VcsGetInput = {
   readonly location?: {
@@ -5697,6 +5884,29 @@ export type VcsStatusInput = {
 export type VcsStatusOutput = {
   location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
   data: Array<VcsFileStatus>
+}
+
+export type VcsBranchesInput = {
+  readonly location?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly search?: string | undefined
+    readonly limit?: number | undefined
+  }["location"]
+  readonly search?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly search?: string | undefined
+    readonly limit?: number | undefined
+  }["search"]
+  readonly limit?: {
+    readonly location?: { readonly directory?: string | undefined; readonly workspace?: string | undefined } | undefined
+    readonly search?: string | undefined
+    readonly limit?: number | undefined
+  }["limit"]
+}
+
+export type VcsBranchesOutput = {
+  location: { directory: string; workspaceID?: string; project: { id: string; directory: string; canonical: string } }
+  data: VcsBranchList
 }
 
 export type VcsDiffInput = {

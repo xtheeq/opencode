@@ -614,7 +614,7 @@ function App(props: { pair?: DialogPairCredentials }) {
         return
       }
 
-      renderer.setTerminalTitle(`OC | ${title.length > 40 ? title.slice(0, 37) + "..." : title}`)
+      renderer.setTerminalTitle(`OC | ${title.length > 40 ? title.slice(0, 37) + "…" : title}`)
       return
     }
 
@@ -716,6 +716,7 @@ function App(props: { pair?: DialogPairCredentials }) {
         category: "Session",
         slash: { name: "new", aliases: ["clear"] },
         run: () => {
+          const model = local.model.current()
           const current =
             route.data.type === "session"
               ? (data.session.get(route.data.sessionID)?.location ?? location.ref)
@@ -729,6 +730,7 @@ function App(props: { pair?: DialogPairCredentials }) {
               location.error?.location,
             ),
           })
+          if (model) local.model.set(model)
           dialog.clear()
         },
       },
@@ -969,7 +971,7 @@ function App(props: { pair?: DialogPairCredentials }) {
                 const restart = client.restart
                 if (!restart) return
                 dialog.clear()
-                toast.show({ variant: "info", message: "Restarting service...", duration: 30000 })
+                toast.show({ variant: "info", message: "Restarting service…", duration: 30000 })
                 // restart resolves once the replacement service is healthy; the
                 // event stream reattaches through the reconnect loop.
                 await restart()
