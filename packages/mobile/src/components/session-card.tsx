@@ -1,6 +1,9 @@
-import { StyleSheet, TouchableOpacity, View } from "react-native";
-import { borderRadius, spacing, useTheme } from "@/theme";
+import { ActivityIndicator, StyleSheet, TouchableOpacity } from "react-native";
+import CircleAlert from "lucide-react-native/icons/circle-alert";
+import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
+import { useSessionActive } from "@/hooks/use-store";
+import { useSessionBlocked } from "@/hooks/use-blockers";
 import type { SessionInfo } from "@opencode-ai/client/promise";
 
 function formatTime(ms: number) {
@@ -13,11 +16,6 @@ function formatTime(ms: number) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function formatCost(cost: number) {
-  if (cost === 0) return "";
-  return `$${cost.toFixed(6)}`;
-}
-
 export function SessionCard({
   session,
   onPress,
@@ -25,72 +23,54 @@ export function SessionCard({
   session: SessionInfo;
   onPress?: () => void;
 }) {
-  const { colors, effects } = useTheme();
+  const { colors } = useTheme();
+  const active = useSessionActive(session.id);
+  const blocked = useSessionBlocked(session.id);
+  const title = session.title || "Untitled";
 
-  const formattedCost = formatCost(session.cost);
+  const status = blocked
+    ? "needs attention"
+    : active === "running"
+      ? "running"
+      : undefined;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: colors.background.surface,
-            borderColor: colors.border.default,
-            ...effects.elevation.raised,
-          },
-        ]}
-      >
-        <View style={styles.header}>
-          <Text variant="body" numberOfLines={1} style={styles.title}>
-            {session.title || "Untitled"}
-          </Text>
-          <Text variant="caption" color="secondary">
-            {formatTime(session.time.created)}
-          </Text>
-        </View>
-        <View style={styles.meta}>
-          {session.agent && (
-            <Text variant="caption" color="secondary">
-              {session.agent}
-            </Text>
-          )}
-          {session.model && (
-            <Text variant="caption" color="secondary">
-              {session.model.id}
-            </Text>
-          )}
-          {formattedCost && (
-            <Text variant="caption" color="secondary">
-              {formattedCost}
-            </Text>
-          )}
-        </View>
-      </View>
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.6}
+      accessibilityRole="button"
+      accessibilityLabel={status ? `${title} (${status})` : title}
+      style={styles.row}
+    >
+      <Text variant="body" numberOfLines={1} style={[styles.title, styles.flex]}>
+        {title}
+      </Text>
+      {blocked ? (
+        <CircleAlert size={16} color={colors.status.warning} />
+      ) : active === "running" ? (
+        <ActivityIndicator size="small" color={colors.text.accent} />
+      ) : (
+        <Text variant="caption" color="secondary">
+          {formatTime(session.time.updated)}
+        </Text>
+      )}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginVertical: spacing.xs,
-  },
-  header: {
+  row: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
   },
   title: {
-    flex: 1,
-    marginRight: spacing.sm,
+    fontWeight: "500",
   },
-  meta: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
+  flex: {
+    flex: 1,
   },
 });

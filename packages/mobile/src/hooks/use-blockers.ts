@@ -25,3 +25,9 @@ export function useSessionBlockers(sessionID: string) {
     loading: state.hydration === "loading",
   };
 }
+
+export function useSessionBlocked(sessionID: string) {
+  return eventStore(
+    (s) => selectBlockers({ session: s.session }, sessionID).length > 0,
+  );
+}
