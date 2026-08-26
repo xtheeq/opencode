@@ -145,7 +145,11 @@ export function useComposer(sessionID: string) {
   const runCommand = async (item: Suggestion) => {
     if (!sessionID || isNewSessionKey(sessionID)) return;
     await getClient()
-      .session.command({ sessionID, command: item.trigger ?? item.title ?? "" })
+      .session.command({
+        sessionID,
+        command: item.trigger ?? item.title ?? "",
+        text: "",
+      })
       .then(() => composerReset(sessionID))
       .catch((error) => console.error("Failed to run command", error));
   };

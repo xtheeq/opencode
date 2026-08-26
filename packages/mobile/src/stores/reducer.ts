@@ -20,7 +20,13 @@ import {
   removePending,
   setDelivery,
 } from "./store";
-import { loadSession, refreshLocation, removeSession, sync } from "./sync";
+import {
+  loadSession,
+  refreshLocation,
+  removeSession,
+  sync,
+  syncProjectList,
+} from "./sync";
 
 export function handleEvent(event: V2Event) {
   switch (event.type) {
@@ -935,13 +941,21 @@ export function handleEvent(event: V2Event) {
       );
       break;
 
+    case "project.updated":
+      sync.invalidate("project.list");
+      syncProjectList().catch(() => undefined);
+      break;
+
     // Explicitly out of scope for mobile: no store mutation or refetch needed.
     case "session.forked":
     // Forks are child sessions mobile never lists (root-only session list)
     // and have no fork UI; registering one would fold it into the parent's
     // blocker family as if it were a subagent.
     case "models-dev.refreshed":
-    case "integration.connection.updated":
+    case "credential.updated":
+    case "credential.switched":
+    case "persistent-pty.added":
+    case "persistent-pty.removed":
     case "filesystem.changed":
     case "plugin.added":
     case "plugin.updated":

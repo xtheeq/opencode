@@ -181,7 +181,7 @@ describe("contextSuggestions", () => {
 describe("commandSuggestions", () => {
   test("maps custom commands from the catalog", () => {
     const commands: CommandInfo[] = [
-      { name: "review", template: "review $1", description: "Start a review" },
+      { name: "review", description: "Start a review" },
     ];
 
     const suggestions = commandSuggestions(commands);
