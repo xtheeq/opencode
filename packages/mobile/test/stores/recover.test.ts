@@ -17,7 +17,7 @@ const fakeClient = {
     list: async () => ({ data: [] }),
   },
   message: {
-    list: async () => ({ data: [] }),
+    list: async () => ({ data: [], cursor: {} }),
   },
   permission: {
     list: async () => [],
@@ -63,6 +63,8 @@ beforeEach(() => {
     s.project = { info: {}, permission: {} };
     s.location = {};
     s._hydration = {};
+    s._messageCursor = {};
+    s._messageLoadingOlder = {};
     s._loadedSessions = false;
     s._defaultLocation = { directory: "" };
     s._client = fakeClient as unknown as OpenCodeClient;

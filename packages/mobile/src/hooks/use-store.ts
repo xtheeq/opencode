@@ -69,6 +69,10 @@ export function useSessionMessagesRaw(sessionID: string) {
   return eventStore((s) => s.session.message[sessionID]);
 }
 
+export function useSessionMessagesLoadingOlder(sessionID: string) {
+  return eventStore((s) => s._messageLoadingOlder[sessionID] ?? false);
+}
+
 export function useSessionMessages(sessionID: string) {
   const state = eventStore(
     useShallow((s) => ({

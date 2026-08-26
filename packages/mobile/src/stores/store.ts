@@ -99,6 +99,10 @@ export type Store = {
   // and "loaded" are the two stages. Reconnect recovery hydrates every
   // session that has a key here.
   _hydration: Record<string, HydrationStatus>;
+  // Message history pagination. An absent cursor means the session start is
+  // loaded; the flag guards concurrent older-page fetches.
+  _messageCursor: Record<string, string | undefined>;
+  _messageLoadingOlder: Record<string, boolean>;
   _loadedSessions: boolean;
   _loadedProjects: boolean;
   _defaultLocation: LocationRef;
@@ -135,6 +139,8 @@ export const eventStore = create<Store>()(
     location: {},
     _defaultLocation: { directory: "" },
     _hydration: {},
+    _messageCursor: {},
+    _messageLoadingOlder: {},
     _loadedSessions: false,
     _loadedProjects: false,
     _client: null,

@@ -214,6 +214,8 @@ export function removeSession(store: Store, sessionID: string) {
   delete store.session.input[sessionID];
   delete store.session.blocker[sessionID];
   delete store._hydration[sessionID];
+  delete store._messageCursor[sessionID];
+  delete store._messageLoadingOlder[sessionID];
   for (const [rootID, family] of Object.entries(store.session.family)) {
     const next = family.filter((id) => id !== sessionID);
     if (next.length === 0) delete store.session.family[rootID];
@@ -304,6 +306,7 @@ async function doHydrate(sessionID: string) {
       );
       s.session.message[sessionID] = merged;
       messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
+      s._messageCursor[sessionID] = messages.cursor.next ?? undefined;
       s.session.pending[sessionID] = pending;
       const blockers: Blocker[] = [];
       if (permissions.status === "fulfilled") {
@@ -328,6 +331,38 @@ async function doHydrate(sessionID: string) {
       s._hydration[sessionID] = "loaded";
     });
   }
+}
+
+// A cursor must not be combined with an order; omitting limit uses the
+// server's default page size.
+export async function loadOlderMessages(sessionID: string) {
+  const state = eventStore.getState();
+  const cursor = state._messageCursor[sessionID];
+  if (!cursor || state._messageLoadingOlder[sessionID]) return;
+  eventStore.setState((s) => {
+    s._messageLoadingOlder[sessionID] = true;
+  });
+  const response = await getClient()
+    .message.list({ sessionID, cursor })
+    .catch((error) => {
+      console.error("Failed to load older messages", sessionID, error);
+      return undefined;
+    })
+    .finally(() => {
+      eventStore.setState((s) => {
+        s._messageLoadingOlder[sessionID] = false;
+      });
+    });
+  if (!response) return;
+  const older = response.data.toReversed();
+  eventStore.setState((s) => {
+    const existing = s.session.message[sessionID] ?? [];
+    const ids = new Set(existing.map((m) => m.id));
+    const merged = [...older.filter((m) => !ids.has(m.id)), ...existing];
+    s.session.message[sessionID] = merged;
+    messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
+    s._messageCursor[sessionID] = response.cursor.next ?? undefined;
+  });
 }
 
 export async function syncGlobalBlockers(location: LocationRef) {

@@ -34,7 +34,7 @@ const fakeClient = {
   message: {
     list: async () => {
       calls.messageList += 1;
-      return { data: [] };
+      return messageListResult;
     },
   },
   permission: {
@@ -49,19 +49,31 @@ const fakeClient = {
 };
 
 let hydrateSession: (typeof import("@/stores/sync"))["hydrateSession"];
+let loadOlderMessages: (typeof import("@/stores/sync"))["loadOlderMessages"];
+let removeSession: (typeof import("@/stores/sync"))["removeSession"];
 let sync: (typeof import("@/stores/sync"))["sync"];
 let eventStore: (typeof import("@/stores/store"))["eventStore"];
+let messageIndex: (typeof import("@/stores/store"))["messageIndex"];
+
+let messageListResult: {
+  data: SessionMessageInfo[];
+  cursor: { next?: string };
+};
 
 beforeEach(async () => {
   const syncModule = await import("@/stores/sync");
   const storeModule = await import("@/stores/store");
   hydrateSession = syncModule.hydrateSession;
+  loadOlderMessages = syncModule.loadOlderMessages;
+  removeSession = syncModule.removeSession;
   sync = syncModule.sync;
   eventStore = storeModule.eventStore;
+  messageIndex = storeModule.messageIndex;
   calls.sessionGet = 0;
   calls.messageList = 0;
   calls.inboxList = 0;
   calls.permissionList = 0;
+  messageListResult = { data: [], cursor: {} };
   eventStore.setState((s) => {
     s.session = {
       info: {},
@@ -74,6 +86,8 @@ beforeEach(async () => {
       autoApprove: {},
     };
     s._hydration = {};
+    s._messageCursor = {};
+    s._messageLoadingOlder = {};
     s._client = fakeClient as unknown as OpenCodeClient;
   });
 });
@@ -166,6 +180,114 @@ describe("hydrateSession", () => {
     expect(store.session.message["ses_1"]).toEqual([
       cachedMessage("msg_cached"),
     ]);
+  });
+});
+
+describe("loadOlderMessages", () => {
+  test("hydration captures the older-history cursor", async () => {
+    messageListResult = {
+      data: [cachedMessage("msg_new")],
+      cursor: { next: "cur_older" },
+    };
+
+    await hydrateSession("ses_1");
+
+    expect(eventStore.getState()._messageCursor["ses_1"]).toBe("cur_older");
+  });
+
+  test("prepends the older page, dedupes, and advances the cursor", async () => {
+    eventStore.setState((s) => {
+      s.session.message["ses_1"] = [cachedMessage("msg_new")];
+      s._messageCursor["ses_1"] = "cur_1";
+    });
+    messageListResult = {
+      data: [cachedMessage("msg_new"), cachedMessage("msg_mid"), cachedMessage("msg_old")],
+      cursor: { next: "cur_2" },
+    };
+
+    await loadOlderMessages("ses_1");
+
+    const store = eventStore.getState();
+    expect(store.session.message["ses_1"].map((m) => m.id)).toEqual([
+      "msg_old",
+      "msg_mid",
+      "msg_new",
+    ]);
+    expect(store._messageCursor["ses_1"]).toBe("cur_2");
+    expect(store._messageLoadingOlder["ses_1"]).toBe(false);
+    expect(messageIndex.get("ses_1")?.get("msg_old")).toBe(0);
+    expect(messageIndex.get("ses_1")?.get("msg_new")).toBe(2);
+  });
+
+  test("a no-cursor session is exhausted and never refetches", async () => {
+    await loadOlderMessages("ses_1");
+
+    expect(calls.messageList).toBe(0);
+  });
+
+  test("concurrent loads share one page fetch", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    eventStore.setState((s) => {
+      s._client = {
+        ...fakeClient,
+        message: {
+          list: async () => {
+            calls.messageList += 1;
+            await gate;
+            return { data: [], cursor: {} };
+          },
+        },
+      } as unknown as OpenCodeClient;
+      s.session.message["ses_1"] = [cachedMessage("msg_a")];
+      s._messageCursor["ses_1"] = "cur";
+    });
+
+    const first = loadOlderMessages("ses_1");
+    const second = loadOlderMessages("ses_1");
+    release();
+    await Promise.all([first, second]);
+
+    expect(calls.messageList).toBe(1);
+  });
+
+  test("a failed page keeps state and clears the loading flag", async () => {
+    eventStore.setState((s) => {
+      s._client = {
+        ...fakeClient,
+        message: {
+          list: async () => {
+            throw new Error("network connection was lost");
+          },
+        },
+      } as unknown as OpenCodeClient;
+      s.session.message["ses_1"] = [cachedMessage("msg_cached")];
+      s._messageCursor["ses_1"] = "cur";
+    });
+
+    await loadOlderMessages("ses_1");
+
+    const store = eventStore.getState();
+    expect(store.session.message["ses_1"].map((m) => m.id)).toEqual([
+      "msg_cached",
+    ]);
+    expect(store._messageCursor["ses_1"]).toBe("cur");
+    expect(store._messageLoadingOlder["ses_1"]).toBe(false);
+  });
+
+  test("removeSession clears the pagination keys", async () => {
+    eventStore.setState((s) => {
+      s._messageCursor["ses_1"] = "cur";
+      s._messageLoadingOlder["ses_1"] = true;
+    });
+
+    eventStore.setState((s) => removeSession(s, "ses_1"));
+
+    const store = eventStore.getState();
+    expect(store._messageCursor["ses_1"]).toBeUndefined();
+    expect(store._messageLoadingOlder["ses_1"]).toBeUndefined();
   });
 });
 
