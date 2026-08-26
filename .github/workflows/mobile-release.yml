@@ -1,0 +1,36 @@
+name: mobile-android-build
+
+on:
+  push:
+    paths:
+      - "packages/mobile/**"
+
+permissions:
+  contents: read
+
+jobs:
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-bun
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Generate native Android project
+        working-directory: ./packages/mobile
+        run: bunx expo prebuild --platform android --no-install
+
+      - name: Build release APK
+        working-directory: ./packages/mobile/android
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g"
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: opencode-android-release
+          path: packages/mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
