@@ -98,6 +98,7 @@ export function Composer({
   return (
     <View
       style={[styles.container, { backgroundColor: colors.background.default }]}
+      pointerEvents="box-none"
     >
       {sheetOpen && (
         <SuggestionSheet
@@ -107,7 +108,7 @@ export function Composer({
         />
       )}
       {parts.some((part) => part.type !== "text") && (
-        <View style={styles.chips}>
+        <View style={styles.chips} pointerEvents="box-none">
           {parts.map((part, index) => {
             if (part.type === "text") return null;
             const label = chipLabel(part);

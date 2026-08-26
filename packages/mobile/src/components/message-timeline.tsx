@@ -1,5 +1,8 @@
+import type { Ref } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
+import type { LegendListRef } from "@legendapp/list/react-native";
+import type { SharedValue } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { spacing, useTheme } from "@/theme";
 import { RowRenderer } from "@/components/message/row";
@@ -16,7 +19,15 @@ function rowType(row: SessionRow): string {
   return row.type === "assistant-part" ? `${row.type}-${row.part.type}` : row.type;
 }
 
-export function MessageTimeline({ sessionID }: { sessionID: string }) {
+export function MessageTimeline({
+  sessionID,
+  listRef,
+  contentInsetEndAdjustment,
+}: {
+  sessionID: string;
+  listRef?: Ref<LegendListRef>;
+  contentInsetEndAdjustment?: SharedValue<number>;
+}) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { messages, loaded, loading } = useSessionMessages(sessionID);
@@ -38,6 +49,8 @@ export function MessageTimeline({ sessionID }: { sessionID: string }) {
 
   return (
     <KeyboardAwareLegendList
+      ref={listRef}
+      contentInsetEndAdjustment={contentInsetEndAdjustment}
       data={rows}
       keyExtractor={rowKey}
       getItemType={rowType}
