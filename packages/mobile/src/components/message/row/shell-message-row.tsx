@@ -4,7 +4,7 @@ import { ShellMessage } from "../shell-message";
 
 export function ShellMessageRow({ message }: { message: SessionMessageShell }) {
   return (
-    <BubbleContainer alignment="flex-start">
+    <BubbleContainer alignment="flex-start" fullWidth>
       <ShellMessage message={message} />
     </BubbleContainer>
   );

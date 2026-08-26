@@ -10,7 +10,7 @@ export function ExplorationGroupRow({
   if (parts.length === 0) return null;
 
   return (
-    <BubbleContainer alignment="flex-start">
+    <BubbleContainer alignment="flex-start" fullWidth>
       {parts.map((part) => (
         <ToolPart key={part.id} part={part} />
       ))}

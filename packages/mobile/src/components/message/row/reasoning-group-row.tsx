@@ -54,7 +54,7 @@ export function ReasoningGroupRow({
   if (!text) return null;
 
   return (
-    <BubbleContainer alignment="flex-start">
+    <BubbleContainer alignment="flex-start" fullWidth>
       <View style={styles.container}>
         <TouchableOpacity
           onPress={() => setExpanded((v) => !v)}

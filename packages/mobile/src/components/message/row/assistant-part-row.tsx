@@ -6,7 +6,7 @@ type ContentPart = SessionMessageAssistant["content"][number];
 
 export function AssistantPartRow({ part }: { part: ContentPart }) {
   return (
-    <BubbleContainer alignment="flex-start">
+    <BubbleContainer alignment="flex-start" fullWidth>
       {part.type === "text" && <TextPart part={part} />}
       {part.type === "reasoning" && <ReasoningPart part={part} />}
       {part.type === "tool" && <ToolPart part={part} />}
