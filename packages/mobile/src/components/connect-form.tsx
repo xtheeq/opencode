@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 import { connect } from "@/services/connection";
 import { useConnectionStatus, useServerUrl } from "@/hooks/use-store";
 import { spacing, useTheme } from "@/theme";
@@ -7,6 +8,7 @@ import { Button, Text, TextInput } from "@/components/primitives";
 
 export function ConnectForm() {
   const { colors } = useTheme();
+  const router = useRouter();
   const connection = useConnectionStatus();
   const storedUrl = useServerUrl();
   // Undefined until the user edits: the stored URL wins until then, so a
@@ -59,6 +61,14 @@ export function ConnectForm() {
         disabled={disabled}
         onPress={() => connect(url, password || undefined)}
       />
+      <TouchableOpacity
+        style={styles.scan}
+        onPress={() => router.push("/scan")}
+      >
+        <Text variant="label" color="accent">
+          Scan QR Code
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -76,5 +86,9 @@ const styles = StyleSheet.create({
   subtitle: {
     textAlign: "center",
     marginBottom: spacing.lg,
+  },
+  scan: {
+    alignSelf: "center",
+    padding: spacing.sm,
   },
 });

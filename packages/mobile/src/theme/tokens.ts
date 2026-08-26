@@ -8,6 +8,7 @@ export interface ThemeColors {
     accent: string;
     disabled: string;
     inverse: string;
+    onMedia: string;
     success: string;
     warning: string;
     error: string;
@@ -22,6 +23,7 @@ export interface ThemeColors {
     inverse: string;
     contrast: string;
     accent: string;
+    media: string;
   };
   border: {
     default: string;

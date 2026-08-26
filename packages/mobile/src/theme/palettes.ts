@@ -23,6 +23,7 @@ export const lightColors = createColors({
     inverse: "#242424",
     contrast: "#2e2e2e",
     accent: "#3b5cf6",
+    media: "#000000",
   },
   text: {
     primary: "#161616",
@@ -31,6 +32,7 @@ export const lightColors = createColors({
     accent: "#3b5cf6",
     disabled: "#aeaeae",
     inverse: "#fafafa",
+    onMedia: "#ffffff",
     success: "#198b43",
     warning: "#8e7231",
     error: "#b82d35",
@@ -89,6 +91,7 @@ export const darkColors = createColors({
     inverse: "#fafafa",
     contrast: "#5c5c5c",
     accent: "#3b5cf6",
+    media: "#000000",
   },
   text: {
     primary: "#fafafa",
@@ -97,6 +100,7 @@ export const darkColors = createColors({
     accent: "#a2bcff",
     disabled: "#5c5c5c",
     inverse: "#242424",
+    onMedia: "#ffffff",
     success: "#6bd586",
     warning: "#f2cf76",
     error: "#f17471",

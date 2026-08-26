@@ -16,6 +16,7 @@
     "@legendapp/list": "3.3.3",
     "@opencode-ai/client": "workspace:*",
     "expo": "~57.0.7",
+    "expo-camera": "~57.0.4",
     "expo-constants": "~57.0.6",
     "expo-linking": "~57.0.3",
     "expo-router": "~57.0.7",
