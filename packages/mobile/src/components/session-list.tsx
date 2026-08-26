@@ -4,13 +4,14 @@ import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import {
   ActivityIndicator,
-  FlatList,
+  SectionList,
   StyleSheet,
   TouchableOpacity,
   View,
 } from "react-native";
 import { router } from "expo-router";
 import type { DrawerContentComponentProps } from "expo-router/drawer";
+import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
@@ -55,6 +56,7 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   const visibleSessions = activeProject
     ? sessionsForProject(sessions, activeProject.id)
     : [];
+  const sections = sessionSections(visibleSessions);
 
   function openSession(id: string) {
     router.push({ pathname: "/session/[id]", params: { id } });
@@ -128,12 +130,19 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
     <View
       style={[styles.container, { backgroundColor: colors.background.default }]}
     >
-      <FlatList
-        data={visibleSessions}
+      <SectionList
+        sections={sections}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => (
           <SessionCard session={item} onPress={() => openSession(item.id)} />
         )}
+        renderSectionHeader={({ section }) => (
+          <Text variant="caption" color="secondary" style={styles.sectionHeader}>
+            {section.title}
+          </Text>
+        )}
+        ItemSeparatorComponent={RowSeparator}
+        stickySectionHeadersEnabled={false}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
         ListHeaderComponent={
@@ -203,9 +212,62 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   );
 }
 
+function RowSeparator() {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={[
+        styles.separator,
+        { backgroundColor: colors.border.subtle },
+      ]}
+    />
+  );
+}
+
+type SessionSection = { title: string; data: SessionInfo[] };
+
+/** Calendar-day groups matching the web sidebar: Today / Yesterday / Older. */
+function sessionSections(sessions: SessionInfo[]): SessionSection[] {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isSameDay = (ms: number, ref: Date) => {
+    const date = new Date(ms);
+    return (
+      date.getFullYear() === ref.getFullYear() &&
+      date.getMonth() === ref.getMonth() &&
+      date.getDate() === ref.getDate()
+    );
+  };
+  const todays = sessions.filter((session) => isSameDay(session.time.updated, today));
+  const yesterdays = sessions.filter((session) => isSameDay(session.time.updated, yesterday));
+  const older = sessions.filter(
+    (session) => !isSameDay(session.time.updated, today) && !isSameDay(session.time.updated, yesterday),
+  );
+  const sections: SessionSection[] = [];
+  if (todays.length > 0) sections.push({ title: "Today", data: todays });
+  if (yesterdays.length > 0) sections.push({ title: "Yesterday", data: yesterdays });
+  if (older.length > 0) {
+    sections.push({
+      title: todays.length > 0 || yesterdays.length > 0 ? "Older" : "Recent sessions",
+      data: older,
+    });
+  }
+  return sections;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  sectionHeader: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xs,
+  },
+  separator: {
+    height: StyleSheet.hairlineWidth,
+    marginLeft: spacing.md,
   },
   backRow: {
     flexDirection: "row",
