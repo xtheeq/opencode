@@ -10,6 +10,8 @@ export default function AppLayout() {
       defaultStatus="closed"
       screenOptions={{
         headerShown: false,
+        drawerType: "slide",
+        drawerStyle: { width: "100%" },
         sceneStyle: { backgroundColor: colors.background.default },
       }}
     />
