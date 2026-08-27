@@ -1,9 +1,11 @@
 import { View, StyleSheet } from "react-native";
-import ArrowRight from "lucide-react-native/icons/arrow-right";
+import Eye from "lucide-react-native/icons/eye";
 import CornerDownRight from "lucide-react-native/icons/corner-down-right";
 import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
 import { Text } from "@/components/primitives";
 import { spacing, typography, useTheme } from "@/theme";
+import { BasicTool } from "./basic-tool";
+import { toolError } from "@/utils/tool-state";
 
 function getString(value: unknown): string | undefined {
   if (typeof value === "string") return value;
@@ -51,19 +53,18 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
   const { colors } = useTheme();
   const fullPath = getFullPath(part.state);
   const loaded = getLoaded(part.state);
+  const error = toolError(part);
 
   if (!fullPath) return null;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={styles.iconWrap}>
-          <ArrowRight size={12} color={colors.text.secondary} />
-        </View>
-        <Text variant="mono" color="secondary" style={styles.headerText}>
-          Read {displayPath(fullPath)}
-        </Text>
-      </View>
+    <BasicTool
+      icon={Eye}
+      title="Read"
+      subtitle={displayPath(fullPath)}
+      status={part.state.status}
+      error={error}
+    >
       {loaded?.map((filepath, i) => (
         <View key={i} style={styles.loadedRow}>
           <View style={styles.iconWrap}>
@@ -74,24 +75,14 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
           </Text>
         </View>
       ))}
-    </View>
+    </BasicTool>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    gap: spacing.xs,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
   iconWrap: {
     height: typography.mono.lineHeight,
     justifyContent: "center",
-  },
-  headerText: {
-    marginLeft: spacing.xs,
   },
   loadedRow: {
     flexDirection: "row",
