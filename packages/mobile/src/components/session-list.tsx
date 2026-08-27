@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
+import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import FolderOpen from "lucide-react-native/icons/folder-open";
 import Search from "lucide-react-native/icons/search";
 import X from "lucide-react-native/icons/x";
@@ -281,16 +282,27 @@ export function SessionList({
             activeOpacity={0.6}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel={view === "sessions" ? "Choose project" : "Back to sessions"}
+            accessibilityLabel={
+              view === "sessions" ? "Choose project" : "Back to sessions"
+            }
             style={[
               styles.dockProject,
               { backgroundColor: colors.background.surface, borderColor: colors.border.default },
             ]}
           >
-            <FolderOpen size={18} color={colors.icon.muted} />
-            <Text variant="label" numberOfLines={1} style={styles.flex}>
-              {projectLabel}
-            </Text>
+            {view === "sessions" ? (
+              <>
+                <FolderOpen size={18} color={colors.icon.muted} />
+                <Text variant="label" numberOfLines={1}>
+                  {projectLabel}
+                </Text>
+              </>
+            ) : (
+              <>
+                <ChevronLeft size={18} color={colors.icon.default} />
+                <Text variant="label" numberOfLines={1}>Sessions</Text>
+              </>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             onPress={handleNewSession}
@@ -415,14 +427,12 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: spacing.sm,
     minHeight: 46,
     borderWidth: 1,
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.md,
-  },
-  flex: {
-    flex: 1,
   },
   searchBar: {
     position: "absolute",
