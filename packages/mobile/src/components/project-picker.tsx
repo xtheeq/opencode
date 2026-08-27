@@ -17,6 +17,7 @@ export function ProjectPicker({
   onUseDefault,
   refreshing,
   onRefresh,
+  query,
 }: {
   projects: Project[];
   loaded: boolean;
@@ -24,6 +25,7 @@ export function ProjectPicker({
   onUseDefault?: () => void;
   refreshing?: boolean;
   onRefresh?: () => void;
+  query?: string;
 }) {
   const { colors } = useTheme();
 
@@ -39,9 +41,9 @@ export function ProjectPicker({
     return (
       <View style={styles.centered}>
         <Text variant="body" color="secondary" style={styles.emptyText}>
-          No projects found
+          {query ? "No projects match" : "No projects found"}
         </Text>
-        {onUseDefault ? (
+        {!query && onUseDefault ? (
           <Button title="Use server default location" onPress={onUseDefault} />
         ) : null}
       </View>

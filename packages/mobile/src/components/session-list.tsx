@@ -48,6 +48,7 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [view, setView] = useState<"sessions" | "projects">("sessions");
   const [query, setQuery] = useState("");
+  const [projectQuery, setProjectQuery] = useState("");
 
   const activeProject = findActiveProject(projects, activeLocation.directory);
   const projectLabel = activeLocation.directory
@@ -66,6 +67,15 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
       )
     : visibleSessions;
   const sections = sessionSections(filteredSessions);
+
+  const projectTrimmed = projectQuery.trim().toLowerCase();
+  const filteredProjects = projectTrimmed
+    ? projects.filter((project) =>
+        `${projectDisplayName(project)} ${project.canonical}`
+          .toLowerCase()
+          .includes(projectTrimmed),
+      )
+    : projects;
 
   function openSession(id: string) {
     router.push({ pathname: "/session/[id]", params: { id } });
@@ -125,11 +135,39 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
           <ChevronLeft size={20} color={colors.icon.default} />
           <Text variant="label">Choose project</Text>
         </TouchableOpacity>
+        <View
+          style={[
+            styles.searchRow,
+            { borderColor: colors.border.default },
+          ]}
+        >
+          <Search size={16} color={colors.icon.muted} />
+          <TextInput
+            value={projectQuery}
+            onChangeText={setProjectQuery}
+            placeholder="Search projects"
+            placeholderTextColor={colors.text.secondary}
+            accessibilityLabel="Search projects"
+            returnKeyType="search"
+            style={styles.searchInput}
+          />
+          {projectQuery ? (
+            <TouchableOpacity
+              onPress={() => setProjectQuery("")}
+              activeOpacity={0.6}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <X size={16} color={colors.icon.muted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
         <ProjectPicker
-          projects={projects}
+          projects={filteredProjects}
           loaded={projectsLoaded}
           onSelect={handleProjectSelect}
           onRefresh={() => void syncProjectList()}
+          query={projectTrimmed}
         />
       </View>
     );
