@@ -2,6 +2,8 @@ import { useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
+import Search from "lucide-react-native/icons/search";
+import X from "lucide-react-native/icons/x";
 import {
   ActivityIndicator,
   SectionList,
@@ -14,7 +16,7 @@ import type { DrawerContentComponentProps } from "expo-router/drawer";
 import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
-import { Text } from "@/components/primitives";
+import { Text, TextInput } from "@/components/primitives";
 import { SessionCard } from "@/components/session-card";
 import { ProjectPicker } from "@/components/project-picker";
 import {
@@ -45,6 +47,7 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   const activeLocation = useActiveLocation();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [view, setView] = useState<"sessions" | "projects">("sessions");
+  const [query, setQuery] = useState("");
 
   const activeProject = findActiveProject(projects, activeLocation.directory);
   const projectLabel = activeLocation.directory
@@ -56,7 +59,13 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
   const visibleSessions = activeProject
     ? sessionsForProject(sessions, activeProject.id)
     : [];
-  const sections = sessionSections(visibleSessions);
+  const trimmed = query.trim().toLowerCase();
+  const filteredSessions = trimmed
+    ? visibleSessions.filter((session) =>
+        (session.title || "Untitled").toLowerCase().includes(trimmed),
+      )
+    : visibleSessions;
+  const sections = sessionSections(filteredSessions);
 
   function openSession(id: string) {
     router.push({ pathname: "/session/[id]", params: { id } });
@@ -169,6 +178,37 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
                 <ChevronDown size={16} color={colors.icon.muted} />
               </View>
             </TouchableOpacity>
+            <View
+              style={[
+                styles.searchRow,
+                { borderColor: colors.border.default },
+              ]}
+            >
+              <Search size={16} color={colors.icon.muted} />
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                placeholder={
+                  activeProject
+                    ? `Search "${projectLabel}"`
+                    : "Search sessions"
+                }
+                placeholderTextColor={colors.text.secondary}
+                accessibilityLabel="Search sessions"
+                returnKeyType="search"
+                style={styles.searchInput}
+              />
+              {query ? (
+                <TouchableOpacity
+                  onPress={() => setQuery("")}
+                  activeOpacity={0.6}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear search"
+                >
+                  <X size={16} color={colors.icon.muted} />
+                </TouchableOpacity>
+              ) : null}
+            </View>
             <TouchableOpacity
               onPress={handleNewSession}
               disabled={isCreating}
@@ -193,7 +233,9 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
         }
         ListEmptyComponent={
           <View style={styles.centered}>
-            {activeProject ? (
+            {query.trim() ? (
+              <Text color="secondary">No sessions match</Text>
+            ) : activeProject ? (
               <Text color="secondary">No sessions in this project yet</Text>
             ) : (
               <Text color="secondary">Choose a project to start</Text>
@@ -296,6 +338,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
+  },
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.sm,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    paddingVertical: spacing.sm,
+    paddingHorizontal: 0,
   },
   newSession: {
     borderWidth: 1,
