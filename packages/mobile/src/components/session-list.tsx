@@ -1,7 +1,7 @@
 import { useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
-import ChevronDown from "lucide-react-native/icons/chevron-down";
+import FolderOpen from "lucide-react-native/icons/folder-open";
 import Search from "lucide-react-native/icons/search";
 import X from "lucide-react-native/icons/x";
 import {
@@ -10,7 +10,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   View,
+  type ViewStyle,
 } from "react-native";
+import Animated, { type AnimatedStyle } from "react-native-reanimated";
 import { router } from "expo-router";
 import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -35,7 +37,13 @@ import {
   sessionsForProject,
 } from "@/utils/project";
 
-export function SessionList({ onClose }: { onClose: () => void }) {
+export function SessionList({
+  onClose,
+  dockAnimatedStyle,
+}: {
+  onClose: () => void;
+  dockAnimatedStyle?: AnimatedStyle<ViewStyle>;
+}) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createSession, isCreating } = useCreateSession();
@@ -48,6 +56,7 @@ export function SessionList({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<"sessions" | "projects">("sessions");
   const [query, setQuery] = useState("");
   const [projectQuery, setProjectQuery] = useState("");
+  const dockClearance = spacing.sm + 46 + spacing.sm;
 
   const activeProject = findActiveProject(projects, activeLocation.directory);
   const projectLabel = activeLocation.directory
@@ -193,28 +202,6 @@ export function SessionList({ onClose }: { onClose: () => void }) {
         onRefresh={handleRefresh}
         ListHeaderComponent={
           <>
-            <TouchableOpacity
-              onPress={() => setView("projects")}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Choose project"
-              style={[
-                styles.projectRow,
-                { borderColor: colors.border.default },
-              ]}
-            >
-              <Text variant="body" numberOfLines={1} style={styles.projectName}>
-                {projectLabel}
-              </Text>
-              <View style={styles.projectMeta}>
-                {activeProject?.vcs ? (
-                  <Text variant="caption" color="secondary">
-                    {activeProject.vcs}
-                  </Text>
-                ) : null}
-                <ChevronDown size={16} color={colors.icon.muted} />
-              </View>
-            </TouchableOpacity>
             <View
               style={[
                 styles.searchRow,
@@ -246,26 +233,6 @@ export function SessionList({ onClose }: { onClose: () => void }) {
                 </TouchableOpacity>
               ) : null}
             </View>
-            <TouchableOpacity
-              onPress={handleNewSession}
-              disabled={isCreating}
-              style={[
-                styles.newSession,
-                {
-                  borderColor: colors.border.default,
-                  opacity: isCreating || !activeProject ? 0.6 : 1,
-                },
-              ]}
-            >
-              {isCreating ? (
-                <ActivityIndicator size="small" color={colors.text.primary} />
-              ) : (
-                <View style={styles.newSessionRow}>
-                  <Plus size={18} color={colors.icon.default} />
-                  <Text variant="body">New session</Text>
-                </View>
-              )}
-            </TouchableOpacity>
           </>
         }
         ListEmptyComponent={
@@ -282,11 +249,62 @@ export function SessionList({ onClose }: { onClose: () => void }) {
         contentContainerStyle={[
           {
             paddingTop: spacing.sm,
-            paddingBottom: insets.bottom + spacing.sm,
+            paddingBottom: insets.bottom + dockClearance,
             flexGrow: 1,
           },
         ]}
       />
+      <Animated.View
+        style={[
+          styles.dock,
+          {
+            backgroundColor: colors.background.default,
+            borderTopColor: colors.border.subtle,
+            paddingBottom: Math.max(insets.bottom, spacing.sm),
+          },
+          dockAnimatedStyle,
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => setView("projects")}
+          activeOpacity={0.6}
+          accessibilityRole="button"
+          accessibilityLabel="Choose project"
+          style={[
+            styles.dockProject,
+            { backgroundColor: colors.background.surface, borderColor: colors.border.default },
+          ]}
+        >
+          <FolderOpen size={18} color={colors.icon.muted} />
+          <Text variant="label" numberOfLines={1} style={styles.flex}>
+            {projectLabel}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={handleNewSession}
+          disabled={isCreating}
+          accessibilityRole="button"
+          accessibilityLabel="New session"
+          style={[
+            styles.dockNewSession,
+            {
+              backgroundColor: colors.action.primary,
+              opacity: isCreating || !activeProject ? 0.6 : 1,
+            },
+          ]}
+        >
+          {isCreating ? (
+            <ActivityIndicator size="small" color={colors.action.primaryText} />
+          ) : (
+            <>
+              <Plus size={18} color={colors.action.primaryText} />
+              <Text variant="label" style={{ color: colors.action.primaryText }}>
+                New session
+              </Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -357,25 +375,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     borderBottomWidth: 1,
   },
-  projectRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-  },
-  projectName: {
-    flex: 1,
-  },
-  projectMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-  },
   searchRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -393,18 +392,38 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     paddingHorizontal: 0,
   },
-  newSession: {
-    borderWidth: 1,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
-    alignItems: "center",
+  dock: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    flexDirection: "row",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
-  newSessionRow: {
+  dockProject: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.xs,
+    gap: spacing.sm,
+    minHeight: 46,
+    borderWidth: 1,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: spacing.md,
+  },
+  dockNewSession: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    minHeight: 46,
+    borderRadius: borderRadius.pill,
+    paddingHorizontal: spacing.lg,
+  },
+  flex: {
+    flex: 1,
   },
   centered: {
     flex: 1,

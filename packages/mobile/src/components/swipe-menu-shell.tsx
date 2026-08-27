@@ -61,6 +61,7 @@ export function SwipeMenuShell({
     isMenuOpen,
     mainAnimatedStyle,
     menuContentAnimatedStyle,
+    menuDockAnimatedStyle,
     swipeGesture,
   } = useSwipeMenu({ menuWidth: width, side });
 
@@ -136,7 +137,7 @@ export function SwipeMenuShell({
             }
             style={[styles.menu, menuContentAnimatedStyle]}
           >
-            <SessionList onClose={closeMenu} />
+            <SessionList dockAnimatedStyle={menuDockAnimatedStyle} onClose={closeMenu} />
           </Animated.View>
         </View>
 

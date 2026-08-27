@@ -163,11 +163,37 @@ export function useSwipeMenu({ menuWidth, side = "left" }: SwipeMenuOptions) {
     };
   });
 
+  const menuDockAnimatedStyle = useAnimatedStyle(() => {
+    const progress = translateX.value / menuWidth;
+
+    return {
+      transform: [
+        {
+          translateY: interpolate(
+            progress,
+            [0, 1],
+            [SWIPE_MENU.reveal.startVerticalOffset, 0],
+            Extrapolation.CLAMP,
+          ),
+        },
+        {
+          scale: interpolate(
+            progress,
+            [0, 1],
+            [SWIPE_MENU.reveal.startScale, 1],
+            Extrapolation.CLAMP,
+          ),
+        },
+      ],
+    };
+  });
+
   return {
     animateMenu,
     isMenuOpen,
     mainAnimatedStyle,
     menuContentAnimatedStyle,
+    menuDockAnimatedStyle,
     swipeGesture,
   };
 }
