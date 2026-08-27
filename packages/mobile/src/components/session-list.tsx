@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
-import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import FolderOpen from "lucide-react-native/icons/folder-open";
 import Search from "lucide-react-native/icons/search";
 import X from "lucide-react-native/icons/x";
@@ -20,7 +19,7 @@ import { router } from "expo-router";
 import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
-import { Text, TextInput } from "@/components/primitives";
+import { Text } from "@/components/primitives";
 import { SessionCard } from "@/components/session-card";
 import { ProjectPicker } from "@/components/project-picker";
 import {
@@ -94,6 +93,19 @@ export function SessionList({
       )
     : projects;
 
+  const searchValue = view === "sessions" ? query : projectQuery;
+  const setSearchValue = view === "sessions" ? setQuery : setProjectQuery;
+  const searchPlaceholder =
+    view === "sessions"
+      ? activeProject
+        ? `Search "${projectLabel}"`
+        : "Search sessions"
+      : "Search projects";
+
+  function clearSearch() {
+    setSearchValue("");
+  }
+
   function openSession(id: string) {
     setQuery("");
     setSearchActive(false);
@@ -137,100 +149,61 @@ export function SessionList({
     );
   }
 
-  if (view === "projects") {
-    return (
-      <View
-        style={[
-          styles.container,
-          { backgroundColor: colors.background.default },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => setView("sessions")}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel="Back to sessions"
-          style={[styles.backRow, { borderBottomColor: colors.border.subtle }]}
-        >
-          <ChevronLeft size={20} color={colors.icon.default} />
-          <Text variant="label">Choose project</Text>
-        </TouchableOpacity>
-        <View
-          style={[
-            styles.searchRow,
-            { borderColor: colors.border.default },
-          ]}
-        >
-          <Search size={16} color={colors.icon.muted} />
-          <TextInput
-            value={projectQuery}
-            onChangeText={setProjectQuery}
-            placeholder="Search projects"
-            placeholderTextColor={colors.text.secondary}
-            accessibilityLabel="Search projects"
-            returnKeyType="search"
-            style={styles.searchInput}
-          />
-          {projectQuery ? (
-            <TouchableOpacity
-              onPress={() => setProjectQuery("")}
-              activeOpacity={0.6}
-              accessibilityRole="button"
-              accessibilityLabel="Clear search"
-            >
-              <X size={16} color={colors.icon.muted} />
-            </TouchableOpacity>
-          ) : null}
-        </View>
-        <ProjectPicker
-          projects={filteredProjects}
-          loaded={projectsLoaded}
-          onSelect={handleProjectSelect}
-          onRefresh={() => void syncProjectList()}
-          query={projectTrimmed}
-        />
-      </View>
-    );
-  }
-
   return (
     <View
       style={[styles.container, { backgroundColor: colors.background.default }]}
     >
-      <SectionList
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <SessionCard session={item} onPress={() => openSession(item.id)} />
-        )}
-        renderSectionHeader={({ section }) => (
-          <Text variant="caption" color="secondary" style={styles.sectionHeader}>
-            {section.title}
-          </Text>
-        )}
-        ItemSeparatorComponent={RowSeparator}
-        stickySectionHeadersEnabled={false}
-        refreshing={isRefreshing}
-        onRefresh={handleRefresh}
-        ListEmptyComponent={
-          <View style={styles.centered}>
-            {query.trim() ? (
-              <Text color="secondary">No sessions match</Text>
-            ) : activeProject ? (
-              <Text color="secondary">No sessions in this project yet</Text>
-            ) : (
-              <Text color="secondary">Choose a project to start</Text>
-            )}
-          </View>
-        }
-        contentContainerStyle={[
-          {
-            paddingTop: spacing.sm,
-            paddingBottom: insets.bottom + dockClearance,
-            flexGrow: 1,
-          },
-        ]}
-      />
+      {view === "sessions" ? (
+        <SectionList
+          sections={sections}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <SessionCard session={item} onPress={() => openSession(item.id)} />
+          )}
+          renderSectionHeader={({ section }) => (
+            <Text variant="caption" color="secondary" style={styles.sectionHeader}>
+              {section.title}
+            </Text>
+          )}
+          ItemSeparatorComponent={RowSeparator}
+          stickySectionHeadersEnabled={false}
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          ListEmptyComponent={
+            <View style={styles.centered}>
+              {query.trim() ? (
+                <Text color="secondary">No sessions match</Text>
+              ) : activeProject ? (
+                <Text color="secondary">No sessions in this project yet</Text>
+              ) : (
+                <Text color="secondary">Choose a project to start</Text>
+              )}
+            </View>
+          }
+          contentContainerStyle={[
+            {
+              paddingTop: spacing.sm,
+              paddingBottom: insets.bottom + dockClearance,
+              flexGrow: 1,
+            },
+          ]}
+        />
+      ) : (
+        <View
+          style={[
+            styles.projectList,
+            { paddingBottom: insets.bottom + dockClearance },
+          ]}
+        >
+          <ProjectPicker
+            projects={filteredProjects}
+            loaded={projectsLoaded}
+            onSelect={handleProjectSelect}
+            onRefresh={() => void syncProjectList()}
+            query={projectTrimmed}
+          />
+        </View>
+      )}
       {searchActive ? (
         <KeyboardStickyView
           style={[
@@ -247,20 +220,18 @@ export function SessionList({
             <RNTextInput
               ref={searchInputRef}
               autoFocus
-              value={query}
-              onChangeText={setQuery}
-              placeholder={
-                activeProject ? `Search "${projectLabel}"` : "Search sessions"
-              }
+              value={searchValue}
+              onChangeText={setSearchValue}
+              placeholder={searchPlaceholder}
               placeholderTextColor={colors.text.secondary}
-              accessibilityLabel="Search sessions"
+              accessibilityLabel="Search"
               returnKeyType="search"
               style={[styles.searchInput, { color: colors.text.primary }]}
             />
             <TouchableOpacity
               onPress={() => {
-                if (query) {
-                  setQuery("");
+                if (searchValue) {
+                  clearSearch();
                 } else {
                   setSearchActive(false);
                   Keyboard.dismiss();
@@ -269,7 +240,7 @@ export function SessionList({
               activeOpacity={0.6}
               hitSlop={12}
               accessibilityRole="button"
-              accessibilityLabel={query ? "Clear search" : "Close search"}
+              accessibilityLabel={searchValue ? "Clear search" : "Close search"}
             >
               <X size={16} color={colors.icon.muted} />
             </TouchableOpacity>
@@ -304,11 +275,13 @@ export function SessionList({
             <Search size={20} color={colors.icon.default} />
           </TouchableOpacity>
           <TouchableOpacity
-            onPress={() => setView("projects")}
+            onPress={() =>
+              setView(view === "sessions" ? "projects" : "sessions")
+            }
             activeOpacity={0.6}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Choose project"
+            accessibilityLabel={view === "sessions" ? "Choose project" : "Back to sessions"}
             style={[
               styles.dockProject,
               { backgroundColor: colors.background.surface, borderColor: colors.border.default },
@@ -395,6 +368,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  projectList: {
+    flex: 1,
+  },
   sectionHeader: {
     paddingHorizontal: spacing.md,
     paddingTop: spacing.md,
@@ -403,25 +379,6 @@ const styles = StyleSheet.create({
   separator: {
     height: StyleSheet.hairlineWidth,
     marginLeft: spacing.md,
-  },
-  backRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    minHeight: 44,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderBottomWidth: 1,
-  },
-  searchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderRadius: borderRadius.lg,
-    paddingHorizontal: spacing.sm,
-    marginHorizontal: spacing.md,
-    marginTop: spacing.sm,
   },
   searchInput: {
     flex: 1,
