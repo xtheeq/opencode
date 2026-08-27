@@ -361,6 +361,20 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
+    case "session.message.content.updated":
+      eventStore.setState((s) => {
+        const idx = index(event.data.sessionID);
+        const messages = s.session.message[event.data.sessionID];
+        if (!messages) return;
+        const assistant = findAssistant(
+          messages,
+          idx,
+          event.data.messageID,
+        );
+        if (assistant) assistant.content = [...event.data.content];
+      });
+      break;
+
     case "session.step.started":
       eventStore.setState((s) => {
         const idx = index(event.data.sessionID);
@@ -399,6 +413,20 @@ export function handleEvent(event: V2Event) {
             : undefined,
           time: { created: event.created },
         });
+      });
+      break;
+
+    case "session.step.streamed":
+      eventStore.setState((s) => {
+        const idx = index(event.data.sessionID);
+        const messages = s.session.message[event.data.sessionID];
+        if (!messages) return;
+        const currentAssistant = findAssistant(
+          messages,
+          idx,
+          event.data.assistantMessageID,
+        );
+        if (currentAssistant) currentAssistant.time.streamed = event.created;
       });
       break;
 
