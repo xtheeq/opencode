@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type ReactNode } from "react";
+import { Children, useState, type ComponentType, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
@@ -35,7 +35,8 @@ export function BasicTool({
   const { colors } = useTheme();
   const [open, setOpen] = useState(defaultOpen);
   const pending = status === "streaming" || status === "running";
-  const expandable = children !== undefined;
+  const hasChildren = Children.count(children) > 0;
+  const expandable = hasChildren;
   const interactive = expandable && (!pending || allowOpenWhilePending);
   const hasMeta = subtitle !== undefined || (args?.length ?? 0) > 0;
 
