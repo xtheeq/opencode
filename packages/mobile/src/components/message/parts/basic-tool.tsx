@@ -2,6 +2,7 @@ import { Children, useState, type ComponentType, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
+import CircleAlert from "lucide-react-native/icons/circle-alert";
 import { Text } from "@/components/primitives";
 import { borderRadius, spacing, useTheme } from "@/theme";
 
@@ -21,6 +22,7 @@ export function BasicTool({
   status,
   defaultOpen = false,
   allowOpenWhilePending = false,
+  error,
   children,
 }: {
   icon: IconComponent;
@@ -30,13 +32,15 @@ export function BasicTool({
   status?: ToolStatus;
   defaultOpen?: boolean;
   allowOpenWhilePending?: boolean;
+  error?: string;
   children?: ReactNode;
 }) {
   const { colors } = useTheme();
   const [open, setOpen] = useState(defaultOpen);
   const pending = status === "streaming" || status === "running";
+  const failed = status === "error" || error != null;
   const hasChildren = Children.count(children) > 0;
-  const expandable = hasChildren;
+  const expandable = hasChildren || Boolean(error);
   const interactive = expandable && (!pending || allowOpenWhilePending);
   const hasMeta = subtitle !== undefined || (args?.length ?? 0) > 0;
 
@@ -51,7 +55,11 @@ export function BasicTool({
         style={({ pressed }) => [styles.trigger, pressed && interactive && styles.pressed]}
       >
         <View style={styles.iconWrap}>
-          <Icon size={14} color={colors.text.secondary} />
+          {failed ? (
+            <CircleAlert size={14} color={colors.icon.error} />
+          ) : (
+            <Icon size={14} color={colors.text.secondary} />
+          )}
         </View>
         <View style={styles.column}>
           <View style={styles.titleRow}>
@@ -109,6 +117,11 @@ export function BasicTool({
             { borderLeftColor: colors.border.default },
           ]}
         >
+          {error != null && (
+            <Text variant="caption" color="error" selectable style={styles.error}>
+              {error}
+            </Text>
+          )}
           {children}
         </View>
       )}
@@ -166,5 +179,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
     paddingLeft: spacing.sm,
     borderLeftWidth: 2,
+  },
+  error: {
+    marginBottom: spacing.xs,
   },
 });

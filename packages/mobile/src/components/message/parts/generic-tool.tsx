@@ -17,11 +17,7 @@ export function GenericTool({ part }: { part: SessionMessageAssistantTool }) {
   const error = toolError(part);
   const skipped = part.executed === false;
 
-  const body = error ? (
-    <Text variant="caption" color="error">
-      {error}
-    </Text>
-  ) : output ? (
+  const body = output ? (
     <Text variant="mono" selectable>
       {stripAnsi(output)}
     </Text>
@@ -38,6 +34,7 @@ export function GenericTool({ part }: { part: SessionMessageAssistantTool }) {
       subtitle={toolLabel(input)}
       args={toolArgs(input)}
       status={part.state.status}
+      error={error}
     >
       {body}
     </BasicTool>

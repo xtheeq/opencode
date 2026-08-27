@@ -6,6 +6,7 @@ import { borderRadius, spacing, useTheme } from "@/theme";
 import { BasicTool } from "./basic-tool";
 import {
   stripAnsi,
+  toolError,
   toolInput,
   toolMetadata,
   toolOutput,
@@ -20,6 +21,7 @@ export function BashTool({ part }: { part: SessionMessageAssistantTool }) {
     (typeof metadata.command === "string" && metadata.command) ||
     "";
   const output = toolOutput(part);
+  const error = toolError(part);
   const text = `${command}${output ? `\n\n${output}` : ""}`.trim();
 
   return (
@@ -28,6 +30,7 @@ export function BashTool({ part }: { part: SessionMessageAssistantTool }) {
       title="Shell"
       subtitle={command || undefined}
       status={part.state.status}
+      error={error}
       allowOpenWhilePending
     >
       {text ? (
