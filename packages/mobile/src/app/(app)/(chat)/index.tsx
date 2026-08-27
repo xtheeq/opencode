@@ -3,6 +3,7 @@ import { router } from "expo-router";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/theme";
+import { SwipeMenuShell } from "@/components/swipe-menu-shell";
 import { AppHeader } from "@/components/app-header";
 import { Composer } from "@/components/composer";
 
@@ -21,18 +22,23 @@ export default function HomeScreen() {
   }
 
   return (
-    <View
-      style={[
-        styles.connectedContainer,
-        { backgroundColor: colors.background.default },
-      ]}
-    >
-      <AppHeader />
-      <View style={{ flex: 1 }} />
-      <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
-        <Composer sessionID={NEW_SESSION_KEY} onSubmitted={navigateToSession} />
-      </KeyboardStickyView>
-    </View>
+    <SwipeMenuShell>
+      <View
+        style={[
+          styles.connectedContainer,
+          { backgroundColor: colors.background.default },
+        ]}
+      >
+        <AppHeader />
+        <View style={{ flex: 1 }} />
+        <KeyboardStickyView offset={{ closed: 0, opened: insets.bottom }}>
+          <Composer
+            sessionID={NEW_SESSION_KEY}
+            onSubmitted={navigateToSession}
+          />
+        </KeyboardStickyView>
+      </View>
+    </SwipeMenuShell>
   );
 }
 

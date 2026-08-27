@@ -1,24 +1,23 @@
 import { useState } from "react";
 import { StyleSheet, Pressable, View } from "react-native";
-import { useNavigation } from "expo-router";
-import { DrawerActions } from "expo-router/react-navigation";
 import MenuIcon from "lucide-react-native/icons/menu";
 import { spacing, useTheme } from "@/theme";
 import { CueIndicator } from "@/components/cue-indicator";
 import { CueSheet } from "@/components/cue-sheet";
 import { CueSlot } from "@/components/cue-slot";
+import { useMenu } from "@/components/swipe-menu-shell";
 
 const ICON_SIZE = 20;
 
 export function AppHeader({ title }: { title?: string }) {
   const { colors } = useTheme();
-  const navigation = useNavigation();
+  const { openMenu } = useMenu();
   const [cuesOpen, setCuesOpen] = useState(false);
 
   return (
     <View style={styles.header}>
       <Pressable
-        onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
+        onPress={openMenu}
         accessibilityLabel="Open sessions"
         hitSlop={8}
         style={({ pressed }) => (pressed ? styles.pressed : undefined)}

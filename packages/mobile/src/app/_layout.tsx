@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { SplashScreen, Stack } from "expo-router";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemeProvider, useTheme } from "@/theme";
@@ -44,9 +45,11 @@ export default function RootLayout() {
         <ConnectionManager>
           <KeyboardProvider>
             <SplashScreenController />
-            <SafeAreaView style={{ flex: 1 }}>
-              <RootNavigator />
-            </SafeAreaView>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <SafeAreaView style={{ flex: 1 }}>
+                <RootNavigator />
+              </SafeAreaView>
+            </GestureHandlerRootView>
           </KeyboardProvider>
         </ConnectionManager>
       </ThemeProvider>

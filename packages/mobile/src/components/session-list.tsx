@@ -12,7 +12,6 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-import type { DrawerContentComponentProps } from "expo-router/drawer";
 import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
@@ -36,7 +35,7 @@ import {
   sessionsForProject,
 } from "@/utils/project";
 
-export function SessionList({ navigation }: DrawerContentComponentProps) {
+export function SessionList({ onClose }: { onClose: () => void }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { createSession, isCreating } = useCreateSession();
@@ -79,7 +78,7 @@ export function SessionList({ navigation }: DrawerContentComponentProps) {
 
   function openSession(id: string) {
     router.push({ pathname: "/session/[id]", params: { id } });
-    navigation.closeDrawer();
+    onClose();
   }
 
   async function handleNewSession() {
