@@ -69,6 +69,7 @@ export function fromPromise(plugin: Plugin) {
   return define({
     id: plugin.id,
     tui: plugin.tui,
+    vcs: plugin.vcs,
     effect: (host) =>
       Effect.gen(function* () {
         const [{ ClientApi }, { OpenCodeEvent }] = yield* Effect.promise(() =>
@@ -125,6 +126,7 @@ export function fromPromise(plugin: Plugin) {
 
         const context2: Context = {
           app: host.app,
+          location: host.location,
           options: host.options,
           agent: {
             get: adaptApiMethod(AgentEndpoints["agent.get"], host.agent.get),
@@ -259,10 +261,6 @@ export function fromPromise(plugin: Plugin) {
           },
           mcp: {
             list: adaptApiMethod(McpEndpoints["mcp.list"], host.mcp.list),
-            add: adaptApiMethod(McpEndpoints["mcp.add"], host.mcp.add),
-            remove: adaptApiMethod(McpEndpoints["mcp.remove"], host.mcp.remove),
-            connect: adaptApiMethod(McpEndpoints["mcp.connect"], host.mcp.connect),
-            disconnect: adaptApiMethod(McpEndpoints["mcp.disconnect"], host.mcp.disconnect),
             transform: transform(host.mcp),
             reload: () => run(host.mcp.reload()),
           },
@@ -293,6 +291,7 @@ export function fromPromise(plugin: Plugin) {
             scan: (options) => run(host.storage.scan(options)),
           },
           tool: {
+            reload: () => run(host.tool.reload()),
             transform: (callback) =>
               register(
                 host.tool.transform((draft) =>
@@ -302,6 +301,28 @@ export function fromPromise(plugin: Plugin) {
                         ...tool,
                         execute: (input, context) => executePromiseTool(tool, input, context),
                       }),
+                    update: (id, update) =>
+                      draft.update(id, (tool) => {
+                        const execute = tool.execute
+                        const value: Info = {
+                          ...tool,
+                          execute: (input, context) =>
+                            run(
+                              execute(input, {
+                                ...context,
+                                progress: (update) => Effect.promise(() => context.progress(update)),
+                              }),
+                            ),
+                        }
+                        update(value)
+                        Object.assign(tool, value, {
+                          output: value.output,
+                          options: value.options,
+                          execute: (input: Parameters<Info["execute"]>[0], context: Tool.Context) =>
+                            executePromiseTool(value, input, context),
+                        })
+                      }),
+                    remove: draft.remove,
                   }),
                 ),
               ),
