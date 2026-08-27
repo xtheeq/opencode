@@ -15,15 +15,10 @@ export function GenericTool({ part }: { part: SessionMessageAssistantTool }) {
   const input = toolInput(part);
   const output = toolOutput(part);
   const error = toolError(part);
-  const skipped = part.executed === false;
 
   const body = output ? (
     <Text variant="mono" selectable>
       {stripAnsi(output)}
-    </Text>
-  ) : skipped ? (
-    <Text variant="caption" color="secondary">
-      (skipped)
     </Text>
   ) : undefined;
 
