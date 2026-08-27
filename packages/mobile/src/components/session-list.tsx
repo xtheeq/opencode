@@ -168,6 +168,7 @@ export function SessionList({
           )}
           ItemSeparatorComponent={RowSeparator}
           stickySectionHeadersEnabled={false}
+          keyboardShouldPersistTaps="handled"
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
           ListEmptyComponent={

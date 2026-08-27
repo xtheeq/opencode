@@ -55,6 +55,7 @@ export function ProjectPicker({
       data={projects}
       keyExtractor={(project) => project.id}
       contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
       refreshing={refreshing ?? false}
       onRefresh={onRefresh}
       renderItem={({ item }) => (
