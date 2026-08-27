@@ -1,6 +1,23 @@
-import { createContext, useCallback, useContext, type ReactNode } from "react";
-import { Keyboard, StyleSheet, useWindowDimensions, View } from "react-native";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
+import {
+  AccessibilityInfo,
+  BackHandler,
+  Keyboard,
+  Platform,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { GestureDetector } from "react-native-gesture-handler";
+import { useFocusEffect } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import Animated from "react-native-reanimated";
 
 import { type MenuSide } from "@/utils/swipe-menu";
@@ -54,6 +71,47 @@ export function SwipeMenuShell({
 
   const closeMenu = useCallback(() => animateMenu(false), [animateMenu]);
 
+  // Back closes the menu while it's open instead of leaving the screen.
+  usePreventRemove(isMenuOpen, closeMenu);
+
+  // Also consume Android hardware back on the root screen, where there is no
+  // screen to pop so `usePreventRemove` does not fire.
+  useFocusEffect(
+    useCallback(() => {
+      if (!isMenuOpen || Platform.OS !== "android") return undefined;
+
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        () => {
+          closeMenu();
+          return true;
+        },
+      );
+      return () => subscription.remove();
+    }, [closeMenu, isMenuOpen]),
+  );
+
+  useEffect(() => {
+    if (!isMenuOpen || Platform.OS !== "web") return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") closeMenu();
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [closeMenu, isMenuOpen]);
+
+  const wasOpenRef = useRef(isMenuOpen);
+  useEffect(() => {
+    if (wasOpenRef.current === isMenuOpen) return;
+
+    wasOpenRef.current = isMenuOpen;
+    AccessibilityInfo.announceForAccessibility(
+      isMenuOpen ? "Sessions menu opened" : "Sessions menu closed",
+    );
+  }, [isMenuOpen]);
+
   return (
     <GestureDetector gesture={swipeGesture}>
       <View
@@ -69,6 +127,9 @@ export function SwipeMenuShell({
           style={StyleSheet.absoluteFill}
         >
           <Animated.View
+            accessible
+            accessibilityLabel="Sessions"
+            accessibilityRole="menu"
             accessibilityElementsHidden={!isMenuOpen}
             importantForAccessibility={
               isMenuOpen ? "auto" : "no-hide-descendants"
