@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Plus from "lucide-react-native/icons/plus";
 import ChevronLeft from "lucide-react-native/icons/chevron-left";
 import FolderOpen from "lucide-react-native/icons/folder-open";
@@ -6,12 +6,15 @@ import Search from "lucide-react-native/icons/search";
 import X from "lucide-react-native/icons/x";
 import {
   ActivityIndicator,
+  Keyboard,
   SectionList,
   StyleSheet,
+  TextInput as RNTextInput,
   TouchableOpacity,
   View,
   type ViewStyle,
 } from "react-native";
+import { KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { type AnimatedStyle } from "react-native-reanimated";
 import { router } from "expo-router";
 import type { SessionInfo } from "@opencode-ai/client/promise";
@@ -55,8 +58,14 @@ export function SessionList({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [view, setView] = useState<"sessions" | "projects">("sessions");
   const [query, setQuery] = useState("");
+  const [searchActive, setSearchActive] = useState(false);
   const [projectQuery, setProjectQuery] = useState("");
+  const searchInputRef = useRef<RNTextInput | null>(null);
   const dockClearance = spacing.sm + 46 + spacing.sm;
+
+  useEffect(() => {
+    if (searchActive) searchInputRef.current?.focus();
+  }, [searchActive]);
 
   const activeProject = findActiveProject(projects, activeLocation.directory);
   const projectLabel = activeLocation.directory
@@ -86,6 +95,9 @@ export function SessionList({
     : projects;
 
   function openSession(id: string) {
+    setQuery("");
+    setSearchActive(false);
+    Keyboard.dismiss();
     router.push({ pathname: "/session/[id]", params: { id } });
     onClose();
   }
@@ -200,41 +212,6 @@ export function SessionList({
         stickySectionHeadersEnabled={false}
         refreshing={isRefreshing}
         onRefresh={handleRefresh}
-        ListHeaderComponent={
-          <>
-            <View
-              style={[
-                styles.searchRow,
-                { borderColor: colors.border.default },
-              ]}
-            >
-              <Search size={16} color={colors.icon.muted} />
-              <TextInput
-                value={query}
-                onChangeText={setQuery}
-                placeholder={
-                  activeProject
-                    ? `Search "${projectLabel}"`
-                    : "Search sessions"
-                }
-                placeholderTextColor={colors.text.secondary}
-                accessibilityLabel="Search sessions"
-                returnKeyType="search"
-                style={styles.searchInput}
-              />
-              {query ? (
-                <TouchableOpacity
-                  onPress={() => setQuery("")}
-                  activeOpacity={0.6}
-                  accessibilityRole="button"
-                  accessibilityLabel="Clear search"
-                >
-                  <X size={16} color={colors.icon.muted} />
-                </TouchableOpacity>
-              ) : null}
-            </View>
-          </>
-        }
         ListEmptyComponent={
           <View style={styles.centered}>
             {query.trim() ? (
@@ -254,57 +231,118 @@ export function SessionList({
           },
         ]}
       />
-      <Animated.View
-        style={[
-          styles.dock,
-          {
-            backgroundColor: colors.background.default,
-            borderTopColor: colors.border.subtle,
-            paddingBottom: Math.max(insets.bottom, spacing.sm),
-          },
-          dockAnimatedStyle,
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => setView("projects")}
-          activeOpacity={0.6}
-          accessibilityRole="button"
-          accessibilityLabel="Choose project"
+      {searchActive ? (
+        <KeyboardStickyView
           style={[
-            styles.dockProject,
-            { backgroundColor: colors.background.surface, borderColor: colors.border.default },
-          ]}
-        >
-          <FolderOpen size={18} color={colors.icon.muted} />
-          <Text variant="label" numberOfLines={1} style={styles.flex}>
-            {projectLabel}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={handleNewSession}
-          disabled={isCreating}
-          accessibilityRole="button"
-          accessibilityLabel="New session"
-          style={[
-            styles.dockNewSession,
+            styles.searchBar,
             {
-              backgroundColor: colors.action.primary,
-              opacity: isCreating || !activeProject ? 0.6 : 1,
+              backgroundColor: colors.background.elevated,
+              borderTopColor: colors.border.subtle,
             },
           ]}
+          offset={{ closed: 0, opened: insets.bottom + 1 }}
         >
-          {isCreating ? (
-            <ActivityIndicator size="small" color={colors.action.primaryText} />
-          ) : (
-            <>
-              <Plus size={18} color={colors.action.primaryText} />
-              <Text variant="label" style={{ color: colors.action.primaryText }}>
-                New session
-              </Text>
-            </>
-          )}
-        </TouchableOpacity>
-      </Animated.View>
+          <View style={styles.searchBarRow}>
+            <Search size={16} color={colors.icon.muted} />
+            <RNTextInput
+              ref={searchInputRef}
+              autoFocus
+              value={query}
+              onChangeText={setQuery}
+              placeholder={
+                activeProject ? `Search "${projectLabel}"` : "Search sessions"
+              }
+              placeholderTextColor={colors.text.secondary}
+              accessibilityLabel="Search sessions"
+              returnKeyType="search"
+              style={[styles.searchInput, { color: colors.text.primary }]}
+            />
+            <TouchableOpacity
+              onPress={() => {
+                if (query) {
+                  setQuery("");
+                } else {
+                  setSearchActive(false);
+                  Keyboard.dismiss();
+                }
+              }}
+              activeOpacity={0.6}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel={query ? "Clear search" : "Close search"}
+            >
+              <X size={16} color={colors.icon.muted} />
+            </TouchableOpacity>
+          </View>
+        </KeyboardStickyView>
+      ) : (
+        <Animated.View
+          style={[
+            styles.dock,
+            {
+              backgroundColor: colors.background.default,
+              borderTopColor: colors.border.subtle,
+              paddingBottom: Math.max(insets.bottom, spacing.sm),
+            },
+            dockAnimatedStyle,
+          ]}
+        >
+          <TouchableOpacity
+            onPress={() => {
+              setSearchActive(true);
+              searchInputRef.current?.focus();
+            }}
+            activeOpacity={0.6}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Search sessions"
+            style={[
+              styles.dockIcon,
+              { backgroundColor: colors.background.surface, borderColor: colors.border.default },
+            ]}
+          >
+            <Search size={20} color={colors.icon.default} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setView("projects")}
+            activeOpacity={0.6}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Choose project"
+            style={[
+              styles.dockProject,
+              { backgroundColor: colors.background.surface, borderColor: colors.border.default },
+            ]}
+          >
+            <FolderOpen size={18} color={colors.icon.muted} />
+            <Text variant="label" numberOfLines={1} style={styles.flex}>
+              {projectLabel}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleNewSession}
+            disabled={isCreating}
+            activeOpacity={0.6}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="New session"
+            style={[
+              styles.dockIcon,
+              styles.dockPrimary,
+              {
+                backgroundColor: colors.action.primary,
+                opacity: isCreating || !activeProject ? 0.6 : 1,
+              },
+            ]}
+          >
+            {isCreating ? (
+              <ActivityIndicator size="small" color={colors.action.primaryText} />
+            ) : (
+              <Plus size={20} color={colors.action.primaryText} />
+            )}
+          </TouchableOpacity>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -398,10 +436,23 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     flexDirection: "row",
+    justifyContent: "flex-end",
+    alignItems: "center",
     gap: spacing.sm,
     paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  dockIcon: {
+    width: 46,
+    height: 46,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderRadius: borderRadius.pill,
+  },
+  dockPrimary: {
+    borderWidth: 0,
   },
   dockProject: {
     flex: 1,
@@ -413,17 +464,25 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.pill,
     paddingHorizontal: spacing.md,
   },
-  dockNewSession: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-    minHeight: 46,
-    borderRadius: borderRadius.pill,
-    paddingHorizontal: spacing.lg,
-  },
   flex: {
     flex: 1,
+  },
+  searchBar: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopLeftRadius: borderRadius.xxl,
+    borderTopRightRadius: borderRadius.xxl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  searchBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 44,
   },
   centered: {
     flex: 1,
