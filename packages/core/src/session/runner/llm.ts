@@ -36,7 +36,6 @@ const layer = Layer.effect(
     const bus = yield* Bus.Service
     const store = yield* SessionStore.Service
     const context = yield* SessionContext.Service
-    const modelRequests = yield* SessionModelRequest.Service
     const modelTransport = yield* SessionModelTransport.Service
     const db = (yield* Database.Service).db
     const compaction = yield* SessionCompaction.Service
@@ -86,14 +85,9 @@ const layer = Layer.effect(
       const promotable = input.promotable ?? "input"
       if (!force && !continuing) {
         const pending = yield* SessionInbox.nextPromotable(db, sessionID, "input")
-        if (
-          !pending ||
-          (pending.delivery === "queue" &&
-            promotable === "steer" &&
-            pending.type !== "compaction" &&
-            pending.type !== "move")
-        )
-          return DrainResult.Complete()
+        if (!pending) return DrainResult.Complete()
+        const control = pending.type === "compaction" || pending.type === "move"
+        if (promotable === "steer" && pending.delivery === "queue" && !control) return DrainResult.Complete()
       }
       yield* plugins.flush
       yield* settleStaleToolCalls(sessionID)
@@ -142,6 +136,8 @@ const layer = Layer.effect(
                   Effect.gen(function* () {
                     return yield* compaction.compactManual({
                       session,
+                      resolveModel: context.resolveModel,
+                      prepare: context.prepare,
                       messages: yield* store.context(sessionID),
                       inputID: pending.id,
                       started: true,
@@ -215,7 +211,12 @@ const layer = Layer.effect(
         // Reuse boundary preparation once; retries refresh context without delivering more input.
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
         initial = undefined
-        const compactionInput = { session: loaded.session, messages: loaded.messages, resolved: loaded.model }
+        const compactionInput = {
+          session: loaded.session,
+          messages: loaded.messages,
+          resolved: loaded.model,
+          prepare: context.prepare,
+        }
         if (compaction.required(compactionInput)) {
           const compacted = yield* compaction.compact(compactionInput)
           if (compacted.status !== "completed") return yield* new StepFailedError({ error: compacted.error })
@@ -230,7 +231,7 @@ const layer = Layer.effect(
           initial: loaded.initial,
           messages: loaded.messages,
         })
-        const prepared = yield* modelRequests.prepare({
+        const prepared = yield* context.prepare({
           scope: { session: loaded.session, agentID: loaded.agent.id, model: loaded.model, tools: loaded.tools },
           transcript: {
             system: transcript.system,
@@ -257,29 +258,33 @@ const layer = Layer.effect(
               : Effect.succeed(false),
           ),
         })
-        if (outcome._tag === "Completed") return outcome.needsContinuation
-        if (outcome._tag === "Retry" || outcome._tag === "Continue") {
-          yield* retry({ cause: outcome.cause, error: outcome.error, assistantMessageID }).pipe(
-            Pull.catchDone(() =>
-              Effect.gen(function* () {
-                if (outcome._tag === "Retry")
-                  yield* bus.publish(SessionEvent.Step.Failed, { sessionID, assistantMessageID, error: outcome.error })
-                return yield* outcome.cause
-              }),
+        const completed = yield* SessionStep.Outcome.$match(outcome, {
+          Completed: (outcome) => Effect.succeed(outcome.needsContinuation),
+          Retry: (outcome) =>
+            retry({ cause: outcome.cause, error: outcome.error, assistantMessageID }).pipe(
+              Pull.catchDone(() =>
+                bus
+                  .publish(SessionEvent.Step.Failed, { sessionID, assistantMessageID, error: outcome.error })
+                  .pipe(Effect.andThen(outcome.cause)),
+              ),
+              Effect.asVoid,
             ),
-          )
-          if (outcome._tag === "Continue") {
+          Continue: Effect.fnUntraced(function* (outcome) {
+            yield* retry({ cause: outcome.cause, error: outcome.error, assistantMessageID }).pipe(
+              Pull.catchDone(() => outcome.cause),
+            )
             yield* bus.publish(SessionEvent.Synthetic, { sessionID, text: CONTINUE_AFTER_INCOMPLETE_STREAM })
             assistantMessageID = SessionMessage.ID.create()
-          }
-          continue
-        }
-        if (outcome._tag === "Compacted") {
-          recoverOverflow = false
-          assistantMessageID = SessionMessage.ID.create()
-          continue
-        }
-        recoverContinuation = false
+          }),
+          Compacted: Effect.fnUntraced(function* () {
+            recoverOverflow = false
+            assistantMessageID = SessionMessage.ID.create()
+          }),
+          RecoverFull: Effect.fnUntraced(function* () {
+            recoverContinuation = false
+          }),
+        })
+        if (completed !== undefined) return completed
       }
     })
 
@@ -319,7 +324,6 @@ export const node = makeLocationNode({
     Bus.node,
     llmClient,
     SessionContext.node,
-    SessionModelRequest.node,
     SessionModelTransport.node,
     SessionStore.node,
     SessionCompaction.node,

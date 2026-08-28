@@ -15,7 +15,7 @@ import { PluginHooks } from "./plugin/hooks.js"
 import { SessionMessage } from "./session/message.js"
 import { SessionSchema } from "./session/schema.js"
 import { State } from "./state.js"
-import { definition, execute, normalizeContent } from "./tool/runtime.js"
+import { definition, effectiveName, execute, normalizedName, normalizeContent } from "./tool/runtime.js"
 import { Wildcard } from "./util/wildcard.js"
 
 export class RegistrationError extends Schema.TaggedError<RegistrationError>()("Tool.RegistrationError", {
@@ -24,13 +24,15 @@ export class RegistrationError extends Schema.TaggedError<RegistrationError>()("
 }) {}
 
 export interface Draft {
+  readonly list: () => readonly (Tool.Info & { readonly id: string })[]
+  readonly get: (id: string) => (Tool.Info & { readonly id: string }) | undefined
   readonly add: (tool: Tool.Info) => void
   readonly update: (id: string, update: (tool: Types.Mutable<Tool.Info>) => void) => void
   readonly remove: (id: string) => void
 }
 
 type Data = {
-  tools: Map<string, Tool.Info>
+  tools: Map<string, Tool.Info & { readonly id: string }>
   errors: { tool: Tool.Info; error: RegistrationError }[]
 }
 
@@ -47,6 +49,8 @@ export interface Snapshot {
     readonly messageID: SessionMessage.ID
     readonly call: ToolCall
     readonly progress?: (update: Tool.Metadata) => Effect.Effect<void>
+    /** Surviving request definitions, keyed by the names advertised after session context hooks. */
+    readonly definitions?: ReadonlyMap<string, ToolDefinition>
   }) => Effect.Effect<Tool.Result & { readonly content: ReadonlyArray<Tool.Content> }, Tool.Error>
 }
 
@@ -88,23 +92,23 @@ const layer = Layer.effect(
       ]
     })
 
+    const beforeExecute = (name: string, input: unknown, context: Tool.Context) =>
+      hooks.trigger("tool", "execute.before", {
+        tool: name,
+        sessionID: context.sessionID,
+        agent: context.agent,
+        messageID: context.messageID,
+        id: context.id,
+        input,
+      })
+
     const executeTool = Effect.fn("Tool.execute")(function* (
       tool: Tool.Info,
       name: string,
       input: unknown,
       context: Tool.Context,
     ) {
-      const beforeEvent: PluginHooks.Domains["tool"]["execute.before"] = {
-        tool: name,
-        inputSchema: definition(tool).inputSchema,
-        sessionID: context.sessionID,
-        agent: context.agent,
-        messageID: context.messageID,
-        id: context.id,
-        input,
-      }
-      yield* hooks.trigger("tool", "execute.before", beforeEvent)
-      const execution = yield* execute(tool, beforeEvent.input, context).pipe(
+      const execution = yield* execute(tool, input, context).pipe(
         Effect.map((value) => ({ value })),
         Effect.catchTag("Tool.Error", (failure) => Effect.succeed({ failure })),
       )
@@ -114,7 +118,7 @@ const layer = Layer.effect(
         agent: context.agent,
         messageID: context.messageID,
         id: context.id,
-        input: beforeEvent.input,
+        input,
       }
       if ("failure" in execution) {
         const afterEvent: PluginHooks.Domains["tool"]["execute.after"] = {
@@ -150,13 +154,16 @@ const layer = Layer.effect(
         errors: [],
       }),
       draft: (draft) => ({
+        list: () => Array.from(draft.tools.values()),
+        get: (id) => draft.tools.get(id),
         add: (tool) => {
           const error = registrationError(tool)
           if (error) {
             draft.errors.push({ tool, error })
             return
           }
-          draft.tools.set(effectiveName(tool), { ...tool, options: tool.options && { ...tool.options } })
+          const id = effectiveName(tool)
+          draft.tools.set(id, { ...tool, id, options: tool.options && { ...tool.options } })
         },
         update: (id, update) => {
           const current = draft.tools.get(id)
@@ -164,6 +171,7 @@ const layer = Layer.effect(
           const tool = { ...current, options: current.options && { ...current.options } }
           update(tool)
           tool.name = current.name
+          tool.id = id
           if (tool.options?.namespace !== current.options?.namespace)
             tool.options = { ...tool.options, namespace: current.options?.namespace }
           const error = registrationError(tool)
@@ -203,10 +211,13 @@ const layer = Layer.effect(
           }
           const direct = new Map(Array.from(active).filter(([, tool]) => tool.options?.codemode === false))
           const codemode = new Map(Array.from(active).filter(([, tool]) => tool.options?.codemode !== false))
-          const executeRule = rules.findLast((rule) => Wildcard.match("execute", rule.action))
-          const codemodeEnabled = executeRule?.resource !== "*" || executeRule.effect !== "deny"
+          const codemodeEnabled = !whollyDisabled("execute", rules)
           const codemodeTool = codemodeEnabled
-            ? CodeModeTool.create(codemode, (name, tool, input, context) => executeTool(tool, name, input, context))
+            ? CodeModeTool.create(codemode, (name, tool, input, context) =>
+                beforeExecute(name, input, context).pipe(
+                  Effect.flatMap((event) => executeTool(tool, name, event.input, context)),
+                ),
+              )
             : undefined
           const codeModeCatalog = codemodeEnabled ? CodeModeTool.catalog(codemode) : undefined
           return {
@@ -217,13 +228,7 @@ const layer = Layer.effect(
                 .map(([, tool]) => definition(tool)),
               ...(codemodeTool ? [definition(codemodeTool)] : []),
             ],
-            execute: (input: {
-              readonly sessionID: SessionSchema.ID
-              readonly agent: Agent.ID
-              readonly messageID: SessionMessage.ID
-              readonly call: ToolCall
-              readonly progress?: (update: Tool.Metadata) => Effect.Effect<void>
-            }) => {
+            execute: Effect.fnUntraced(function* (input: Parameters<Snapshot["execute"]>[0]) {
               const context: Tool.Context = {
                 sessionID: input.sessionID,
                 agent: input.agent,
@@ -231,12 +236,18 @@ const layer = Layer.effect(
                 id: Tool.CallID.make(input.call.id),
                 progress: input.progress ?? (() => Effect.void),
               }
-              if (input.call.name === "execute" && codemodeTool)
-                return executeTool(codemodeTool, input.call.name, input.call.input, context)
-              const tool = direct.get(input.call.name)
-              if (tool) return executeTool(tool, input.call.name, input.call.input, context)
-              return new Tool.Error({ message: `Unknown tool: ${input.call.name}` })
-            },
+              const event = yield* beforeExecute(input.call.name, input.call.input, context)
+              const requested = input.definitions?.get(event.tool)
+              // Preserve session context removal and alias resolution, now after the repair hook.
+              if (!requested && input.definitions && (direct.has(event.tool) || codemodeTool?.name === event.tool))
+                return yield* new Tool.Error({ message: `Tool is not available for this request: ${event.tool}` })
+              const name = requested?.name ?? event.tool
+              if (name === "execute" && codemodeTool)
+                return yield* executeTool(codemodeTool, name, event.input, context)
+              const tool = direct.get(name)
+              if (tool) return yield* executeTool(tool, name, event.input, context)
+              return yield* new Tool.Error({ message: `Unknown tool: ${name}` })
+            }),
           }
         }),
       ),
@@ -272,13 +283,6 @@ function registrationError(tool: Tool.Info) {
   })
   return Result.isFailure(result) ? result.failure : undefined
 }
-
-const normalizedName = (tool: Tool.Info) => tool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
-
-const effectiveName = (tool: Tool.Info) =>
-  tool.options?.namespace === undefined
-    ? normalizedName(tool)
-    : `${tool.options.namespace.replaceAll(".", "_")}_${normalizedName(tool)}`
 
 export const node = makeLocationNode({
   service: Service,

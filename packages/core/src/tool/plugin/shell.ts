@@ -1,6 +1,5 @@
 export * as ShellTool from "./shell.js"
 
-import path from "path"
 import { ToolFailure } from "@opencode-ai/ai"
 import type { Context as PluginContext } from "@opencode-ai/plugin/effect/plugin"
 import { Deferred, Effect, Schema, Scope } from "effect"
@@ -19,9 +18,8 @@ import { ToolOutput } from "../../tool-output.js"
 export const name = "shell"
 export const DEFAULT_TIMEOUT_MS = 2 * 60 * 1_000
 
-const BACKGROUND_STARTED = "The command was moved to the background."
 const BACKGROUND_INSTRUCTION =
-  "You will be notified automatically when the command finishes. DO NOT sleep, poll, or proactively check on its progress."
+  "You will be notified automatically when the command finishes. The notification will include the command's output. DO NOT run sleep commands or poll the output file to check for completion. You can read from the file when its current output would be useful, such as when inspecting logs from a background server. Otherwise, continue with other work or end your response."
 const OS =
   process.platform === "darwin"
     ? "macOS"
@@ -95,8 +93,8 @@ const toolResult = (output: Output) => {
   }
 }
 
-const backgroundResult = (shellID: string) => ({
-  output: BACKGROUND_STARTED,
+const backgroundResult = (shellID: string, file: string) => ({
+  output: `Command moved to the background (shell ID: ${shellID}).\nOutput is streaming to: ${file}`,
   shellID,
   truncated: false,
   status: "running" as const,
@@ -191,7 +189,10 @@ export const Plugin = {
                       portable,
                     })
                     const directories = yield* Effect.forEach(parsed.directories, (directory) =>
-                      mutation.resolve({ path: path.resolve(target.absolute, directory), kind: "directory" }),
+                      mutation.resolve({
+                        path: LocationMutation.resolvePath(target.absolute, directory),
+                        kind: "directory",
+                      }),
                     )
                     const external = [target, ...directories]
                       .map((item) => item.externalDirectory)
@@ -295,7 +296,7 @@ export const Plugin = {
               if (input.background === true) {
                 yield* runtime.job.background(job.id)
                 yield* notifyWhenDone(context.sessionID, context.id, info.id, info.command, settled)
-                return backgroundResult(info.id)
+                return backgroundResult(info.id, info.file)
               }
 
               const result = yield* runtime.job
@@ -304,7 +305,7 @@ export const Plugin = {
               if (result?.type === "backgrounded") {
                 yield* shell.timeout(info.id, 0)
                 yield* notifyWhenDone(context.sessionID, context.id, info.id, info.command, settled)
-                return backgroundResult(info.id)
+                return backgroundResult(info.id, info.file)
               }
               if (result?.info.status === "error")
                 return yield* Effect.fail(new Error(result.info.error ?? "Command failed"))

@@ -75,6 +75,15 @@ test("shows the TPS default in session settings", () => {
   expect(setting?.default).toBe(true)
 })
 
+test("names tool grouping explicitly in settings", () => {
+  expect(settings.find((setting) => setting.path.join(".") === "session.grouping")).toMatchObject({
+    title: "Tool grouping",
+    category: "Session",
+    default: "auto",
+    values: ["none", "auto"],
+  })
+})
+
 test("validates terminal copy behavior", () => {
   expect(decodeInfo({ terminal: { copy: "manual" } })).toEqual({ terminal: { copy: "manual" } })
   expect(decodeInfo({ terminal: { copy: "select" } })).toEqual({ terminal: { copy: "select" } })
@@ -170,6 +179,10 @@ test("accepts every v2-only named command ID", () => {
     "diff.up",
     "diff.page.down",
     "diff.page.up",
+    "diff.half_page.down",
+    "diff.half_page.up",
+    "diff.first",
+    "diff.last",
     "diff.mark_reviewed",
     "opencode.settings",
     "service.restart",
@@ -198,7 +211,16 @@ test("centralizes named command defaults and resolves explicit none", () => {
     "diff.up": "k,up",
     "diff.page.down": "pagedown,ctrl+f",
     "diff.page.up": "pageup,ctrl+b",
+    "diff.half_page.down": "ctrl+d",
+    "diff.half_page.up": "ctrl+u",
+    "diff.first": "gg,home",
+    "diff.last": "shift+g,end",
+    "diff.next_file": "n,alt+down",
+    "diff.previous_file": "p,alt+up",
+    "diff.next_hunk": "]",
+    "diff.previous_hunk": "[",
     "diff.mark_reviewed": "m",
+    "diff.help": "?,shift+?,shift+/",
   }
   const config = resolve({}, { terminalSuspend: true })
   Object.entries(defaults).forEach(([command, key]) => expect(config.keybinds.get(command)).toMatchObject([{ key }]))
@@ -208,6 +230,14 @@ test("centralizes named command defaults and resolves explicit none", () => {
     { terminalSuspend: true },
   )
   Object.keys(defaults).forEach((command) => expect(disabled.keybinds.get(command)).toEqual([]))
+})
+
+test("retired diff tree keybinds remain accepted but have no default bindings", () => {
+  const ids = ["diff.toggle", "diff.expand", "diff.expand_all", "diff.collapse", "diff.switch_focus"]
+  const defaults = resolve({}, { terminalSuspend: true })
+  const overrides = Object.fromEntries(ids.map((id) => [id, "ctrl+alt+x"]))
+  expect(decodeInfo({ keybinds: overrides }).keybinds).toEqual(overrides)
+  ids.forEach((id) => expect(defaults.keybinds.get(id)).toEqual([]))
 })
 
 test("rejects orphaned keybind definitions", () => {

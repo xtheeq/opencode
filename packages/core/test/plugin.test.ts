@@ -9,12 +9,14 @@ import { Plugin } from "@opencode-ai/core/plugin"
 import { PluginHost } from "@opencode-ai/core/plugin/host"
 import { PluginRuntime } from "@opencode-ai/core/plugin/runtime"
 import { Location } from "@opencode-ai/core/location"
+import { PersistentPty } from "@opencode-ai/core/persistent-pty"
 import { Project } from "@opencode-ai/core/project"
 import { AbsolutePath } from "@opencode-ai/core/schema"
 import { Session } from "@opencode-ai/core/session"
 import { SessionMessage } from "@opencode-ai/core/session/message"
 import { Tool } from "@opencode-ai/core/tool"
 import { Vcs } from "@opencode-ai/core/vcs"
+import { Pty } from "@opencode-ai/schema/pty"
 import { testEffect } from "./lib/effect"
 import { PluginTestLayer } from "./plugin/fixture"
 
@@ -25,6 +27,54 @@ class Secret extends Context.Service<Secret, string>()("@opencode/test/PluginSec
 const versioned = <R>(plugin: EffectPlugin.Plugin<R>, version = "1") => ({ ...plugin, version })
 
 describe("Plugin", () => {
+  it.effect("routes experimental terminal reads through the runtime cell without wrapping results", () =>
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const runtime = yield* PluginRuntime.Service
+      const cell = PluginRuntime.makeCell()
+      const host = yield* PluginHost.make(plugins).pipe(Effect.provide(PluginRuntime.layerWithCell(cell)))
+      const sessionID = Session.ID.make("ses_terminal")
+      const pending = host.experimental.terminal.read({ sessionID, lines: 3 })
+      const seen: unknown[] = []
+      const terminal = {
+        ptyID: Pty.ID.make("pty_terminal"),
+        title: "Build",
+        cwd: "/workspace",
+        foregroundProcess: null,
+        screen: { text: "one\ntwo\nthree", cols: 80, rows: 2, cursor: { x: 3, y: 1 } },
+      }
+      const error = new PersistentPty.UnavailableError({ message: "terminal daemon unavailable" })
+      cell.runtime = {
+        ...runtime,
+        persistentPty: {
+          read: (id, lines) => {
+            seen.push({ sessionID: id, lines })
+            if (id === Session.ID.make("ses_failure")) return Effect.fail(error)
+            return Effect.succeed(id === sessionID ? terminal : null)
+          },
+        },
+      }
+
+      expect(Object.keys(host.experimental)).toEqual(["terminal"])
+      expect(Object.keys(host.experimental.terminal)).toEqual(["read"])
+      expect(yield* pending).toBe(terminal)
+      expect(yield* host.experimental.terminal.read({ sessionID })).toBe(terminal)
+      expect(yield* host.experimental.terminal.read({ sessionID: Session.ID.make("ses_empty") })).toBeNull()
+      expect(
+        yield* host.experimental.terminal.read({ sessionID: Session.ID.make("ses_failure") }).pipe(Effect.flip),
+      ).toBe(error)
+      expect(seen).toEqual([
+        { sessionID, lines: 3 },
+        { sessionID, lines: undefined },
+        { sessionID: Session.ID.make("ses_empty"), lines: undefined },
+        { sessionID: Session.ID.make("ses_failure"), lines: undefined },
+      ])
+
+      cell.runtime = undefined
+      expect(Exit.isFailure(yield* pending.pipe(Effect.exit))).toBe(true)
+    }),
+  )
+
   it.effect("exposes the current location to activated plugins", () =>
     Effect.gen(function* () {
       const plugins = yield* Plugin.Service
@@ -110,6 +160,36 @@ describe("Plugin", () => {
       expect(Object.keys(host.mcp).sort()).toEqual(["list", "reload", "transform"])
       expect((yield* host.mcp.list({ location }).pipe(Effect.orDie)).location.directory).toBe(target)
       expect(routed).toEqual(["list:/target"])
+    }),
+  )
+
+  it.effect("forwards session interrupt options through the runtime cell", () =>
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const fallback = yield* PluginRuntime.Service
+      const cell = PluginRuntime.makeCell()
+      const sessionID = Session.ID.create()
+      const calls: Array<{ sessionID: Session.ID; options: { continue?: boolean } | undefined }> = []
+      cell.runtime = {
+        ...fallback,
+        session: {
+          ...fallback.session,
+          interrupt: (id, options) =>
+            Effect.sync(() => {
+              calls.push({ sessionID: id, options })
+              return true
+            }),
+        },
+      }
+      const runtime = yield* PluginRuntime.Service.pipe(Effect.provide(PluginRuntime.layerWithCell(cell)))
+      const host = yield* PluginHost.make(plugins).pipe(Effect.provideService(PluginRuntime.Service, runtime))
+
+      expect(yield* runtime.session.interrupt(sessionID)).toBe(true)
+      expect(yield* host.session.interrupt({ sessionID, continue: true })).toEqual({ interrupted: true })
+      expect(calls).toEqual([
+        { sessionID, options: undefined },
+        { sessionID, options: { continue: true } },
+      ])
     }),
   )
 
@@ -580,7 +660,7 @@ describe("Plugin", () => {
       const registry = yield* Tool.Service
       const executed: unknown[] = []
       const seen: {
-        before?: { input: unknown; inputSchema: unknown }
+        before?: { input: unknown; tool: string }
         after?: { input: unknown; status: string; content: unknown; metadata: unknown }
       } = {}
 
@@ -605,7 +685,9 @@ describe("Plugin", () => {
             yield* ctx.tool
               .hook("execute.before", (event) =>
                 Effect.sync(() => {
-                  seen.before = { input: event.input, inputSchema: event.inputSchema }
+                  expect(event).not.toHaveProperty("inputSchema")
+                  seen.before = { input: event.input, tool: event.tool }
+                  event.tool = "echo"
                   event.input = { text: "before-mutated" }
                 }),
               )
@@ -648,17 +730,12 @@ describe("Plugin", () => {
         sessionID: Session.ID.make("ses_hooks"),
         agent: Agent.ID.make("build"),
         messageID: SessionMessage.ID.make("msg_hooks"),
-        call: { type: "tool-call", id: "call-hooks", name: "echo", input: { text: "original" } },
+        call: { type: "tool-call", id: "call-hooks", name: "misspelled", input: { text: "original" } },
       })
 
       expect(seen.before).toEqual({
         input: { text: "original" },
-        inputSchema: {
-          type: "object",
-          properties: { text: { type: "string" } },
-          required: ["text"],
-          additionalProperties: false,
-        },
+        tool: "misspelled",
       })
       expect(executed).toEqual([{ text: "before-mutated" }])
       expect(seen.after).toEqual({
@@ -712,7 +789,7 @@ describe("Plugin", () => {
           sessionID: Session.ID.make("ses_hook_reject"),
           agent: Agent.ID.make("build"),
           messageID: SessionMessage.ID.make("msg_hook_reject"),
-          call: { type: "tool-call", id: "call-hook-reject", name: "echo", input: { text: "original" } },
+          call: { type: "tool-call", id: "call-hook-reject", name: "missing", input: { text: "original" } },
         })
         .pipe(Effect.flip)
 
