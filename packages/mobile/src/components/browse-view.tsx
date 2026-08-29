@@ -57,7 +57,6 @@ export function BrowseView({
   const [view, setView] = useState<"sessions" | "projects">("sessions");
   const [query, setQuery] = useState("");
   const [searchActive, setSearchActive] = useState(false);
-  const [projectQuery, setProjectQuery] = useState("");
   const searchInputRef = useRef<RNTextInput | null>(null);
   const dockClearance = spacing.sm + 46 + spacing.sm;
 
@@ -81,18 +80,13 @@ export function BrowseView({
         (session.title || "Untitled").toLowerCase().includes(trimmed),
       )
     : visibleSessions;
-
-  const projectTrimmed = projectQuery.trim().toLowerCase();
-  const filteredProjects = projectTrimmed
+  const filteredProjects = trimmed
     ? projects.filter((project) =>
         `${projectDisplayName(project)} ${project.canonical}`
           .toLowerCase()
-          .includes(projectTrimmed),
+          .includes(trimmed),
       )
     : projects;
-
-  const searchValue = view === "sessions" ? query : projectQuery;
-  const setSearchValue = view === "sessions" ? setQuery : setProjectQuery;
   const searchPlaceholder =
     view === "sessions"
       ? activeProject
@@ -107,7 +101,7 @@ export function BrowseView({
       : "Choose a project to start";
 
   function clearSearch() {
-    setSearchValue("");
+    setQuery("");
   }
 
   function openSession(id: string) {
@@ -129,6 +123,9 @@ export function BrowseView({
 
   async function handleProjectSelect(directory: string) {
     setView("sessions");
+    setQuery("");
+    setSearchActive(false);
+    Keyboard.dismiss();
     await selectProject(directory).catch(() => undefined);
   }
 
@@ -180,7 +177,7 @@ export function BrowseView({
             loaded={projectsLoaded}
             onSelect={handleProjectSelect}
             onRefresh={() => void syncProjectList()}
-            query={projectTrimmed}
+            query={trimmed}
           />
         </View>
       )}
@@ -200,8 +197,8 @@ export function BrowseView({
             <RNTextInput
               ref={searchInputRef}
               autoFocus
-              value={searchValue}
-              onChangeText={setSearchValue}
+              value={query}
+              onChangeText={setQuery}
               placeholder={searchPlaceholder}
               placeholderTextColor={colors.text.secondary}
               accessibilityLabel="Search"
@@ -210,7 +207,7 @@ export function BrowseView({
             />
             <TouchableOpacity
               onPress={() => {
-                if (searchValue) {
+                if (query) {
                   clearSearch();
                 } else {
                   setSearchActive(false);
@@ -220,7 +217,7 @@ export function BrowseView({
               activeOpacity={0.6}
               hitSlop={12}
               accessibilityRole="button"
-              accessibilityLabel={searchValue ? "Clear search" : "Close search"}
+              accessibilityLabel={query ? "Clear search" : "Close search"}
             >
               <X size={16} color={colors.icon.muted} />
             </TouchableOpacity>
@@ -246,7 +243,9 @@ export function BrowseView({
             activeOpacity={0.6}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Search sessions"
+            accessibilityLabel={
+              view === "projects" ? "Search projects" : "Search sessions"
+            }
             style={[
               styles.dockIcon,
               { backgroundColor: colors.background.surface, borderColor: colors.border.default },
