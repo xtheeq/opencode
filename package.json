@@ -148,6 +148,7 @@
     "esbuild",
     "node-pty",
     "protobufjs",
+    "react-native-enriched-markdown",
     "tree-sitter",
     "tree-sitter-bash",
     "tree-sitter-powershell",
