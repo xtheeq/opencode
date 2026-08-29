@@ -23,7 +23,7 @@ import Animated from "react-native-reanimated";
 import { type MenuSide } from "@/utils/swipe-menu";
 import { useTheme } from "@/theme";
 import { useSwipeMenu } from "@/hooks/use-swipe-menu";
-import { SessionList } from "@/components/session-list";
+import { BrowseView } from "@/components/browse-view";
 
 export type MenuContextValue = {
   isMenuOpen: boolean;
@@ -137,7 +137,7 @@ export function SwipeMenuShell({
             }
             style={[styles.menu, menuContentAnimatedStyle]}
           >
-            <SessionList dockAnimatedStyle={menuDockAnimatedStyle} onClose={closeMenu} />
+            <BrowseView dockAnimatedStyle={menuDockAnimatedStyle} onClose={closeMenu} />
           </Animated.View>
         </View>
 

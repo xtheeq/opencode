@@ -7,7 +7,6 @@ import X from "lucide-react-native/icons/x";
 import {
   ActivityIndicator,
   Keyboard,
-  SectionList,
   StyleSheet,
   TextInput as RNTextInput,
   TouchableOpacity,
@@ -17,12 +16,11 @@ import {
 import { KeyboardStickyView } from "react-native-keyboard-controller";
 import Animated, { type AnimatedStyle } from "react-native-reanimated";
 import { router } from "expo-router";
-import type { SessionInfo } from "@opencode-ai/client/promise";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
-import { SessionCard } from "@/components/session-card";
-import { ProjectPicker } from "@/components/project-picker";
+import { SessionTab } from "@/components/session-tab";
+import { ProjectTab } from "@/components/project-tab";
 import {
   useProjects,
   useProjectsLoaded,
@@ -40,7 +38,7 @@ import {
   sessionsForProject,
 } from "@/utils/project";
 
-export function SessionList({
+export function BrowseView({
   onClose,
   dockAnimatedStyle,
 }: {
@@ -83,7 +81,6 @@ export function SessionList({
         (session.title || "Untitled").toLowerCase().includes(trimmed),
       )
     : visibleSessions;
-  const sections = sessionSections(filteredSessions);
 
   const projectTrimmed = projectQuery.trim().toLowerCase();
   const filteredProjects = projectTrimmed
@@ -102,6 +99,12 @@ export function SessionList({
         ? `Search "${projectLabel}"`
         : "Search sessions"
       : "Search projects";
+
+  const emptyMessage = query.trim()
+    ? "No sessions match"
+    : activeProject
+      ? "No sessions in this project yet"
+      : "Choose a project to start";
 
   function clearSearch() {
     setSearchValue("");
@@ -155,40 +158,15 @@ export function SessionList({
       style={[styles.container, { backgroundColor: colors.background.default }]}
     >
       {view === "sessions" ? (
-        <SectionList
-          sections={sections}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <SessionCard session={item} onPress={() => openSession(item.id)} />
-          )}
-          renderSectionHeader={({ section }) => (
-            <Text variant="caption" color="secondary" style={styles.sectionHeader}>
-              {section.title}
-            </Text>
-          )}
-          ItemSeparatorComponent={RowSeparator}
-          stickySectionHeadersEnabled={false}
-          keyboardShouldPersistTaps="handled"
+        <SessionTab
+          sessions={filteredSessions}
+          emptyMessage={emptyMessage}
           refreshing={isRefreshing}
           onRefresh={handleRefresh}
-          ListEmptyComponent={
-            <View style={styles.centered}>
-              {query.trim() ? (
-                <Text color="secondary">No sessions match</Text>
-              ) : activeProject ? (
-                <Text color="secondary">No sessions in this project yet</Text>
-              ) : (
-                <Text color="secondary">Choose a project to start</Text>
-              )}
-            </View>
-          }
-          contentContainerStyle={[
-            {
-              paddingTop: spacing.sm,
-              paddingBottom: insets.bottom + dockClearance,
-              flexGrow: 1,
-            },
-          ]}
+          onOpenSession={openSession}
+          contentContainerStyle={{
+            paddingBottom: insets.bottom + dockClearance,
+          }}
         />
       ) : (
         <View
@@ -197,7 +175,7 @@ export function SessionList({
             { paddingBottom: insets.bottom + dockClearance },
           ]}
         >
-          <ProjectPicker
+          <ProjectTab
             projects={filteredProjects}
             loaded={projectsLoaded}
             onSelect={handleProjectSelect}
@@ -333,65 +311,12 @@ export function SessionList({
   );
 }
 
-function RowSeparator() {
-  const { colors } = useTheme();
-  return (
-    <View
-      style={[
-        styles.separator,
-        { backgroundColor: colors.border.subtle },
-      ]}
-    />
-  );
-}
-
-type SessionSection = { title: string; data: SessionInfo[] };
-
-/** Calendar-day groups matching the web sidebar: Today / Yesterday / Older. */
-function sessionSections(sessions: SessionInfo[]): SessionSection[] {
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const isSameDay = (ms: number, ref: Date) => {
-    const date = new Date(ms);
-    return (
-      date.getFullYear() === ref.getFullYear() &&
-      date.getMonth() === ref.getMonth() &&
-      date.getDate() === ref.getDate()
-    );
-  };
-  const todays = sessions.filter((session) => isSameDay(session.time.updated, today));
-  const yesterdays = sessions.filter((session) => isSameDay(session.time.updated, yesterday));
-  const older = sessions.filter(
-    (session) => !isSameDay(session.time.updated, today) && !isSameDay(session.time.updated, yesterday),
-  );
-  const sections: SessionSection[] = [];
-  if (todays.length > 0) sections.push({ title: "Today", data: todays });
-  if (yesterdays.length > 0) sections.push({ title: "Yesterday", data: yesterdays });
-  if (older.length > 0) {
-    sections.push({
-      title: todays.length > 0 || yesterdays.length > 0 ? "Older" : "Recent sessions",
-      data: older,
-    });
-  }
-  return sections;
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   projectList: {
     flex: 1,
-  },
-  sectionHeader: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-  },
-  separator: {
-    height: StyleSheet.hairlineWidth,
-    marginLeft: spacing.md,
   },
   searchInput: {
     flex: 1,

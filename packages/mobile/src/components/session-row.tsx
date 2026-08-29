@@ -16,7 +16,7 @@ function formatTime(ms: number) {
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export function SessionCard({
+export function SessionRow({
   session,
   onPress,
 }: {
