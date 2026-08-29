@@ -201,7 +201,11 @@ describe("loadOlderMessages", () => {
       s._messageCursor["ses_1"] = "cur_1";
     });
     messageListResult = {
-      data: [cachedMessage("msg_new"), cachedMessage("msg_mid"), cachedMessage("msg_old")],
+      data: [
+        cachedMessage("msg_new"),
+        cachedMessage("msg_mid"),
+        cachedMessage("msg_old"),
+      ],
       cursor: { next: "cur_2" },
     };
 

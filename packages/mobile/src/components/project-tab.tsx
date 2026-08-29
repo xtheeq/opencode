@@ -1,9 +1,4 @@
-import {
-  ActivityIndicator,
-  FlatList,
-  StyleSheet,
-  View,
-} from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, View } from "react-native";
 import { Button, Text } from "@/components/primitives";
 import { spacing, useTheme } from "@/theme";
 import type { Project } from "@opencode-ai/client/promise";

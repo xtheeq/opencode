@@ -52,7 +52,10 @@ export function BasicTool({
         hitSlop={4}
         accessibilityRole={interactive ? "button" : undefined}
         accessibilityState={interactive ? { expanded: open } : undefined}
-        style={({ pressed }) => [styles.trigger, pressed && interactive && styles.pressed]}
+        style={({ pressed }) => [
+          styles.trigger,
+          pressed && interactive && styles.pressed,
+        ]}
       >
         <View style={styles.iconWrap}>
           {failed ? (
@@ -71,7 +74,9 @@ export function BasicTool({
             >
               {title}
             </Text>
-            {pending && <ActivityIndicator size={12} color={colors.text.secondary} />}
+            {pending && (
+              <ActivityIndicator size={12} color={colors.text.secondary} />
+            )}
           </View>
           {hasMeta && (
             <View style={styles.metaColumn}>
@@ -112,13 +117,15 @@ export function BasicTool({
       </Pressable>
       {open && expandable && (
         <View
-          style={[
-            styles.content,
-            { borderLeftColor: colors.border.default },
-          ]}
+          style={[styles.content, { borderLeftColor: colors.border.default }]}
         >
           {error != null && (
-            <Text variant="caption" color="error" selectable style={styles.error}>
+            <Text
+              variant="caption"
+              color="error"
+              selectable
+              style={styles.error}
+            >
               {error}
             </Text>
           )}

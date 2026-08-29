@@ -9,7 +9,11 @@ const textDelta = (
   ordinal: number,
   delta: string,
 ): V2Event =>
-  ({ id, type: "session.text.delta", data: { sessionID, assistantMessageID, ordinal, delta } }) as V2Event;
+  ({
+    id,
+    type: "session.text.delta",
+    data: { sessionID, assistantMessageID, ordinal, delta },
+  }) as V2Event;
 
 const reasoningDelta = (
   id: string,
@@ -18,7 +22,11 @@ const reasoningDelta = (
   ordinal: number,
   delta: string,
 ): V2Event =>
-  ({ id, type: "session.reasoning.delta", data: { sessionID, assistantMessageID, ordinal, delta } }) as V2Event;
+  ({
+    id,
+    type: "session.reasoning.delta",
+    data: { sessionID, assistantMessageID, ordinal, delta },
+  }) as V2Event;
 
 const textEnded = (
   id: string,
@@ -27,9 +35,14 @@ const textEnded = (
   ordinal: number,
   text: string,
 ): V2Event =>
-  ({ id, type: "session.text.ended", data: { sessionID, assistantMessageID, ordinal, text } }) as V2Event;
+  ({
+    id,
+    type: "session.text.ended",
+    data: { sessionID, assistantMessageID, ordinal, text },
+  }) as V2Event;
 
-const deltaOf = (event: V2Event) => (event as { data: { delta: string } }).data.delta;
+const deltaOf = (event: V2Event) =>
+  (event as { data: { delta: string } }).data.delta;
 
 describe("coalesceEvents", () => {
   test("merges adjacent same-key text deltas", () => {

@@ -1,4 +1,10 @@
-import { SectionList, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  SectionList,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { SessionRow } from "@/components/session-row";
@@ -57,10 +63,7 @@ function RowSeparator() {
   const { colors } = useTheme();
   return (
     <View
-      style={[
-        styles.separator,
-        { backgroundColor: colors.border.subtle },
-      ]}
+      style={[styles.separator, { backgroundColor: colors.border.subtle }]}
     />
   );
 }
@@ -80,17 +83,27 @@ function sessionSections(sessions: SessionInfo[]): SessionSection[] {
       date.getDate() === ref.getDate()
     );
   };
-  const todays = sessions.filter((session) => isSameDay(session.time.updated, today));
-  const yesterdays = sessions.filter((session) => isSameDay(session.time.updated, yesterday));
+  const todays = sessions.filter((session) =>
+    isSameDay(session.time.updated, today),
+  );
+  const yesterdays = sessions.filter((session) =>
+    isSameDay(session.time.updated, yesterday),
+  );
   const older = sessions.filter(
-    (session) => !isSameDay(session.time.updated, today) && !isSameDay(session.time.updated, yesterday),
+    (session) =>
+      !isSameDay(session.time.updated, today) &&
+      !isSameDay(session.time.updated, yesterday),
   );
   const sections: SessionSection[] = [];
   if (todays.length > 0) sections.push({ title: "Today", data: todays });
-  if (yesterdays.length > 0) sections.push({ title: "Yesterday", data: yesterdays });
+  if (yesterdays.length > 0)
+    sections.push({ title: "Yesterday", data: yesterdays });
   if (older.length > 0) {
     sections.push({
-      title: todays.length > 0 || yesterdays.length > 0 ? "Older" : "Recent sessions",
+      title:
+        todays.length > 0 || yesterdays.length > 0
+          ? "Older"
+          : "Recent sessions",
       data: older,
     });
   }

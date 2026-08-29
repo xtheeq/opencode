@@ -54,5 +54,7 @@ function isServerUrl(value: string) {
 }
 
 function isLoopback(hostname: string) {
-  return hostname === "localhost" || hostname === "::1" || /^127\./.test(hostname);
+  return (
+    hostname === "localhost" || hostname === "::1" || /^127\./.test(hostname)
+  );
 }

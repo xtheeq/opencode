@@ -84,7 +84,12 @@ const textDelta = (): V2Event =>
   ({
     id: "evt_text_delta",
     type: "session.text.delta",
-    data: { sessionID: "ses_1", assistantMessageID: "msg_1", ordinal: 0, delta: "hi" },
+    data: {
+      sessionID: "ses_1",
+      assistantMessageID: "msg_1",
+      ordinal: 0,
+      delta: "hi",
+    },
   }) as V2Event;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

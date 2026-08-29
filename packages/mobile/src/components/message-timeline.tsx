@@ -8,7 +8,10 @@ import { spacing, useTheme } from "@/theme";
 import { RowRenderer } from "@/components/message/row";
 import { projectRows } from "@/hooks/project-rows";
 import { rowKey, type SessionRow } from "@/types/rows";
-import { useSessionMessages, useSessionMessagesLoadingOlder } from "@/hooks/use-store";
+import {
+  useSessionMessages,
+  useSessionMessagesLoadingOlder,
+} from "@/hooks/use-store";
 import { loadOlderMessages } from "@/stores/sync";
 
 function sameRowEntry(a: SessionRow, b: SessionRow) {
@@ -16,7 +19,9 @@ function sameRowEntry(a: SessionRow, b: SessionRow) {
 }
 
 function rowType(row: SessionRow): string {
-  return row.type === "assistant-part" ? `${row.type}-${row.part.type}` : row.type;
+  return row.type === "assistant-part"
+    ? `${row.type}-${row.part.type}`
+    : row.type;
 }
 
 export function MessageTimeline({
@@ -62,7 +67,12 @@ export function MessageTimeline({
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
       maintainScrollAtEnd={{
-        on: { dataChange: true, itemLayout: true, layout: false, footerLayout: false },
+        on: {
+          dataChange: true,
+          itemLayout: true,
+          layout: false,
+          footerLayout: false,
+        },
       }}
       // Anchors the top row across prepends so older pages don't shift position.
       maintainVisibleContentPosition={{ data: true }}

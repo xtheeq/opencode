@@ -5,7 +5,8 @@ const EMPTY: Record<string, unknown> = Object.freeze({});
 export function toolInput(
   tool: SessionMessageAssistantTool,
 ): Record<string, unknown> {
-  if (tool.state.status === "streaming") return parseJsonRecord(tool.state.input);
+  if (tool.state.status === "streaming")
+    return parseJsonRecord(tool.state.input);
   return tool.state.input;
 }
 
@@ -37,7 +38,14 @@ export function toolError(
   return tool.state.error.message;
 }
 
-const LABEL_KEYS = ["description", "query", "url", "path", "pattern", "name"] as const;
+const LABEL_KEYS = [
+  "description",
+  "query",
+  "url",
+  "path",
+  "pattern",
+  "name",
+] as const;
 
 export function toolLabel(input: Record<string, unknown>): string | undefined {
   for (const key of LABEL_KEYS) {

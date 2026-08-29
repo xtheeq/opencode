@@ -42,7 +42,11 @@ export function SessionRow({
       accessibilityLabel={status ? `${title} (${status})` : title}
       style={styles.row}
     >
-      <Text variant="body" numberOfLines={1} style={[styles.title, styles.flex]}>
+      <Text
+        variant="body"
+        numberOfLines={1}
+        style={[styles.title, styles.flex]}
+      >
         {title}
       </Text>
       {blocked ? (

@@ -14,7 +14,9 @@ describe("parsePairing", () => {
 
   test("parses the connect scheme without password", () => {
     expect(
-      parsePairing(`opencode://connect?url=${encoded("https://server.example:4096")}`),
+      parsePairing(
+        `opencode://connect?url=${encoded("https://server.example:4096")}`,
+      ),
     ).toEqual({ url: "https://server.example:4096" });
   });
 

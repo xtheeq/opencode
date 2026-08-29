@@ -117,10 +117,7 @@ export function SwipeMenuShell({
     <GestureDetector gesture={swipeGesture}>
       <View
         accessibilityViewIsModal={isMenuOpen}
-        style={[
-          styles.root,
-          { backgroundColor: colors.background.default },
-        ]}
+        style={[styles.root, { backgroundColor: colors.background.default }]}
       >
         {/* Session menu layer, revealed as the surface slides away. */}
         <View
@@ -137,7 +134,10 @@ export function SwipeMenuShell({
             }
             style={[styles.menu, menuContentAnimatedStyle]}
           >
-            <BrowseView dockAnimatedStyle={menuDockAnimatedStyle} onClose={closeMenu} />
+            <BrowseView
+              dockAnimatedStyle={menuDockAnimatedStyle}
+              onClose={closeMenu}
+            />
           </Animated.View>
         </View>
 

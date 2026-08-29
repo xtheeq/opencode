@@ -32,7 +32,9 @@ export function QrScanner() {
             : "Camera access was denied. Enable it in Settings to scan login QR codes."}
         </Text>
         <Button
-          title={permission.canAskAgain ? "Allow camera access" : "Open Settings"}
+          title={
+            permission.canAskAgain ? "Allow camera access" : "Open Settings"
+          }
           onPress={() => {
             if (permission.canAskAgain) void requestPermission();
             else void Linking.openSettings();

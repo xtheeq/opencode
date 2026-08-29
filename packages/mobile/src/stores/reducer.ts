@@ -366,11 +366,7 @@ export function handleEvent(event: V2Event) {
         const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        const assistant = findAssistant(
-          messages,
-          idx,
-          event.data.messageID,
-        );
+        const assistant = findAssistant(messages, idx, event.data.messageID);
         if (assistant) assistant.content = [...event.data.content];
       });
       break;

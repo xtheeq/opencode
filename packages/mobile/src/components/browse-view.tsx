@@ -248,7 +248,10 @@ export function BrowseView({
             }
             style={[
               styles.dockIcon,
-              { backgroundColor: colors.background.surface, borderColor: colors.border.default },
+              {
+                backgroundColor: colors.background.surface,
+                borderColor: colors.border.default,
+              },
             ]}
           >
             <Search size={20} color={colors.icon.default} />
@@ -265,7 +268,10 @@ export function BrowseView({
             }
             style={[
               styles.dockProject,
-              { backgroundColor: colors.background.surface, borderColor: colors.border.default },
+              {
+                backgroundColor: colors.background.surface,
+                borderColor: colors.border.default,
+              },
             ]}
           >
             {view === "sessions" ? (
@@ -278,7 +284,9 @@ export function BrowseView({
             ) : (
               <>
                 <ChevronLeft size={18} color={colors.icon.default} />
-                <Text variant="label" numberOfLines={1}>Sessions</Text>
+                <Text variant="label" numberOfLines={1}>
+                  Sessions
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -299,7 +307,10 @@ export function BrowseView({
             ]}
           >
             {isCreating ? (
-              <ActivityIndicator size="small" color={colors.action.primaryText} />
+              <ActivityIndicator
+                size="small"
+                color={colors.action.primaryText}
+              />
             ) : (
               <Plus size={20} color={colors.action.primaryText} />
             )}

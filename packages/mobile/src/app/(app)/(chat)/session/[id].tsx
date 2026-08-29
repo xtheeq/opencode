@@ -35,7 +35,10 @@ export default function SessionScreen() {
   return (
     <SwipeMenuShell>
       <View
-        style={[styles.container, { backgroundColor: colors.background.default }]}
+        style={[
+          styles.container,
+          { backgroundColor: colors.background.default },
+        ]}
       >
         <AppHeader title={session?.title || "Untitled"} />
         <KeyboardGestureArea interpolator="ios" style={styles.body}>
