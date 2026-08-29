@@ -240,6 +240,8 @@ import type {
   WorkspaceDestroyOutput,
   VcsGetInput,
   VcsGetOutput,
+  VcsBaseInput,
+  VcsBaseOutput,
   VcsStatusInput,
   VcsStatusOutput,
   VcsBranchesInput,
@@ -1367,7 +1369,7 @@ export function make(options: ClientOptions) {
             method: "GET",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/form`,
             successStatus: 200,
-            declaredStatuses: [404, 400, 401],
+            declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,
@@ -1496,7 +1498,7 @@ export function make(options: ClientOptions) {
             method: "GET",
             path: `/api/session/${encodeURIComponent(input.sessionID)}/permission`,
             successStatus: 200,
-            declaredStatuses: [404, 400, 401],
+            declaredStatuses: [404, 401, 400],
             empty: false,
           },
           requestOptions,
@@ -1996,6 +1998,18 @@ export function make(options: ClientOptions) {
           },
           requestOptions,
         ),
+      base: (input?: VcsBaseInput, requestOptions?: RequestOptions) =>
+        request<VcsBaseOutput>(
+          {
+            method: "GET",
+            path: `/api/vcs/base`,
+            query: { location: input?.["location"] },
+            successStatus: 200,
+            declaredStatuses: [503, 401, 400],
+            empty: false,
+          },
+          requestOptions,
+        ),
       status: (input?: VcsStatusInput, requestOptions?: RequestOptions) =>
         request<VcsStatusOutput>(
           {
@@ -2025,9 +2039,9 @@ export function make(options: ClientOptions) {
           {
             method: "GET",
             path: `/api/vcs/diff`,
-            query: { location: input["location"], mode: input["mode"], context: input["context"] },
+            query: { location: input["location"], mode: input["mode"], base: input["base"], context: input["context"] },
             successStatus: 200,
-            declaredStatuses: [401, 400],
+            declaredStatuses: [503, 401, 400],
             empty: false,
           },
           requestOptions,
