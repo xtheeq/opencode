@@ -2,14 +2,16 @@ import { APICallError } from "@ai-sdk/provider"
 import type { LanguageModelV3, LanguageModelV3StreamPart } from "@ai-sdk/provider"
 import { createMistral } from "@ai-sdk/mistral"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { AISDK } from "@opencode-ai/core/aisdk"
-import { SessionRunnerRetry } from "@opencode-ai/core/session/runner/retry"
-import { toSessionError } from "@opencode-ai/core/session/to-session-error"
-import { Model } from "@opencode-ai/core/model"
-import { Provider } from "@opencode-ai/core/provider"
+import { AISDK } from "@opencode/core/aisdk"
+import { SessionRunnerRetry } from "@opencode/core/session/runner/retry"
+import { toSessionError } from "@opencode/core/session/to-session-error"
+import { Model } from "@opencode/core/model"
+import { Provider } from "@opencode/core/provider"
 import {
   LLM,
   AIError,
+  CompactionPart,
+  ProviderID,
   HttpContext,
   LLMEvent,
   Message,
@@ -17,9 +19,9 @@ import {
   TransportError,
   UnknownProviderError,
   isContextOverflowFailure,
-} from "@opencode-ai/ai"
-import { LLMClient, RequestExecutor } from "@opencode-ai/ai/route"
-import { compileRequest } from "@opencode-ai/ai/route/client"
+} from "@opencode/ai"
+import { LLMClient, RequestExecutor } from "@opencode/ai/route"
+import { compileRequest } from "@opencode/ai/route/client"
 import { expect } from "bun:test"
 import { Effect, Layer } from "effect"
 import { testEffect } from "./lib/effect"
@@ -68,6 +70,32 @@ const client = LLMClient.layer.pipe(
   ),
 )
 
+it.effect("rejects native provider compaction rather than silently dropping replay state", () =>
+  Effect.gen(function* () {
+    const aisdk = yield* AISDK.Service
+    yield* aisdk.hook.sdk((event) => {
+      event.sdk = { languageModel: () => streamModel([]) }
+    })
+    const resolved = yield* aisdk.model(model("@ai-sdk/openai"))
+    const error = yield* compileRequest(
+      LLM.request({
+        model: resolved,
+        messages: [
+          Message.assistant(
+            CompactionPart.make({
+              provider: ProviderID.make("test-provider"),
+              encrypted: "opaque",
+            }),
+          ),
+        ],
+      }),
+    ).pipe(Effect.flip)
+    expect(error.reason._tag).toBe("UnsupportedOperation")
+    expect(error.message).toContain("cannot replay")
+    if (error.reason._tag === "UnsupportedOperation") expect(error.reason.operation).toBe("compaction-replay")
+  }),
+)
+
 it.effect("keys language models by package and flattened overlays", () =>
   Effect.gen(function* () {
     const aisdk = yield* AISDK.Service
@@ -84,6 +112,43 @@ it.effect("keys language models by package and flattened overlays", () =>
     expect(first).not.toBe(second)
     expect(second).not.toBe(third)
     expect(loaded).toEqual(["first", "second", "second"])
+  }),
+)
+
+it.effect("uses canonical names and metadata without merging connection cache partitions", () =>
+  Effect.gen(function* () {
+    const aisdk = yield* AISDK.Service
+    const loaded: string[] = []
+    yield* aisdk.hook.sdk((event) => {
+      loaded.push(`${event.model.providerID}:${event.options.name}`)
+      event.sdk = createOpenAICompatible({
+        ...event.options,
+        name: String(event.options.name),
+        baseURL: String(event.options.baseURL),
+      })
+    })
+    const input = {
+      ...model("@ai-sdk/openai-compatible", { baseURL: "https://proxy.example/v1", reasoningEffort: "high" }),
+      providerID: Provider.ID.make("work"),
+      canonical: Provider.ID.openai,
+    }
+    const first = yield* aisdk.language(input)
+    const second = yield* aisdk.language({ ...input, providerID: Provider.ID.make("personal") })
+    const plain = yield* aisdk.language({ ...input, canonical: undefined })
+
+    expect(yield* aisdk.language(input)).toBe(first)
+    expect(first).not.toBe(second)
+    expect(first).not.toBe(plain)
+    expect(first).toMatchObject({ modelId: "api-model", provider: "openai.chat" })
+    expect(plain.provider).toBe("work.chat")
+    expect(loaded).toEqual(["work:openai", "personal:openai", "work:work"])
+
+    const resolved = yield* aisdk.model(input)
+    expect(resolved).toMatchObject({ id: "api-model", provider: "openai" })
+    expect(resolved.route).toMatchObject({ provider: "openai", providerMetadataKey: "openai" })
+    expect(resolved.route.model({ id: "another-model" })).toMatchObject({ provider: "openai" })
+    const prepared = yield* compileRequest(LLM.request({ model: resolved, prompt: "Hello" }))
+    expect(prepared.body.providerOptions).toEqual({ openai: { reasoningEffort: "high" } })
   }),
 )
 

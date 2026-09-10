@@ -1,22 +1,20 @@
 export * as Session from "./session.js"
 
-import { DateTime, Effect, Fiber, Layer, Schema, Scope } from "effect"
-import type { Agent } from "@opencode-ai/schema/agent"
-import type { Model } from "@opencode-ai/schema/model"
-import { Event } from "@opencode-ai/schema/event"
+import { DateTime, Effect, Fiber, Scope } from "effect"
+import type { Agent } from "@opencode/schema/agent"
+import type { Model } from "@opencode/schema/model"
+import { Event } from "@opencode/schema/event"
+import { FSUtil } from "@opencode/util/fs-util"
 import { Bus } from "../bus.js"
-import { Location } from "../location.js"
-import { PluginSupervisor } from "../plugin/supervisor-service.js"
-import { Shell } from "../shell.js"
+import { Database } from "../database/database.js"
+import { Instance } from "../instance/service.js"
 import { ShellResult } from "../shell/result.js"
+import type { Skill } from "../skill.js"
 import {
   BusyError,
   CompactionConflictError,
   InboxConflictError,
-  MessageIncompleteError,
-  MessageNotAssistantError,
   MessageNotFoundError,
-  MessageToolIncompleteError,
   NotFoundError,
   PromptConflictError,
   SyntheticConflictError,
@@ -27,10 +25,10 @@ import { SessionInbox } from "./inbox.js"
 import { SessionMessage } from "./message.js"
 import { SessionPrompt } from "./prompt.js"
 import { SessionRevert } from "./revert.js"
+import { SessionShell } from "./shell.js"
+import { SessionSkill } from "./skill.js"
 import { SessionSchema } from "./schema.js"
 import { SessionStore } from "./store.js"
-
-export type Services = PluginSupervisor.Service | SessionPrompt.Service | SessionRevert.Service | Shell.Service
 
 type PromptRequest = SessionPrompt.Input & {
   id?: SessionMessage.ID
@@ -38,14 +36,17 @@ type PromptRequest = SessionPrompt.Input & {
 }
 
 /**
- * Build once in the host Scope: `const sessions = yield* Session.make(servicesFor)`.
+ * Build once in the host Scope: `const sessions = yield* Session.make()`.
  * Use `sessions.forSession(id)` for handles that share host services and reload current state.
  */
-export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Location.Ref) => Layer.Layer<Services>) {
+export const make = Effect.fn("Session.make")(function* () {
   const bus = yield* Bus.Service
+  const database = yield* Database.Service
   const store = yield* SessionStore.Service
+  const instances = yield* Instance.Service
   const execution = yield* SessionExecution.Service
   const admission = yield* SessionInbox.Service
+  const fs = yield* FSUtil.Service
   const scope = yield* Scope.Scope
 
   const get = Effect.fn("Session.get")(function* (sessionID: SessionSchema.ID) {
@@ -56,26 +57,6 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
   const message = Effect.fn("Session.message")(function* (sessionID: SessionSchema.ID, messageID: SessionMessage.ID) {
     const stored = yield* store.message(messageID)
     return stored?.sessionID === sessionID ? stored.message : undefined
-  })
-  const updateMessage = Effect.fn("Session.updateMessage")(function* (
-    sessionID: SessionSchema.ID,
-    input: { readonly messageID: SessionMessage.ID; readonly content: readonly SessionMessage.AssistantContent[] },
-  ) {
-    const ref = { sessionID, messageID: input.messageID }
-    yield* get(sessionID)
-    if (yield* execution.isActive(sessionID)) return yield* new BusyError({ sessionID })
-    const current = yield* message(sessionID, input.messageID)
-    if (!current) return yield* new MessageNotFoundError(ref)
-    if (current.type !== "assistant") return yield* new MessageNotAssistantError(ref)
-    if (!current.time.completed) return yield* new MessageIncompleteError(ref)
-    if (input.content.some(isUnfinishedTool)) return yield* new MessageToolIncompleteError(ref)
-    yield* bus.publish(SessionEvent.MessageContentUpdated, {
-      ...ref,
-      content: Schema.encodeSync(Schema.Array(SessionMessage.AssistantContent))(input.content),
-    })
-    const updated = yield* message(sessionID, input.messageID)
-    if (updated?.type !== "assistant") return yield* new MessageNotFoundError(ref)
-    return updated
   })
   const view = Effect.fn("Session.view")(function* (sessionID: SessionSchema.ID, input: { idle: number }) {
     const session = yield* get(sessionID)
@@ -161,8 +142,9 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
           })
           if (existing) return existing
           const item = yield* restore(
-            SessionPrompt.Service.use((preparation) => preparation.prepare({ sessionID, messageID, input })).pipe(
-              Effect.provide(servicesFor(session.location)),
+            SessionPrompt.prepare({ session, messageID, input }).pipe(
+              Effect.provideService(Instance.Service, instances),
+              Effect.provideService(FSUtil.Service, fs),
             ),
           )
           // Commit a staged revert only after preparation succeeds, before admitting new work.
@@ -187,42 +169,28 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
     const session = yield* get(sessionID)
     // The server owns completion recording even if the submitting client disconnects.
     const running = yield* Effect.gen(function* () {
-      // Resolve shell services here without pinning Session events to this Location after a move.
-      const shell = yield* Effect.gen(function* () {
-        const plugins = yield* PluginSupervisor.Service
-        yield* plugins.flush
-        return yield* Shell.Service
-      }).pipe(Effect.provide(servicesFor(session.location)))
-      const started = yield* shell
-        .create({
-          command: input.command,
-          cwd: session.location.directory,
-          timeout: 0,
-          metadata: { sessionID, background: true },
-        })
-        .pipe(
-          Effect.tapError((error) =>
-            synthetic(sessionID, {
-              text: `User shell command failed to start:\n${input.command}\n\n${error.message}`,
-              description: input.command,
-              metadata: { source: "shell", state: "error" },
-              resume: false,
-            }),
-          ),
-          Effect.orDie,
-        )
+      const started = yield* SessionShell.start({ session, command: input.command }).pipe(
+        Effect.provideService(Instance.Service, instances),
+        Effect.tapError((error) =>
+          synthetic(sessionID, {
+            text: `User shell command failed to start:\n${input.command}\n\n${error.message}`,
+            description: input.command,
+            metadata: { source: "shell", state: "error" },
+            resume: false,
+          }),
+        ),
+        Effect.orDie,
+      )
       yield* bus.publish(
         SessionEvent.Shell.Started,
         {
           sessionID,
-          shell: started,
+          shell: started.info,
         },
         { id: input.id },
       )
-      const terminal = yield* shell.result(started)
-      const preview = yield* shell
-        .output(started.id, { limit: SHELL_MAX_CAPTURE_BYTES })
-        .pipe(Effect.catchTag("Shell.NotFoundError", () => Effect.succeed(ShellResult.unavailable)))
+      const terminal = yield* started.result
+      const preview = yield* started.output
       yield* bus.publish(SessionEvent.Shell.Ended, {
         sessionID,
         shell: terminal.info,
@@ -238,11 +206,35 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
     }).pipe(Effect.forkIn(scope, { startImmediately: true }))
     yield* Fiber.join(running)
   })
+  const skill = Effect.fn("Session.skill")(function* (
+    sessionID: SessionSchema.ID,
+    input: { id?: SessionMessage.ID; skill: Skill.ID; resume?: boolean },
+  ) {
+    const session = yield* get(sessionID)
+    const skill = yield* SessionSkill.get({ session, skill: input.skill }).pipe(
+      Effect.provideService(Instance.Service, instances),
+    )
+    yield* bus.publish(
+      SessionEvent.Skill.Activated,
+      {
+        sessionID,
+        id: skill.id,
+        name: skill.name,
+        text: skill.content,
+      },
+      { id: input.id ? Event.ID.make(input.id.replace(/^msg_/, "evt_")) : undefined },
+    )
+    if (input.resume !== false)
+      yield* execution
+        .resume(sessionID)
+        .pipe(Effect.ignore, Effect.forkIn(scope, { startImmediately: true }), Effect.asVoid)
+  })
   const compact = Effect.fn("Session.compact")(function* (
     sessionID: SessionSchema.ID,
     input: { id?: SessionMessage.ID; delivery?: SessionInbox.Delivery },
   ) {
-    yield* get(sessionID)
+    const session = yield* get(sessionID)
+    if (session.revert) yield* SessionRevert.commit(bus, session)
     const inputID = input.id ?? SessionMessage.ID.create()
     const admitted = yield* admission
       .admitCompaction({
@@ -316,15 +308,18 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
   ) {
     const session = yield* get(sessionID)
     if (yield* execution.isActive(sessionID)) return yield* new BusyError({ sessionID })
-    return yield* SessionRevert.Service.use((revert) =>
-      revert.stage({ session, messageID: input.messageID, files: input.files }),
-    ).pipe(Effect.provide(servicesFor(session.location)))
+    return yield* SessionRevert.stage({ session, messageID: input.messageID, files: input.files }).pipe(
+      Effect.provideService(Instance.Service, instances),
+      Effect.provideService(Database.Service, database),
+      Effect.provideService(Bus.Service, bus),
+    )
   })
   const clear = Effect.fn("Session.revert.clear")(function* (sessionID: SessionSchema.ID) {
     const session = yield* get(sessionID)
     if (yield* execution.isActive(sessionID)) return yield* new BusyError({ sessionID })
-    yield* SessionRevert.Service.use((revert) => revert.clear(session)).pipe(
-      Effect.provide(servicesFor(session.location)),
+    yield* SessionRevert.clear(session).pipe(
+      Effect.provideService(Instance.Service, instances),
+      Effect.provideService(Bus.Service, bus),
     )
     return yield* execution.wake(sessionID)
   })
@@ -337,7 +332,6 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
   const operations = {
     get,
     message,
-    updateMessage,
     view,
     rename,
     switchAgent,
@@ -346,6 +340,7 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
     prompt,
     synthetic,
     shell,
+    skill,
     compact,
     wait,
     resume,
@@ -359,7 +354,6 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
   const forSession = (sessionID: SessionSchema.ID) => {
     const get = operations.get.bind(undefined, sessionID)
     const message = operations.message.bind(undefined, sessionID)
-    const updateMessage = operations.updateMessage.bind(undefined, sessionID)
     const view = operations.view.bind(undefined, sessionID)
     const rename = operations.rename.bind(undefined, sessionID)
     const switchAgent = operations.switchAgent.bind(undefined, sessionID)
@@ -368,6 +362,7 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
     const prompt = operations.prompt.bind(undefined, sessionID)
     const synthetic = operations.synthetic.bind(undefined, sessionID)
     const shell = operations.shell.bind(undefined, sessionID)
+    const skill = operations.skill.bind(undefined, sessionID)
     const compact = operations.compact.bind(undefined, sessionID)
     const wait = operations.wait.bind(undefined, sessionID)
     const resume = operations.resume.bind(undefined, sessionID)
@@ -384,7 +379,6 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
       id: sessionID,
       get,
       message,
-      updateMessage,
       view,
       rename,
       switchAgent,
@@ -393,6 +387,7 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
       prompt,
       synthetic,
       shell,
+      skill,
       compact,
       wait,
       resume,
@@ -408,9 +403,4 @@ export const make = Effect.fn("Session.make")(function* (servicesFor: (ref: Loca
 
 export type Handle = ReturnType<Effect.Success<ReturnType<typeof make>>["forSession"]>
 
-function isUnfinishedTool(content: SessionMessage.AssistantContent) {
-  return content.type === "tool" && (content.state.status === "streaming" || content.state.status === "running")
-}
-
 // Mirrors the shell tool's in-memory preview safety limit.
-const SHELL_MAX_CAPTURE_BYTES = 1024 * 1024

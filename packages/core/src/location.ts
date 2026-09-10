@@ -1,8 +1,8 @@
 import { Context, Effect, Layer } from "effect"
-import { Info, Ref, response } from "@opencode-ai/schema/location"
+import { Info, Ref, response } from "@opencode/schema/location"
 import { Project } from "./project.js"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
-import { makeLocationNode, tags } from "@opencode-ai/util/effect/app-node"
+import { LayerNode } from "@opencode/util/effect/layer-node"
+import { makeLocationNode, tags } from "@opencode/util/effect/app-node"
 
 export * as Location from "./location.js"
 
@@ -10,7 +10,6 @@ export { Info, Ref, response }
 
 export interface Interface extends Info {
   readonly vcs?: Project.Vcs
-  readonly vcsBackend?: string
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/Location") {}
@@ -28,7 +27,6 @@ const layer = (ref: Ref, options?: { readonly discovery?: boolean }) =>
         workspaceID: ref.workspaceID,
         project: { id: resolved.id, directory: resolved.directory, canonical: resolved.canonical },
         vcs: resolved.vcs,
-        vcsBackend: resolved.vcsBackend,
       })
     }),
   )

@@ -1,16 +1,16 @@
 import { describe, expect } from "bun:test"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Ref, Schema, Stream } from "effect"
-import { Bus } from "@opencode-ai/core/bus"
-import { Event } from "@opencode-ai/schema/event"
-import { Session } from "@opencode-ai/schema/session"
-import { SessionEvent } from "@opencode-ai/schema/session-event"
-import { Database } from "@opencode-ai/core/database/database"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
-import { EventSequenceTable, EventTable } from "@opencode-ai/core/event/sql"
-import { Location } from "@opencode-ai/core/location"
-import { AbsolutePath } from "@opencode-ai/core/schema"
-import { Workspace } from "@opencode-ai/core/workspace"
+import { Bus } from "@opencode/core/bus"
+import { Event } from "@opencode/schema/event"
+import { Session } from "@opencode/schema/session"
+import { SessionEvent } from "@opencode/schema/session-event"
+import { Database } from "@opencode/core/database/database"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { LayerNode } from "@opencode/util/effect/layer-node"
+import { EventSequenceTable, EventTable } from "@opencode/core/event/sql"
+import { Location } from "@opencode/core/location"
+import { AbsolutePath } from "@opencode/core/schema"
+import { Workspace } from "@opencode/core/workspace"
 import { eq } from "drizzle-orm"
 import { location } from "./fixture/location"
 import { testEffect } from "./lib/effect"
@@ -100,12 +100,14 @@ const tail = (bus: Bus.Interface, input: { aggregateID: string; after?: number }
 
 const it = testEffect(
   AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node, Location.node]), [
-    [Location.node, locationLayer],
-    [Bus.node, Bus.configured({ persist: true })],
+    Location.node.replace(locationLayer),
+    Bus.node.replace(Bus.configured({ persist: true })),
   ]),
 )
 const itWithoutLocation = testEffect(
-  AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node]), [[Bus.node, Bus.configured({ persist: true })]]),
+  AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node]), [
+    Bus.node.replace(Bus.configured({ persist: true })),
+  ]),
 )
 const itWithoutPersistence = testEffect(AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node])))
 
@@ -631,8 +633,7 @@ describe("Bus", () => {
       const continueRead = yield* Deferred.make<void>()
       let pause = true
       const eventLayer = AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node]), [
-        [
-          Bus.node,
+        Bus.node.replace(
           Bus.configured({
             persist: true,
             beforeAggregateRead: () =>
@@ -640,7 +641,7 @@ describe("Bus", () => {
                 ? Deferred.succeed(readStarted, undefined).pipe(Effect.andThen(Deferred.await(continueRead)))
                 : Effect.void,
           }),
-        ],
+        ),
       ])
 
       yield* Effect.gen(function* () {
@@ -1318,7 +1319,7 @@ describe("Bus", () => {
   it.effect("log replays across configured read pages", () =>
     Effect.gen(function* () {
       const eventLayer = AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node]), [
-        [Bus.node, Bus.configured({ persist: true, logReadPageSize: 2 })],
+        Bus.node.replace(Bus.configured({ persist: true, logReadPageSize: 2 })),
       ])
 
       yield* Effect.gen(function* () {
@@ -1351,8 +1352,7 @@ describe("Bus", () => {
       const releaseRead = yield* Deferred.make<void>()
       const firstRead = yield* Ref.make(true)
       const eventLayer = AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node]), [
-        [
-          Bus.node,
+        Bus.node.replace(
           Bus.configured({
             persist: true,
             beforeAggregateRead: () =>
@@ -1363,7 +1363,7 @@ describe("Bus", () => {
                 }),
               ),
           }),
-        ],
+        ),
       ])
 
       yield* Effect.gen(function* () {

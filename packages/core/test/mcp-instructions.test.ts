@@ -1,11 +1,11 @@
 import { describe, expect } from "bun:test"
 import { Effect, Layer } from "effect"
-import { Agent } from "@opencode-ai/core/agent"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { Mcp } from "@opencode-ai/core/mcp/index"
-import { McpInstructions } from "@opencode-ai/core/mcp/instructions"
-import { Permission } from "@opencode-ai/core/permission"
-import { McpTool } from "@opencode-ai/core/tool/mcp"
+import { Agent } from "@opencode/core/agent"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { Mcp } from "@opencode/core/mcp/index"
+import { McpInstructions } from "@opencode/core/mcp/instructions"
+import { Permission } from "@opencode/core/permission"
+import { McpTool } from "@opencode/core/tool/mcp"
 import { it } from "./lib/effect"
 import { readInitial, readUpdate } from "./lib/instructions"
 
@@ -23,13 +23,12 @@ const tool = (server: string, name = "search") => new Mcp.Tool({ server: Mcp.Ser
 
 const layer = (catalog: () => Mcp.ServerInstructions[], tools: () => Mcp.Tool[]) =>
   AppNodeBuilder.build(McpInstructions.node, [
-    [
-      Mcp.node,
+    Mcp.node.replace(
       Layer.mock(Mcp.Service, {
         instructions: () => Effect.succeed(catalog()),
         tools: () => Effect.succeed(tools()),
       }),
-    ],
+    ),
   ])
 
 describe("McpInstructions", () => {

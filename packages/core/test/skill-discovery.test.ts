@@ -5,9 +5,9 @@ import { describe, expect } from "bun:test"
 import { NodeHttpServer } from "@effect/platform-node"
 import { Effect } from "effect"
 import { HttpServer, HttpServerRequest, HttpServerResponse } from "effect/unstable/http"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { Global } from "@opencode-ai/util/global"
-import { SkillDiscovery } from "@opencode-ai/core/skill/discovery"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { Global } from "@opencode/util/global"
+import { SkillDiscovery } from "@opencode/core/skill/discovery"
 import { tmpdir } from "./fixture/tmpdir"
 import { it } from "./lib/effect"
 
@@ -44,7 +44,7 @@ const fixture = Effect.gen(function* () {
           return yield* discovery.pull(base)
         }).pipe(
           Effect.provide(
-            AppNodeBuilder.build(SkillDiscovery.node, [[Global.node, Global.layerWith({ cache: tmp.path })]]),
+            AppNodeBuilder.build(SkillDiscovery.node, [Global.node.replace(Global.layerWith({ cache: tmp.path }))]),
           ),
         )
         return { directories, requests: state.requests.slice() }

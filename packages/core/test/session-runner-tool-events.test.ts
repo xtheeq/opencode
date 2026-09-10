@@ -1,34 +1,37 @@
 import { expect, test } from "bun:test"
 import { Cause, Deferred, Effect, Exit, Fiber, Schema } from "effect"
 import { eq } from "drizzle-orm"
-import { LLMEvent } from "@opencode-ai/ai"
-import { Money } from "@opencode-ai/schema/money"
-import { Bus } from "@opencode-ai/core/bus"
-import { Database } from "@opencode-ai/core/database/database"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { EventTable } from "@opencode-ai/core/event/sql"
-import { Event } from "@opencode-ai/schema/event"
-import { Agent } from "@opencode-ai/core/agent"
-import { SessionEvent } from "@opencode-ai/core/session/event"
-import { SessionMessage } from "@opencode-ai/core/session/message"
-import { Session } from "@opencode-ai/core/session"
-import { SessionProjector } from "@opencode-ai/core/session/projector"
-import { SessionMessageTable, SessionTable } from "@opencode-ai/core/session/sql"
-import { Project } from "@opencode-ai/core/project"
-import { ProjectTable } from "@opencode-ai/core/project/sql"
-import { Model } from "@opencode-ai/core/model"
-import { Provider } from "@opencode-ai/core/provider"
-import { AbsolutePath, RelativePath } from "@opencode-ai/core/schema"
-import { Snapshot } from "@opencode-ai/core/snapshot"
-import { createLLMEventPublisher } from "@opencode-ai/core/session/runner/publish-llm-event"
-import { LayerNode } from "@opencode-ai/util/effect/layer-node"
+import { LLMEvent } from "@opencode/ai"
+import { Money } from "@opencode/schema/money"
+import { Bus } from "@opencode/core/bus"
+import { Database } from "@opencode/core/database/database"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { EventTable } from "@opencode/core/event/sql"
+import { Event } from "@opencode/schema/event"
+import { Agent } from "@opencode/core/agent"
+import { SessionEvent } from "@opencode/core/session/event"
+import { SessionMessage } from "@opencode/core/session/message"
+import { Session } from "@opencode/core/session"
+import { SessionProjector } from "@opencode/core/session/projector"
+import { SessionMessageTable, SessionTable } from "@opencode/core/session/sql"
+import { Project } from "@opencode/core/project"
+import { ProjectTable } from "@opencode/core/project/sql"
+import { Model } from "@opencode/core/model"
+import { Provider } from "@opencode/core/provider"
+import { AbsolutePath, RelativePath } from "@opencode/core/schema"
+import { Snapshot } from "@opencode/core/snapshot"
+import { createLLMEventPublisher } from "@opencode/core/session/runner/publish-llm-event"
+import { LayerNode } from "@opencode/util/effect/layer-node"
 import { it, testEffect } from "./lib/effect"
 import { TestClock } from "effect/testing"
 
 const sessionID = Session.ID.make("ses_tool_event_test")
 const base64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
 
-const capture = (providerMetadataKey = "anthropic", options?: { readonly interruptProgress?: boolean }) => {
+const capture = (
+  providerMetadataKey = "anthropic",
+  options?: { readonly interruptProgress?: boolean; readonly beforeTextDelta?: Effect.Effect<void> },
+) => {
   const published: Array<{ readonly type: string; readonly data: unknown }> = []
   const bus: Pick<Bus.Interface, "publish"> = {
     publish: (definition, data) => {
@@ -40,6 +43,8 @@ const capture = (providerMetadataKey = "anthropic", options?: { readonly interru
         })
         return event
       })
+      if (definition.type === SessionEvent.Text.Delta.type && options?.beforeTextDelta)
+        return options.beforeTextDelta.pipe(Effect.andThen(publish))
       return definition.type === SessionEvent.Tool.Progress.type && options?.interruptProgress
         ? publish.pipe(Effect.andThen(Effect.interrupt))
         : publish
@@ -127,7 +132,7 @@ test("provider-executed success derives content and retains provider result stat
 
 testEffect(
   AppNodeBuilder.build(LayerNode.group([Database.node, Bus.node, SessionProjector.node]), [
-    [Bus.node, Bus.configured({ persist: true })],
+    Bus.node.replace(Bus.configured({ persist: true })),
   ]),
 ).effect("commits a hosted tool result when cancellation races with the aggregate lock", () =>
   Effect.gen(function* () {
@@ -323,6 +328,30 @@ test("reasoning state from start, empty delta, and end is merged", async () => {
   })
 })
 
+for (const kind of ["text", "reasoning"] as const) {
+  it.effect(`publishes the trailing ${kind} chunk while the provider is paused`, () =>
+    Effect.gen(function* () {
+      const { published, publisher } = capture()
+      yield* publisher.publish(LLMEvent[kind === "text" ? "textStart" : "reasoningStart"]({ id: kind }))
+      yield* publisher.publish(
+        LLMEvent[kind === "text" ? "textDelta" : "reasoningDelta"]({ id: kind, text: "Running the comm" }),
+      )
+      yield* TestClock.adjust("100 millis")
+      expect(
+        published.filter((event) => event.type === `session.${kind}.delta`).map((event) => event.data),
+      ).toMatchObject([{ delta: "Running the comm" }])
+
+      yield* publisher.publish(LLMEvent[kind === "text" ? "textDelta" : "reasoningDelta"]({ id: kind, text: "and." }))
+      yield* TestClock.adjust("100 millis")
+      expect(
+        published.filter((event) => event.type === `session.${kind}.delta`).map((event) => event.data),
+      ).toMatchObject([{ delta: "Running the comm" }, { delta: "and." }])
+      expect(published.some((event) => event.type === `session.${kind}.ended.1`)).toBe(false)
+      yield* publisher.flush()
+    }),
+  )
+}
+
 it.effect("batches text deltas and flushes pending text before the terminal event", () =>
   Effect.gen(function* () {
     const { published, publisher } = capture()
@@ -341,15 +370,44 @@ it.effect("batches text deltas and flushes pending text before the terminal even
     yield* TestClock.adjust("99 millis")
     expect(published.filter((event) => event.type === "session.text.delta")).toHaveLength(0)
     yield* TestClock.adjust("1 millis")
-    yield* publisher.publish(LLMEvent.textDelta({ id: "text", text: " four" }))
     expect(published.filter((event) => event.type === "session.text.delta").map((event) => event.data)).toMatchObject([
-      { delta: "one two three four" },
+      { delta: "one two three" },
     ])
 
+    yield* publisher.publish(LLMEvent.textDelta({ id: "text", text: " four" }))
     yield* publisher.publish(LLMEvent.textDelta({ id: "text", text: " five" }))
     yield* publisher.publish(LLMEvent.textEnd({ id: "text" }))
     expect(published.slice(-2).map((event) => event.type)).toEqual(["session.text.delta", "session.text.ended.1"])
-    expect(published.at(-2)?.data).toMatchObject({ delta: " five" })
+    expect(published.at(-2)?.data).toMatchObject({ delta: " four five" })
+    const count = published.length
+    yield* TestClock.adjust("1 second")
+    expect(published).toHaveLength(count)
+  }),
+)
+
+it.effect("retains new chunks and orders text-end behind an in-flight timer publication", () =>
+  Effect.gen(function* () {
+    const entered = yield* Deferred.make<void>()
+    const release = yield* Deferred.make<void>()
+    const { published, publisher } = capture("anthropic", {
+      beforeTextDelta: Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release))),
+    })
+    yield* publisher.publish(LLMEvent.textStart({ id: "text" }))
+    yield* publisher.publish(LLMEvent.textDelta({ id: "text", text: "comm" }))
+    yield* TestClock.adjust("100 millis")
+    yield* Deferred.await(entered)
+    yield* publisher.publish(LLMEvent.textDelta({ id: "text", text: "and." }))
+    const ending = yield* publisher
+      .publish(LLMEvent.textEnd({ id: "text" }))
+      .pipe(Effect.forkChild({ startImmediately: true }))
+    expect(published.some((event) => event.type === "session.text.ended.1")).toBe(false)
+    yield* Deferred.succeed(release, undefined)
+    yield* Fiber.join(ending)
+    expect(published.slice(-3)).toMatchObject([
+      { type: "session.text.delta", data: { delta: "comm" } },
+      { type: "session.text.delta", data: { delta: "and." } },
+      { type: "session.text.ended.1", data: { text: "command." } },
+    ])
   }),
 )
 

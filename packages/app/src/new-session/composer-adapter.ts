@@ -1,6 +1,6 @@
-import { base64Encode } from "@opencode-ai/util/encode"
-import type { SessionMessageUser } from "@opencode-ai/client/promise"
-import { Session } from "@opencode-ai/schema/session"
+import { base64Encode } from "@opencode/util/encode"
+import type { SessionMessageUser } from "@opencode/client/promise"
+import { Session } from "@opencode/schema/session"
 import { startTransition } from "solid-js"
 import type { NewSessionComposerAdapter } from "@/composer/adapter"
 import { useComposerState } from "@/composer/persistence"
@@ -110,6 +110,7 @@ export function createNewSessionComposerAdapter(props: {
           agent: selection.agent,
           model: selection.model,
           variant: selection.variant ?? null,
+          choices: model.remembered(),
         })
         if (!pending) tabs.promoteDraft(draftID, { server: server.key, sessionId: created.id })
         submission.retarget(
@@ -117,12 +118,13 @@ export function createNewSessionComposerAdapter(props: {
             { dir: base64Encode(sessionDirectory), id: created.id },
             { server: server.key, scope: serverSDK.scope },
           ),
+          { preserveDraft: !!pending },
         )
       })
 
       return {
         cleanupReady,
-        complete: pending?.complete,
+        complete: pending ? () => pending.complete(submission.target()) : undefined,
         session: {
           id: created.id,
           directory: sessionDirectory,
@@ -194,6 +196,7 @@ async function resolveSessionDirectory(input: {
 
   return createWorktree({
     api: input.serverSDK.api,
+    data: input.data,
     directory: input.projectDirectory,
     project: input.data.location.info({ directory: input.projectDirectory })?.project,
     branch: input.branch,

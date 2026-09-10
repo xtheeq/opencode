@@ -2,11 +2,12 @@ import {
   createVirtualizer,
   defaultRangeExtractor,
   elementScroll,
+  observeElementRect,
   type Range,
   type VirtualItem,
 } from "@tanstack/solid-virtual"
-import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@opencode-ai/ui/scroll-view"
-import { TimelineRow } from "@opencode-ai/session-ui/timeline/projection"
+import { isScrollKeyTarget, scrollKey, scrollKeyOwner, ScrollView } from "@opencode/ui/scroll-view"
+import { TimelineRow } from "@opencode/session-ui/timeline/projection"
 import { useLanguage } from "@/runtime/i18n/language"
 import {
   batch,
@@ -21,7 +22,8 @@ import {
   type Accessor,
   type JSX,
 } from "solid-js"
-import { createStore } from "solid-js/store"
+import { createStore, reconcile } from "solid-js/store"
+import { createMediaQuery } from "@solid-primitives/media"
 import type { createTimelineProjection } from "./projection"
 import { observeElementOffsetReconnectAware } from "./observe-element-offset"
 import { filterVirtualIndexes } from "./virtual-items"
@@ -32,7 +34,15 @@ const pendingMarkdown = '[data-component="markdown"]:not([data-markdown-ready])'
 // exactly to the end, while a one-pixel nudge upward is a deliberate move away from it.
 const endEpsilon = 0.5
 const upwardKeys = new Set(["up", "page-up", "home"])
-const cache = new Map<string, { measurements: VirtualItem[]; toolOpen: Record<string, boolean | undefined> }>()
+const cache = new Map<
+  string,
+  {
+    measurements: VirtualItem[]
+    toolOpen: Record<string, boolean | undefined>
+    patchGroupKeys: Map<string, string>
+    presentationKey?: string
+  }
+>()
 
 type Projection = Pick<
   ReturnType<typeof createTimelineProjection>,
@@ -40,7 +50,9 @@ type Projection = Pick<
 >
 
 type Input = {
+  active?: Accessor<boolean>
   sessionKey: Accessor<string>
+  presentationKey?: Accessor<string>
   projection: Projection
   showHeader: Accessor<boolean>
   /** True while the timeline follows the newest content. Drives every anchoring decision. */
@@ -59,7 +71,7 @@ type Input = {
     row: TimelineRow.TimelineRow,
     disclosure: Readonly<Record<string, boolean | undefined>>,
   ) => boolean
-  setRevealMessage?: (fn: (id: string) => void) => void
+  setRevealMessage?: (fn: (id: string, partID?: string) => void) => void
   setScrollToEnd?: (fn: () => void) => void
 }
 
@@ -73,12 +85,24 @@ type ViewProps = {
 
 export function createTimelineVirtualizer(input: Input) {
   const language = useLanguage()
+  const active = () => input.active?.() !== false
+  const isDesktop = createMediaQuery("(min-width: 768px)")
+  const topOffset = () => (input.showHeader() ? 64 : isDesktop() ? 0 : 16)
   const ownerSessionKey = input.sessionKey()
-  const cached = cache.get(ownerSessionKey)
+  const entry = cache.get(ownerSessionKey)
+  const cached = entry?.presentationKey === input.presentationKey?.() ? entry : undefined
   const initialMeasurements = cached?.measurements
   const coldBottomMount = !initialMeasurements?.length && input.pinned()
   const [listRoot, setListRoot] = createSignal<HTMLDivElement>()
   const [toolOpen, setToolOpen] = createStore<Record<string, boolean | undefined>>(cached?.toolOpen ?? {})
+  const patchGroupKeys = cached?.patchGroupKeys ?? new Map<string, string>()
+  createEffect(
+    on(
+      () => input.presentationKey?.(),
+      () => setToolOpen(reconcile({})),
+      { defer: true },
+    ),
+  )
   const [rendering, setRendering] = createStore({ initialTail: coldBottomMount })
   const rows = input.projection.rows
   const rowByKey = input.projection.rowByKey
@@ -113,7 +137,7 @@ export function createTimelineVirtualizer(input: Input) {
                 !(
                   row._tag === "AssistantPart" &&
                   row.group.type === "context" &&
-                  row.group.refs.length <= 16 &&
+                  row.group.refs.length <= 64 &&
                   !toolOpen[`context:${row.group.key}`]
                 ) && !input.canRenderImmediately?.(row, toolOpen),
             )
@@ -135,6 +159,7 @@ export function createTimelineVirtualizer(input: Input) {
   let virtualContent: HTMLDivElement | undefined
   let scrollTop = 0
   let reportOffset: ((offset: number, scrolling: boolean) => void) | undefined
+  let reportRect: ((rect: { width: number; height: number }) => void) | undefined
   let batchingColdSizes = false
 
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -142,13 +167,22 @@ export function createTimelineVirtualizer(input: Input) {
       return rows().length
     },
     getScrollElement: () => listRoot() ?? null,
+    observeElementRect: (instance, callback) => {
+      reportRect = callback
+      return observeElementRect(instance, (rect) => {
+        if (active()) callback(rect)
+      })
+    },
     // Route navigation detaches and reattaches the scroll element, which drops its offset.
     observeElementOffset: (instance, callback) => {
       reportOffset = (offset, scrolling) => {
+        if (!active()) return
         callback(offset, scrolling)
         settleColdBottom()
       }
       return observeElementOffsetReconnectAware(instance, reportOffset, () => {
+        if (!active()) return
+        virtualContent?.querySelectorAll<HTMLDivElement>("[data-index]").forEach(virtualizer.measureElement)
         if (input.pinned()) virtualizer.scrollToEnd()
         settleColdBottom()
       })
@@ -160,6 +194,11 @@ export function createTimelineVirtualizer(input: Input) {
     // its snapshot on attachment, but later explicit measurements must read layout
     // so deferred/rewrapped content cannot keep stale, clipped heights (TanStack/virtual#1183).
     measureElement: (element, entry, instance) => {
+      if (!active() || !element.isConnected)
+        return (
+          instance.itemSizeCache.get(instance.options.getItemKey(instance.indexFromElement(element))) ??
+          fallbackItemSize
+        )
       const initial = !measuredElements.has(element)
       measuredElements.add(element)
       const box = entry?.borderBoxSize[0]
@@ -171,6 +210,7 @@ export function createTimelineVirtualizer(input: Input) {
       return element.offsetHeight
     },
     scrollToFn: (offset, options, instance) => {
+      if (!active()) return
       if (batchingColdSizes && input.pinned()) return
       if (virtualContent) virtualContent.style.height = `${instance.getTotalSize()}px`
       elementScroll(offset, options, instance)
@@ -186,7 +226,8 @@ export function createTimelineVirtualizer(input: Input) {
     },
     scrollEndThreshold: 80,
     get scrollMargin() {
-      return input.showHeader() ? 64 : 0
+      // Empty projections still need the bottom spacer for running status.
+      return rows().length > 0 ? topOffset() : 0
     },
     paddingEnd: 64,
     get rangeExtractor() {
@@ -199,6 +240,7 @@ export function createTimelineVirtualizer(input: Input) {
   // Read the whole measurement delivery before committing reactive row sizes.
   // Otherwise each row can render and force layout before the next is measured.
   virtualizer.resizeItem = (index, size) => {
+    if (!active()) return
     const row = rows()[index]
     if (!row) return
     const key = TimelineRow.key(row)
@@ -214,6 +256,7 @@ export function createTimelineVirtualizer(input: Input) {
       if (!pendingSizes.size) return
       const sizes = [...pendingSizes]
       pendingSizes.clear()
+      if (!active()) return
       // The hidden pinned mount needs one bottom write after the whole batch,
       // not a layout-forcing scroll adjustment for every measured row.
       batchingColdSizes = coldPending && input.pinned()
@@ -249,12 +292,32 @@ export function createTimelineVirtualizer(input: Input) {
   const virtualRowKeys = createMemo(() => virtualizer.getVirtualItems().map((item) => String(item.key)))
 
   createEffect(() => {
-    input.setRevealMessage?.((id) => {
-      const index = input.projection.messageRowIndex().get(id)
+    if (!active()) return
+    const root = listRoot()
+    if (root) input.setScrollRef(root)
+    if (virtualContent) input.setContentRef(virtualContent)
+    queueMicrotask(() => {
+      if (!active() || !root?.isConnected) return
+      // A detached view can miss its nonzero ResizeObserver delivery. Publish
+      // its real viewport before restoring the offset and admitting rows.
+      reportRect?.({ width: root.offsetWidth, height: root.offsetHeight })
+      if (input.pinned()) virtualizer.scrollToEnd()
+      reportOffset?.(root.scrollTop, false)
+      settleColdBottom()
+    })
+    input.setRevealMessage?.((id, partID) => {
+      if (!active()) return
+      const partIndex = partID
+        ? rows().findIndex(
+            (row) => row._tag === "AssistantPart" && row.group.type === "part" && row.group.ref.partID === partID,
+          )
+        : -1
+      const index = partIndex >= 0 ? partIndex : input.projection.messageRowIndex().get(id)
       if (index === undefined) return
       virtualizer.scrollToIndex(index, { align: "center" })
     })
     input.setScrollToEnd?.(() => {
+      if (!active() || !listRoot()?.isConnected) return
       input.onPin()
       virtualizer.scrollToEnd()
     })
@@ -265,6 +328,7 @@ export function createTimelineVirtualizer(input: Input) {
   let contentObserver: MutationObserver | undefined
   let viewportObserver: ResizeObserver | undefined
   const pinColdBottom = () => {
+    if (!active()) return
     const root = listRoot()
     if (!input.pinned() || !virtualContent || !root) return
     // scrollToEnd computes its target from the DOM, not the new size cache.
@@ -282,7 +346,7 @@ export function createTimelineVirtualizer(input: Input) {
     )
   }
   const settleColdBottom = () => {
-    if (!coldPending || settleQueued) return
+    if (!active() || !coldPending || settleQueued) return
     settleQueued = true
     queueMicrotask(() => {
       settleQueued = false
@@ -345,7 +409,7 @@ export function createTimelineVirtualizer(input: Input) {
     setListRoot(root)
     scrollTop = root.scrollTop
     maxScroll = root.scrollHeight - root.clientHeight
-    input.setScrollRef(root)
+    if (active()) input.setScrollRef(root)
     viewportObserver?.observe(root)
     settleColdBottom()
   }
@@ -402,6 +466,7 @@ export function createTimelineVirtualizer(input: Input) {
   // under a viewport that was already there. Merely resting near the end is not enough, otherwise
   // a later scroll would overwrite an upward intent expressed a pixel short of the bottom.
   const handleListScroll = (event: Event & { currentTarget: HTMLDivElement }) => {
+    if (!active()) return
     const root = event.currentTarget
     const previousTop = scrollTop
     const previousMaxScroll = maxScroll
@@ -427,15 +492,8 @@ export function createTimelineVirtualizer(input: Input) {
       let contentMeasureFrame: number | undefined
 
       onMount(() => virtualizer.measureElement(element))
-      createEffect(
-        on(
-          () => item().index,
-          () => {
-            virtualizer.measureElement(element)
-          },
-          { defer: true },
-        ),
-      )
+      // Prepending history changes data-index, not the keyed element's identity.
+      // Its observer reads the current index and delivers any actual size change.
       onCleanup(() => {
         if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
         queueMicrotask(() => virtualizer.measureElement(null))
@@ -446,7 +504,7 @@ export function createTimelineVirtualizer(input: Input) {
           data-timeline-key={rowProps.rowKey}
           style={{
             position: "absolute",
-            top: `${item().start - (input.showHeader() ? 64 : 0)}px`,
+            top: `${item().start - topOffset()}px`,
             left: "0",
             width: "100%",
             height: `${item().size}px`,
@@ -466,7 +524,7 @@ export function createTimelineVirtualizer(input: Input) {
               if (contentMeasureFrame !== undefined) cancelAnimationFrame(contentMeasureFrame)
               contentMeasureFrame = requestAnimationFrame(() => {
                 contentMeasureFrame = undefined
-                if (element.isConnected) virtualizer.measureElement(element)
+                if (active() && element.isConnected) virtualizer.measureElement(element)
               })
             })}
           </div>
@@ -475,7 +533,11 @@ export function createTimelineVirtualizer(input: Input) {
     }
 
     return (
-      <div class="relative w-full h-full min-w-0" data-workspace-session={props.workspaceSession() ? "" : undefined}>
+      <div
+        class="relative w-full h-full min-w-0"
+        data-workspace-session={props.workspaceSession() ? "" : undefined}
+        data-local-session={!props.workspaceSession() ? "" : undefined}
+      >
         <div
           class="absolute left-1/2 -translate-x-1/2 z-[60] pointer-events-none transition-all duration-200 ease-out"
           classList={{
@@ -505,6 +567,7 @@ export function createTimelineVirtualizer(input: Input) {
           </button>
         </div>
         <ScrollView
+          data-slot="session-timeline-scroll"
           viewportRef={bindListRoot}
           onWheel={handleListWheel}
           onTouchStart={handleListTouchStart}
@@ -516,12 +579,14 @@ export function createTimelineVirtualizer(input: Input) {
           class="relative min-w-0 w-full h-full"
           style={{ "--sticky-accordion-top": input.showHeader() ? "48px" : "0px" }}
         >
-          <Show when={input.showHeader()}>{props.header}</Show>
+          <Show when={input.showHeader()} fallback={<div aria-hidden="true" class="h-4 md:hidden" />}>
+            {props.header}
+          </Show>
           <div
             data-timeline-virtual-content
             ref={(element) => {
               virtualContent = element
-              input.setContentRef(element)
+              if (active()) input.setContentRef(element)
             }}
             style={{
               height: `${virtualizer.getTotalSize()}px`,
@@ -531,15 +596,13 @@ export function createTimelineVirtualizer(input: Input) {
             }}
           >
             <For each={virtualRowKeys()}>{(rowKey) => <VirtualRow rowKey={rowKey} />}</For>
-            <Show when={rows().length > 0}>
-              <div
-                data-timeline-row="bottom-spacer"
-                class="h-16 absolute top-0 left-0 w-full"
-                style={{ transform: `translateY(${virtualizer.getTotalSize() - 64}px)` }}
-              >
-                {props.bottomSpacer}
-              </div>
-            </Show>
+            <div
+              data-timeline-row="bottom-spacer"
+              class="h-16 absolute top-0 left-0 w-full"
+              style={{ transform: `translateY(${virtualizer.getTotalSize() - 64}px)` }}
+            >
+              {props.bottomSpacer}
+            </div>
           </div>
         </ScrollView>
       </div>
@@ -548,18 +611,26 @@ export function createTimelineVirtualizer(input: Input) {
 
   onCleanup(() => {
     cache.delete(ownerSessionKey)
-    cache.set(ownerSessionKey, { measurements: virtualizer.takeSnapshot(), toolOpen: { ...toolOpen } })
+    cache.set(ownerSessionKey, {
+      measurements: virtualizer.takeSnapshot(),
+      toolOpen: { ...toolOpen },
+      patchGroupKeys,
+      presentationKey: input.presentationKey?.(),
+    })
     while (cache.size > 16) cache.delete(cache.keys().next().value!)
     coldPending = false
     contentObserver?.disconnect()
     viewportObserver?.disconnect()
-    input.setScrollRef(undefined)
-    input.setRevealMessage?.(() => {})
-    input.setScrollToEnd?.(() => {})
+    if (active()) {
+      input.setScrollRef(undefined)
+      input.setRevealMessage?.(() => {})
+      input.setScrollToEnd?.(() => {})
+    }
   })
 
   return {
     disclosure: {
+      patchGroupKeys,
       value: (key: string) => toolOpen[key],
       set: (key: string, open: boolean) => setToolOpen(key, open),
     },

@@ -13,7 +13,7 @@ for (const reasoningDefaultOpen of [false, true]) {
       await expect(used).toHaveAccessibleName("Used 4 Read, Skill")
       await expect(
         group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-      ).toHaveText("4 Read, Skill")
+      ).toHaveText("Read, Skill")
       await expect(group.locator('[data-slot="context-tool-group-item"]')).toHaveText([
         /Read.*group\.ts/,
         /Thought/,
@@ -37,7 +37,7 @@ for (const reasoningDefaultOpen of [false, true]) {
       await expect(used).toHaveAccessibleName("Used 5 Read, Skill")
       await expect(
         group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-      ).toHaveText("5 Read, Skill")
+      ).toHaveText("Read, Skill")
       await expect(group.locator('[data-slot="context-tool-group-item"]')).toHaveText([
         /Read.*group\.ts/,
         /Thought/,
@@ -71,9 +71,24 @@ story("summarizes subagents as Agent while retaining their card titles", async (
   const root = await mount("current-tool-group--mixed-tools")
   const group = root.locator('[data-component="collapsed-tool-group"]')
   await expect(group.getByRole("button", { name: "Used 4 Shell, Read, Agent", exact: true })).toBeVisible()
-  await expect(
-    group.locator('[data-component="context-tool-group-trigger"] [data-slot="basic-tool-tool-title"]'),
-  ).toHaveText("4 Shell, Read, Agent")
+  const header = group.locator('[data-component="context-tool-group-trigger"]')
+  const prefix = header.locator('[data-slot="context-tool-group-prefix"]')
+  const count = header.locator('[data-slot="context-tool-group-count"]')
+  const title = header.locator('[data-slot="basic-tool-tool-title"]')
+  await expect(prefix).toHaveText("Used")
+  await expect(count).toHaveText("4")
+  await expect(title).toHaveText("Shell, Read, Agent")
+  const colors = await Promise.all(
+    [prefix, count, title].map((part) => part.evaluate((node) => getComputedStyle(node).color)),
+  )
+  expect(colors[1]).toBe(colors[2])
+  expect(colors[0]).not.toBe(colors[1])
+  const gap = await group.evaluate((element) => {
+    const title = element.querySelector('[data-component="context-tool-group-trigger"]')!.getBoundingClientRect()
+    const arrow = element.querySelector('[data-slot="collapsible-arrow-icon"]')!.getBoundingClientRect()
+    return arrow.left - title.right
+  })
+  expect(gap).toBeLessThanOrEqual(8)
   await expect(group.locator('[data-component="task-tool-title"]')).toHaveText(["General", "Explore"])
 })
 
@@ -84,7 +99,7 @@ for (const width of [840, 390]) {
     const group = root.locator('[data-component="collapsed-tool-group"]')
     const trigger = group.getByRole("button", { name: "Used 4 Shell, Read, Agent", exact: true })
     const header = group.locator('[data-component="context-tool-group-trigger"]')
-    await expect(header.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("4 Shell, Read, Agent")
+    await expect(header.locator('[data-slot="basic-tool-tool-title"]')).toHaveText("Shell, Read, Agent")
     await expect(header.locator('[data-component="tag"]')).toHaveCount(0)
     await expect(trigger).toHaveAttribute("aria-expanded", "true")
     for (const action of ["click", "Enter", "Space"] as const) {

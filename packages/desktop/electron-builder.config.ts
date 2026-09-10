@@ -1,8 +1,10 @@
 import { execFile } from "node:child_process"
+import { stat } from "node:fs/promises"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 
+import type { CustomMacSignOptions } from "app-builder-lib"
 import type { Configuration } from "electron-builder"
 
 const execFileAsync = promisify(execFile)
@@ -29,9 +31,22 @@ async function signWindows(configuration: { path: string }) {
   )
 }
 
+export function macSignOptions(options: CustomMacSignOptions): CustomMacSignOptions {
+  return {
+    ...options,
+    optionsForFile: (file) => {
+      const defaults = options.optionsForFile?.(file)
+      if (file !== path.join(options.app, "Contents/Resources/opencode-cli")) return defaults ?? {}
+      // The Bun CLI loads bun-pty's native library; Electron and its helpers do not need this exception.
+      return { ...defaults, entitlements: path.join(packageDir, "resources/entitlements.cli.plist") }
+    },
+  }
+}
+
 const channel = (() => {
   const raw = process.env.OPENCODE_CHANNEL
   if (raw === "dev" || raw === "beta" || raw === "prod") return raw
+  if (raw === "latest") return "prod"
   return "dev"
 })()
 
@@ -71,16 +86,21 @@ const getBase = (appId: string): Configuration => ({
     "!**/node_modules/js-yaml/dist/{js-yaml.js,js-yaml.min.js,*.map}",
     "!**/node_modules/js-yaml/bin{,/**/*}",
   ],
-  extraResources:
-    channel !== "prod"
-      ? [
-          {
-            from: "resources/",
-            to: "",
-            filter: ["opencode-cli*"],
-          },
-        ]
-      : [],
+  extraResources: [
+    {
+      from: "resources/",
+      to: "",
+      filter: ["opencode-cli", "opencode-cli.exe"],
+    },
+  ],
+  afterPack: async (context) => {
+    const cli = path.join(
+      context.packager.getResourcesDir(context.appOutDir),
+      context.electronPlatformName === "win32" ? "opencode-cli.exe" : "opencode-cli",
+    )
+    const file = await stat(cli)
+    if (!file.isFile() || file.size === 0) throw new Error(`Bundled CLI must be a non-empty file: ${cli}`)
+  },
   mac: {
     category: "public.app-category.developer-tools",
     icon: `resources/icons/icon.icns`,
@@ -88,6 +108,10 @@ const getBase = (appId: string): Configuration => ({
     gatekeeperAssess: false,
     entitlements: "resources/entitlements.plist",
     entitlementsInherit: "resources/entitlements.plist",
+    sign: async (options) => {
+      const { sign } = await import("app-builder-lib/out/codeSign/macCodeSign")
+      await sign(macSignOptions(options))
+    },
     notarize: true,
     target: ["dmg", "zip"],
   },
@@ -107,6 +131,7 @@ const getBase = (appId: string): Configuration => ({
     verifyUpdateCodeSignature: false,
   },
   nsis: {
+    include: path.join(packageDir, "resources", "windows", "installer.nsh"),
     oneClick: true,
     perMachine: false,
     installerIcon: `resources/icons/icon.ico`,
@@ -147,7 +172,11 @@ function getConfig() {
         appId,
         productName: "OpenCode Beta",
         protocols: { name: "OpenCode Beta", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode-beta", channel: "latest" },
+        publish: {
+          provider: "generic",
+          url: "https://opencode.ai/update/api/beta/desktop/opencode/",
+          channel: "latest",
+        },
         deb: { fpm: [metainfoFpm(appId)] },
         rpm: { packageName: "opencode-beta", fpm: [metainfoFpm(appId)] },
       }
@@ -158,7 +187,11 @@ function getConfig() {
         appId,
         productName: "OpenCode",
         protocols: { name: "OpenCode", schemes: ["opencode"] },
-        publish: { provider: "github", owner: "anomalyco", repo: "opencode", channel: "latest" },
+        publish: {
+          provider: "generic",
+          url: "https://opencode.ai/update/api/latest/desktop/opencode/",
+          channel: "latest",
+        },
         deb: { fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },
         rpm: { packageName: "opencode", fpm: [metainfoFpm(appId), legacyDesktopEntryFpm] },
       }

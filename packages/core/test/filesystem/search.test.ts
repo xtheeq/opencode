@@ -5,14 +5,14 @@ import os from "os"
 import path from "path"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
-import { AppNodeBuilder } from "@opencode-ai/core/effect/app-node-builder"
-import { FileSystem } from "@opencode-ai/core/filesystem"
-import { Protected } from "@opencode-ai/core/filesystem/protected"
-import { FileSystemSearch } from "@opencode-ai/core/filesystem/search"
-import { Location } from "@opencode-ai/core/location"
-import { Ripgrep } from "@opencode-ai/core/ripgrep"
-import { AbsolutePath, RelativePath } from "@opencode-ai/core/schema"
-import { Workspace } from "@opencode-ai/core/workspace"
+import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
+import { FileSystem } from "@opencode/core/filesystem"
+import { Protected } from "@opencode/core/filesystem/protected"
+import { FileSystemSearch } from "@opencode/core/filesystem/search"
+import { Location } from "@opencode/core/location"
+import { Ripgrep } from "@opencode/core/ripgrep"
+import { AbsolutePath, RelativePath } from "@opencode/core/schema"
+import { Workspace } from "@opencode/core/workspace"
 import { location } from "../fixture/location"
 import { tmpdir } from "../fixture/tmpdir"
 import { it } from "../lib/effect"
@@ -77,16 +77,15 @@ describe("FileSystemSearch", () => {
         workspaceID: Workspace.ID.make("wrk_test"),
       })
       const layer = AppNodeBuilder.build(FileSystemSearch.node, [
-        [
-          Location.node,
+        Location.node.replace(
           Layer.succeed(
             Location.Service,
             Location.Service.of(
               location(ref, { vcs: { type: "git", store: AbsolutePath.make(path.join(directory, ".git")) } }),
             ),
           ),
-        ],
-        [Ripgrep.node, ripgrepStub("remote.ts", (input) => (observed = input))],
+        ),
+        Ripgrep.node.replace(ripgrepStub("remote.ts", (input) => (observed = input))),
       ])
 
       yield* Effect.gen(function* () {
@@ -103,8 +102,7 @@ describe("FileSystemSearch", () => {
       let observed: Ripgrep.FindInput | undefined
       const home = AbsolutePath.make(os.homedir())
       const layer = AppNodeBuilder.build(FileSystemSearch.node, [
-        [
-          Location.node,
+        Location.node.replace(
           Layer.succeed(
             Location.Service,
             Location.Service.of(
@@ -114,8 +112,8 @@ describe("FileSystemSearch", () => {
               ),
             ),
           ),
-        ],
-        [Ripgrep.node, ripgrepStub("src/index.ts", (input) => (observed = input))],
+        ),
+        Ripgrep.node.replace(ripgrepStub("src/index.ts", (input) => (observed = input))),
       ])
       yield* Effect.gen(function* () {
         const search = yield* FileSystemSearch.Service
@@ -137,17 +135,15 @@ describe("FileSystemSearch", () => {
       const started = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       const layer = AppNodeBuilder.build(FileSystemSearch.node, [
-        [
-          Location.node,
+        Location.node.replace(
           Layer.succeed(
             Location.Service,
             Location.Service.of(
               location({ directory: AbsolutePath.make(path.join(os.tmpdir(), "opencode-search-atomic")) }),
             ),
           ),
-        ],
-        [
-          Ripgrep.node,
+        ),
+        Ripgrep.node.replace(
           Layer.succeed(
             Ripgrep.Service,
             Ripgrep.Service.of({
@@ -169,7 +165,7 @@ describe("FileSystemSearch", () => {
               grep: () => Effect.succeed([]),
             }),
           ),
-        ],
+        ),
       ])
 
       yield* Effect.gen(function* () {
@@ -208,17 +204,15 @@ describe("FileSystemSearch", () => {
         (value) => Effect.sync(() => value.mockRestore()),
       )
       const layer = AppNodeBuilder.build(FileSystemSearch.node, [
-        [
-          Location.node,
+        Location.node.replace(
           Layer.succeed(
             Location.Service,
             Location.Service.of(
               location({ directory: AbsolutePath.make(path.join(os.tmpdir(), "opencode-search-cache")) }),
             ),
           ),
-        ],
-        [
-          Ripgrep.node,
+        ),
+        Ripgrep.node.replace(
           Layer.succeed(
             Ripgrep.Service,
             Ripgrep.Service.of({
@@ -234,7 +228,7 @@ describe("FileSystemSearch", () => {
               grep: () => Effect.succeed([]),
             }),
           ),
-        ],
+        ),
       ])
 
       yield* Effect.gen(function* () {
