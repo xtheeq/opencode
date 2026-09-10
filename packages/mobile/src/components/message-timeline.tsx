@@ -14,10 +14,6 @@ import {
 } from "@/hooks/use-store";
 import { loadOlderMessages } from "@/stores/sync";
 
-function sameRowEntry(a: SessionRow, b: SessionRow) {
-  return rowKey(a) === rowKey(b);
-}
-
 function rowType(row: SessionRow): string {
   return row.type === "assistant-part"
     ? `${row.type}-${row.part.type}`
@@ -61,8 +57,6 @@ export function MessageTimeline({
       getItemType={rowType}
       renderItem={({ item }) => <RowRenderer row={item} />}
       recycleItems
-      itemsAreEqual={sameRowEntry}
-      extraData={messages}
       drawDistance={1000}
       style={{ backgroundColor: colors.background.default, flex: 1 }}
       initialScrollAtEnd
