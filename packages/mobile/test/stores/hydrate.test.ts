@@ -53,7 +53,6 @@ let loadOlderMessages: (typeof import("@/stores/sync"))["loadOlderMessages"];
 let removeSession: (typeof import("@/stores/sync"))["removeSession"];
 let sync: (typeof import("@/stores/sync"))["sync"];
 let eventStore: (typeof import("@/stores/store"))["eventStore"];
-let messageIndex: (typeof import("@/stores/store"))["messageIndex"];
 
 let messageListResult: {
   data: SessionMessageInfo[];
@@ -68,7 +67,6 @@ beforeEach(async () => {
   removeSession = syncModule.removeSession;
   sync = syncModule.sync;
   eventStore = storeModule.eventStore;
-  messageIndex = storeModule.messageIndex;
   calls.sessionGet = 0;
   calls.messageList = 0;
   calls.inboxList = 0;
@@ -219,8 +217,6 @@ describe("loadOlderMessages", () => {
     ]);
     expect(store._messageCursor["ses_1"]).toBe("cur_2");
     expect(store._messageLoadingOlder["ses_1"]).toBe(false);
-    expect(messageIndex.get("ses_1")?.get("msg_old")).toBe(0);
-    expect(messageIndex.get("ses_1")?.get("msg_new")).toBe(2);
   });
 
   test("a no-cursor session is exhausted and never refetches", async () => {

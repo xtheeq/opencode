@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { V2Event } from "@opencode/client/promise";
-import { eventStore, messageIndex } from "@/stores/store";
+import { eventStore } from "@/stores/store";
 import { handleEvent } from "@/stores/reducer";
 
 const permissionAsked = (overrides: Partial<V2Event> = {}): V2Event =>
@@ -56,8 +56,54 @@ const skillActivated = (sessionID: string): V2Event =>
     data: { sessionID, id: "skill_x", name: "My Skill", text: "activated" },
   }) as V2Event;
 
+const inboxDelivered = (sessionID: string, inboxID: string): V2Event =>
+  ({
+    type: "session.inbox.delivered",
+    id: "evt_delivered",
+    created: 0,
+    data: { sessionID, inboxID },
+  }) as V2Event;
+
+const stepStarted = (
+  sessionID: string,
+  assistantMessageID: string,
+): V2Event =>
+  ({
+    type: "session.step.started",
+    id: "evt_step",
+    created: 0,
+    data: {
+      sessionID,
+      assistantMessageID,
+      agent: "build",
+      model: { id: "gpt", providerID: "openai" },
+    },
+  }) as V2Event;
+
+const textStarted = (
+  sessionID: string,
+  assistantMessageID: string,
+): V2Event =>
+  ({
+    type: "session.text.started",
+    id: "evt_text_started",
+    created: 0,
+    data: { sessionID, assistantMessageID, ordinal: 0 },
+  }) as V2Event;
+
+const textDelta = (
+  sessionID: string,
+  assistantMessageID: string,
+  delta: string,
+): V2Event =>
+  ({
+    type: "session.text.delta",
+    id: "evt_text_delta",
+    created: 0,
+    data: { sessionID, assistantMessageID, ordinal: 0, delta },
+  }) as V2Event;
+
 const resetStore = () => {
-  messageIndex.clear();
   eventStore.setState((s) => {
     s.session = {
       info: {},
@@ -169,5 +215,62 @@ describe("reducer session.skill.activated", () => {
       name: "My Skill",
       text: "activated",
     });
+  });
+});
+
+describe("reducer append dedupe", () => {
+  test("does not append a duplicate on re-enqueue", () => {
+    resetStore();
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
+    expect(eventStore.getState().session.message["ses_1"]).toHaveLength(1);
+  });
+});
+
+describe("reducer session.inbox.delivered", () => {
+  test("moves the delivered message to the end", () => {
+    resetStore();
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
+    handleEvent(inboxEnqueued("ses_1", "inp_2", "queue"));
+    expect(
+      eventStore.getState().session.message["ses_1"].map((m) => m.id),
+    ).toEqual(["inp_1", "inp_2"]);
+
+    handleEvent(inboxDelivered("ses_1", "inp_1"));
+
+    const state = eventStore.getState();
+    expect(state.session.message["ses_1"].map((m) => m.id)).toEqual([
+      "inp_2",
+      "inp_1",
+    ]);
+    expect(state.session.pending["ses_1"].map((p) => p.id)).toEqual(["inp_2"]);
+    expect(state.session.input["ses_1"]).toEqual(["inp_2"]);
+  });
+
+  test("is a no-op when the delivered item is unknown", () => {
+    resetStore();
+    handleEvent(inboxEnqueued("ses_1", "inp_1", "queue"));
+    handleEvent(inboxDelivered("ses_1", "inp_missing"));
+    expect(
+      eventStore.getState().session.message["ses_1"].map((m) => m.id),
+    ).toEqual(["inp_1"]);
+  });
+});
+
+describe("reducer streaming assistant lookup", () => {
+  test("appends streamed text to the matching assistant message", () => {
+    resetStore();
+    handleEvent(stepStarted("ses_1", "msg_a1"));
+    handleEvent(textStarted("ses_1", "msg_a1"));
+    handleEvent(textDelta("ses_1", "msg_a1", "hello "));
+    handleEvent(textDelta("ses_1", "msg_a1", "world"));
+
+    const messages = eventStore.getState().session.message["ses_1"];
+    expect(messages).toHaveLength(1);
+    const [assistant] = messages;
+    if (assistant.type !== "assistant") throw new Error("expected assistant");
+    expect(assistant.content).toEqual([
+      { type: "text", text: "hello world" },
+    ]);
   });
 });
