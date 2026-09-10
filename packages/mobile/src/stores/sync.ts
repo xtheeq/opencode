@@ -21,7 +21,6 @@ import {
   eventStore,
   locationKey,
   locationQuery,
-  messageIndex,
   registerSession,
   type Blocker,
   type LocationData,
@@ -205,7 +204,6 @@ export function refreshLocation(field: CatalogField, location: LocationRef) {
 }
 
 export function removeSession(store: Store, sessionID: string) {
-  messageIndex.delete(sessionID);
   sync.invalidate(`session:${sessionID}`);
   delete store.session.info[sessionID];
   delete store.session.active[sessionID];
@@ -305,7 +303,6 @@ async function doHydrate(sessionID: string) {
         localOnly,
       );
       s.session.message[sessionID] = merged;
-      messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
       s._messageCursor[sessionID] = messages.cursor.next ?? undefined;
       s.session.pending[sessionID] = pending;
       const blockers: Blocker[] = [];
@@ -360,7 +357,6 @@ export async function loadOlderMessages(sessionID: string) {
     const ids = new Set(existing.map((m) => m.id));
     const merged = [...older.filter((m) => !ids.has(m.id)), ...existing];
     s.session.message[sessionID] = merged;
-    messageIndex.set(sessionID, new Map(merged.map((m, i) => [m.id, i])));
     s._messageCursor[sessionID] = response.cursor.next ?? undefined;
   });
 }

@@ -14,7 +14,6 @@ import {
   findAssistant,
   findRunningCompaction,
   findShellByShellID,
-  index,
   latestReasoning,
   latestText,
   latestTool,
@@ -91,9 +90,8 @@ export function handleEvent(event: V2Event) {
       eventStore.setState((s) => {
         if (s.session.info[event.data.sessionID])
           s.session.info[event.data.sessionID].agent = event.data.agent;
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "agent-switched",
           agent: event.data.agent,
@@ -112,9 +110,8 @@ export function handleEvent(event: V2Event) {
           eventStore.getState().session.message[event.data.sessionID];
         if (hasMessages) {
           eventStore.setState((s) => {
-            const idx = index(event.data.sessionID);
             const messages = (s.session.message[event.data.sessionID] ??= []);
-            append(messages, idx, {
+            append(messages, {
               id: messageIDFromEvent(event.id),
               type: "model-switched",
               model: event.data.model,
@@ -129,12 +126,13 @@ export function handleEvent(event: V2Event) {
           })
           .then((item) => {
             eventStore.setState((s) => {
-              const idx = index(event.data.sessionID);
               const messages = s.session.message[event.data.sessionID];
               if (!messages) return;
-              const position = idx.get(item.id);
-              if (position === undefined) {
-                append(messages, idx, item);
+              const position = messages.findIndex(
+                (message) => message.id === item.id,
+              );
+              if (position === -1) {
+                append(messages, item);
                 return;
               }
               messages[position] = item;
@@ -195,11 +193,9 @@ export function handleEvent(event: V2Event) {
             event.data.inboxID,
           ];
         }
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
         append(
           messages,
-          idx,
           item.type === "user"
             ? {
                 id: event.data.inboxID,
@@ -226,11 +222,12 @@ export function handleEvent(event: V2Event) {
     case "session.inbox.delivered": {
       eventStore.setState((s) => {
         removePending(s, event.data.sessionID, event.data.inboxID);
-        const idx = index(event.data.sessionID);
-        const existing = idx.get(event.data.inboxID);
-        if (existing === undefined) return;
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
+        const existing = messages.findIndex(
+          (message) => message.id === event.data.inboxID,
+        );
+        if (existing === -1) return;
         const msg = messages[existing];
         if (
           !msg ||
@@ -240,8 +237,6 @@ export function handleEvent(event: V2Event) {
         msg.time.created = event.created;
         messages.splice(existing, 1);
         messages.push(msg);
-        idx.clear();
-        messages.forEach((m, i) => idx.set(m.id, i));
       });
       eventStore.setState((s) => {
         if (s.session.input[event.data.sessionID]) {
@@ -256,14 +251,13 @@ export function handleEvent(event: V2Event) {
     case "session.inbox.cancelled":
       eventStore.setState((s) => {
         removePending(s, event.data.sessionID, event.data.inboxID);
-        const idx = index(event.data.sessionID);
-        const position = idx.get(event.data.inboxID);
-        if (position === undefined) return;
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
+        const position = messages.findIndex(
+          (message) => message.id === event.data.inboxID,
+        );
+        if (position === -1) return;
         messages.splice(position, 1);
-        idx.clear();
-        messages.forEach((m, i) => idx.set(m.id, i));
       });
       eventStore.setState((s) => {
         if (s.session.input[event.data.sessionID]) {
@@ -295,9 +289,8 @@ export function handleEvent(event: V2Event) {
       )
         break;
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "system",
           text: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
@@ -310,9 +303,8 @@ export function handleEvent(event: V2Event) {
 
     case "session.synthetic":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "synthetic",
           text: event.data.text,
@@ -325,9 +317,8 @@ export function handleEvent(event: V2Event) {
 
     case "session.skill.activated":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "skill",
           skill: event.data.id,
@@ -341,9 +332,8 @@ export function handleEvent(event: V2Event) {
 
     case "session.shell.started":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "shell",
           shellID: event.data.shell.id,
@@ -371,11 +361,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.step.started":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        const position = idx.get(event.data.assistantMessageID);
-        const existing =
-          position === undefined ? undefined : messages[position];
+        const existing = messages.findLast(
+          (message) => message.id === event.data.assistantMessageID,
+        );
         if (existing?.type === "assistant") {
           existing.agent = event.data.agent;
           existing.model = event.data.model;
@@ -395,7 +384,7 @@ export function handleEvent(event: V2Event) {
           currentAssistant.retry = undefined;
           currentAssistant.time.completed = event.created;
         }
-        append(messages, idx, {
+        append(messages, {
           id: event.data.assistantMessageID,
           type: "assistant",
           agent: event.data.agent,
@@ -412,12 +401,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.step.streamed":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const currentAssistant = findAssistant(
           messages,
-          idx,
           event.data.assistantMessageID,
         );
         if (currentAssistant) currentAssistant.time.streamed = event.created;
@@ -426,12 +413,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.step.ended":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const currentAssistant = findAssistant(
           messages,
-          idx,
           event.data.assistantMessageID,
         );
         if (!currentAssistant) return;
@@ -449,12 +434,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.step.failed":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const currentAssistant = findAssistant(
           messages,
-          idx,
           event.data.assistantMessageID,
         );
         if (!currentAssistant) return;
@@ -471,12 +454,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.text.started":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         findAssistant(
           messages,
-          idx,
           event.data.assistantMessageID,
         )?.content.push({ type: "text", text: "" });
       });
@@ -484,11 +465,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.text.delta":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestText(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
         );
         if (match) match.text += event.data.delta;
       });
@@ -496,11 +476,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.text.ended":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestText(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
         );
         if (match) match.text = event.data.text;
       });
@@ -508,14 +487,9 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.input.started":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        findAssistant(
-          messages,
-          idx,
-          event.data.assistantMessageID,
-        )?.content.push({
+        findAssistant(messages, event.data.assistantMessageID)?.content.push({
           type: "tool",
           id: event.data.id,
           name: event.data.name,
@@ -527,11 +501,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.input.delta":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (match?.state.status === "streaming")
@@ -541,11 +514,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.input.ended":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (match?.state.status === "streaming")
@@ -555,11 +527,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.called":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (!match) return;
@@ -576,11 +547,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.progress":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (match?.state.status !== "running") return;
@@ -590,11 +560,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.success":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (match?.state.status !== "running") return;
@@ -612,11 +581,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.tool.failed":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestTool(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
           event.data.id,
         );
         if (
@@ -640,14 +608,9 @@ export function handleEvent(event: V2Event) {
 
     case "session.reasoning.started":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        findAssistant(
-          messages,
-          idx,
-          event.data.assistantMessageID,
-        )?.content.push({
+        findAssistant(messages, event.data.assistantMessageID)?.content.push({
           type: "reasoning",
           text: "",
           state: event.data.state,
@@ -658,11 +621,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.reasoning.delta":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestReasoning(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
         );
         if (match) match.text += event.data.delta;
       });
@@ -670,11 +632,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.reasoning.ended":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const match = latestReasoning(
-          findAssistant(messages, idx, event.data.assistantMessageID),
+          findAssistant(messages, event.data.assistantMessageID),
         );
         if (match) {
           match.text = event.data.text;
@@ -689,12 +650,10 @@ export function handleEvent(event: V2Event) {
 
     case "session.retry.scheduled":
       eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
         const currentAssistant = findAssistant(
           messages,
-          idx,
           event.data.assistantMessageID,
         );
         if (!currentAssistant) return;
@@ -715,9 +674,8 @@ export function handleEvent(event: V2Event) {
     case "session.compaction.started":
       eventStore.setState((s) => {
         removePending(s, event.data.sessionID, event.data.inputID);
-        const idx = index(event.data.sessionID);
         const messages = (s.session.message[event.data.sessionID] ??= []);
-        append(messages, idx, {
+        append(messages, {
           id: event.data.inputID ?? messageIDFromEvent(event.id),
           type: "compaction",
           status: "running",
@@ -766,10 +724,9 @@ export function handleEvent(event: V2Event) {
         ).filter((id) => id < event.data.to);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        const idx = index(event.data.sessionID);
         const position = messages.findIndex((item) => item.id >= event.data.to);
         if (position === -1) return;
-        for (const item of messages.splice(position)) idx.delete(item.id);
+        messages.splice(position);
       });
       break;
 
@@ -790,7 +747,6 @@ export function handleEvent(event: V2Event) {
         ).filter((item) => item.type !== "compaction");
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        const idx = index(event.data.sessionID);
         const position = messages.findLastIndex(
           (item) => item.type === "compaction" && item.status === "running",
         );
@@ -804,7 +760,7 @@ export function handleEvent(event: V2Event) {
           });
           return;
         }
-        append(messages, idx, {
+        append(messages, {
           id: messageIDFromEvent(event.id),
           type: "compaction",
           status: "completed",
@@ -821,7 +777,6 @@ export function handleEvent(event: V2Event) {
         removePending(s, event.data.sessionID, event.data.inputID);
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
-        const idx = index(event.data.sessionID);
         const position = messages.findLastIndex(
           (item) => item.type === "compaction" && item.status === "running",
         );
@@ -849,7 +804,7 @@ export function handleEvent(event: V2Event) {
           messages[position] = failed;
           return;
         }
-        append(messages, idx, failed);
+        append(messages, failed);
       });
       break;
 

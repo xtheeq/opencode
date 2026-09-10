@@ -157,23 +157,11 @@ export function getClient(): OpenCodeClient {
   return client;
 }
 
-export const messageIndex = new Map<string, Map<string, number>>();
-
-export function index(sessionID: string) {
-  const existing = messageIndex.get(sessionID);
-  if (existing) return existing;
-  const created = new Map<string, number>();
-  messageIndex.set(sessionID, created);
-  return created;
-}
-
 export function append(
   messages: SessionMessageInfo[],
-  idx: Map<string, number>,
   item: SessionMessageInfo,
 ) {
-  if (idx.has(item.id)) return;
-  idx.set(item.id, messages.length);
+  if (messages.some((message) => message.id === item.id)) return;
   messages.push(item);
 }
 
@@ -186,12 +174,12 @@ export function activeAssistant(messages: SessionMessageInfo[]) {
 
 export function findAssistant(
   messages: SessionMessageInfo[],
-  idx: Map<string, number>,
   messageID: string,
 ) {
-  const position = idx.get(messageID);
-  const item = position === undefined ? undefined : messages[position];
-  return item?.type === "assistant" ? item : undefined;
+  return messages.findLast(
+    (message): message is SessionMessageAssistant =>
+      message.type === "assistant" && message.id === messageID,
+  );
 }
 
 export function findShellByShellID(
