@@ -1,4 +1,4 @@
-import type { FormAnswer } from "@opencode-ai/client/promise";
+import type { FormAnswer } from "@opencode/client/promise";
 import { getClient } from "@/stores/store";
 import { eventStore, type FormWithLocation } from "@/stores/store";
 import type { PermissionReplyValue } from "@/utils/permission-state";

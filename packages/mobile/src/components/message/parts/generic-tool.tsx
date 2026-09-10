@@ -1,5 +1,5 @@
 import Wrench from "lucide-react-native/icons/wrench";
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 import { BasicTool } from "./basic-tool";
 import {

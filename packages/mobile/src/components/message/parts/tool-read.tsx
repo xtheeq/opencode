@@ -1,7 +1,7 @@
 import { View, StyleSheet } from "react-native";
 import Eye from "lucide-react-native/icons/eye";
 import CornerDownRight from "lucide-react-native/icons/corner-down-right";
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 import { spacing, typography, useTheme } from "@/theme";
 import { BasicTool } from "./basic-tool";

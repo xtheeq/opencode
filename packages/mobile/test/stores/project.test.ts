@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import type { LocationRef, OpenCodeClient } from "@opencode-ai/client/promise";
+import type { LocationRef, OpenCodeClient } from "@opencode/client/promise";
 import { eventStore, locationKey } from "@/stores/store";
 import { sync } from "@/stores/sync";
 

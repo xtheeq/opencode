@@ -12,7 +12,7 @@ import type {
   SessionMessageSynthetic,
   SessionMessageSystem,
   SessionMessageUser,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 
 export type CacheUsage = {
   read: number;

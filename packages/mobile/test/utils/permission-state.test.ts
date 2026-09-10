@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type {
   PermissionRequest,
   SessionMessageAssistantTool,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import {
   createPermissionBodyState,
   permissionCancel,

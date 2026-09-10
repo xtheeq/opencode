@@ -1,6 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import Terminal from "lucide-react-native/icons/terminal";
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { BasicTool } from "./basic-tool";

@@ -2,7 +2,7 @@ import type {
   SessionMessageAgentSelected,
   SessionMessageLocationSwitched,
   SessionMessageModelSelected,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 
 type SwitchMessage =

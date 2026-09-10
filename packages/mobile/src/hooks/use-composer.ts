@@ -1,5 +1,5 @@
 import { useShallow } from "zustand/react/shallow";
-import type { LocationRef } from "@opencode-ai/client/promise";
+import type { LocationRef } from "@opencode/client/promise";
 import type { Suggestion } from "@/types/composer";
 import {
   composerDispatch,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { FormField } from "@opencode-ai/client/promise";
+import type { FormField } from "@opencode/client/promise";
 import {
   formCustom,
   formDisplayValue,

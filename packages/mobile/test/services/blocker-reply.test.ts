@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { FormInfo, LocationRef } from "@opencode-ai/client/promise";
+import type { FormInfo, LocationRef } from "@opencode/client/promise";
 import { formRequestOptions } from "@/services/blocker-reply";
 
 const form = (

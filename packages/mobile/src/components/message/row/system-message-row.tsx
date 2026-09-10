@@ -1,4 +1,4 @@
-import type { SessionMessageInfo } from "@opencode-ai/client/promise";
+import type { SessionMessageInfo } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { SystemMessage } from "../system-message";
 import { SwitchMessage } from "../switch-message";

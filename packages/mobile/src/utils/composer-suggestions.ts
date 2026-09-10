@@ -4,7 +4,7 @@ import type {
   FileSystemEntry,
   McpResource,
   ReferenceInfo,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import type { Suggestion } from "@/types/composer";
 import type { InteractionState } from "./composer-machine";
 

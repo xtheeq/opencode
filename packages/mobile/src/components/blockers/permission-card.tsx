@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import type { PermissionRequest } from "@opencode-ai/client/promise";
+import type { PermissionRequest } from "@opencode/client/promise";
 import { Button, Text, TextInput } from "@/components/primitives";
 import { useAutoApprove } from "@/hooks/use-auto-approve";
 import { useSessionMessagesRaw } from "@/hooks/use-store";

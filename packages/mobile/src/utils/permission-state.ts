@@ -1,7 +1,7 @@
 import type {
   PermissionRequest,
   SessionMessageAssistantTool,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import {
   permissionAlwaysLines,
   permissionOptionLabel,

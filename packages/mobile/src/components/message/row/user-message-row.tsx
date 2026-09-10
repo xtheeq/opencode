@@ -1,4 +1,4 @@
-import type { SessionMessageUser } from "@opencode-ai/client/promise";
+import type { SessionMessageUser } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { UserMessage } from "../user-message";
 import { spacing, borderRadius as br, useTheme } from "@/theme";

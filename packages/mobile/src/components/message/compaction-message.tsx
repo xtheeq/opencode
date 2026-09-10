@@ -1,5 +1,5 @@
 import { View, StyleSheet, ActivityIndicator } from "react-native";
-import type { SessionMessageCompaction } from "@opencode-ai/client/promise";
+import type { SessionMessageCompaction } from "@opencode/client/promise";
 import { MarkdownPart } from "@/components/markdown";
 import { Text } from "@/components/primitives";
 import { spacing, typography, useTheme } from "@/theme";

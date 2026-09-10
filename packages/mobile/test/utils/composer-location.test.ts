@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { LocationRef } from "@opencode-ai/client/promise";
+import type { LocationRef } from "@opencode/client/promise";
 import { composerLocation, isNewSessionKey } from "@/hooks/use-composer";
 
 const defaultLocation: LocationRef = { directory: "/workspace/selected" };

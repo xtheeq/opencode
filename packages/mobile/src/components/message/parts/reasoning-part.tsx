@@ -1,4 +1,4 @@
-import type { SessionMessageAssistantReasoning } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantReasoning } from "@opencode/client/promise";
 import { typography } from "@/theme";
 import { MarkdownPart } from "@/components/markdown";
 

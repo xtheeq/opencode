@@ -1,4 +1,4 @@
-import type { Project, SessionInfo } from "@opencode-ai/client/promise";
+import type { Project, SessionInfo } from "@opencode/client/promise";
 
 /** Project name when present, otherwise the basename of the canonical path. */
 export function projectDisplayName(project: Project): string {

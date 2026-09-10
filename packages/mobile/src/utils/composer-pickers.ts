@@ -2,7 +2,7 @@ import type {
   ModelInfo,
   ModelRef,
   ProviderInfo,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import type { ModelSelection } from "@/types/composer";
 
 export type ModelSection = {

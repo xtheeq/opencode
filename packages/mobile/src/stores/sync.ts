@@ -14,7 +14,7 @@ import type {
   ShellInfo,
   SkillInfo,
   WebSearchProvider,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import { getClient } from "@/stores/store";
 import { sweepAutoApproved } from "@/services/blocker-reply";
 import {

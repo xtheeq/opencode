@@ -1,4 +1,4 @@
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 
 const EMPTY: Record<string, unknown> = Object.freeze({});
 

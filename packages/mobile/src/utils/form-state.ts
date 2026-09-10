@@ -3,7 +3,7 @@ import type {
   FormField,
   FormInfo,
   FormValue,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import {
   formCustom,
   formDisplayValue,

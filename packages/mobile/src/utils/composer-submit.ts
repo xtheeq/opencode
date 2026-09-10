@@ -2,7 +2,7 @@ import type {
   LocationRef,
   ModelRef,
   SessionPromptInput,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import type {
   AgentPart,
   ComposerPart,

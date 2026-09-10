@@ -1,4 +1,4 @@
-import type { SessionMessageAssistantText } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantText } from "@opencode/client/promise";
 import { typography } from "@/theme";
 import { MarkdownPart } from "@/components/markdown";
 

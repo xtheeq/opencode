@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Project, SessionInfo } from "@opencode-ai/client/promise";
+import type { Project, SessionInfo } from "@opencode/client/promise";
 import {
   findActiveProject,
   isProjectActive,

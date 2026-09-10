@@ -1,4 +1,4 @@
-import type { V2Event } from "@opencode-ai/client/promise";
+import type { V2Event } from "@opencode/client/promise";
 
 type DeltaEvent = Extract<
   V2Event,

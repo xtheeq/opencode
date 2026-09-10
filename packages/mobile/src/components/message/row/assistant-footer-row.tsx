@@ -1,5 +1,5 @@
 import { Text } from "@/components/primitives";
-import type { SessionMessageAssistant } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistant } from "@opencode/client/promise";
 
 function formatDuration(created: number, completed?: number) {
   if (!completed) return undefined;

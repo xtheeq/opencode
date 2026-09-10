@@ -8,7 +8,7 @@ import {
 import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { SessionRow } from "@/components/session-row";
-import type { SessionInfo } from "@opencode-ai/client/promise";
+import type { SessionInfo } from "@opencode/client/promise";
 
 export function SessionTab({
   sessions,

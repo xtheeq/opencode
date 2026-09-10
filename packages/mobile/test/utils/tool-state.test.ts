@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import {
   stripAnsi,
   toolArgs,

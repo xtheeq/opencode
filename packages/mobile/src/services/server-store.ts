@@ -1,5 +1,5 @@
 import * as SecureStore from "expo-secure-store";
-import type { LocationRef } from "@opencode-ai/client/promise";
+import type { LocationRef } from "@opencode/client/promise";
 
 const KEYS = {
   url: "server-url",

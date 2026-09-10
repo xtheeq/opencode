@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { V2Event } from "@opencode-ai/client/promise";
+import type { V2Event } from "@opencode/client/promise";
 import { coalesceEvents } from "@/services/event-coalesce";
 
 const textDelta = (

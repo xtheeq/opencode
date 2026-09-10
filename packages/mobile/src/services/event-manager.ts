@@ -1,5 +1,5 @@
 import { AppState, type AppStateStatus } from "react-native";
-import { type OpenCodeClient, type V2Event } from "@opencode-ai/client/promise";
+import { type OpenCodeClient, type V2Event } from "@opencode/client/promise";
 import type { ConnectionStatus } from "@/types/connection";
 import { isTransientError } from "@/services/transient-error";
 import { coalesceEvents, isDeltaEvent } from "@/services/event-coalesce";

@@ -1,4 +1,4 @@
-import type { SessionMessageCompaction } from "@opencode-ai/client/promise";
+import type { SessionMessageCompaction } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { CompactionMessage } from "../compaction-message";
 

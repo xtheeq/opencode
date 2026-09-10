@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, mock, test } from "bun:test";
-import { ClientError } from "@opencode-ai/client/promise";
-import type { OpenCodeClient, V2Event } from "@opencode-ai/client/promise";
+import { ClientError } from "@opencode/client/promise";
+import type { OpenCodeClient, V2Event } from "@opencode/client/promise";
 
 mock.module("react-native", () => ({
   AppState: {

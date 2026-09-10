@@ -1,7 +1,7 @@
-import { ClientError } from "@opencode-ai/client/promise";
+import { ClientError } from "@opencode/client/promise";
 
 const TRANSIENT_MESSAGES = [
-  // Mirrors @opencode-ai/core/util/retry.ts;
+  // Mirrors @opencode/core/util/retry.ts;
   "load failed",
   "network connection was lost",
   "network request failed",

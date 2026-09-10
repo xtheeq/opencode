@@ -2,7 +2,7 @@ import type {
   SessionMessageInfo,
   V2Event,
   V2EventRpc,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import { getClient } from "@/stores/store";
 import { replyOnce } from "@/services/blocker-reply";
 import {

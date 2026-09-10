@@ -3,7 +3,7 @@ import type {
   OpenCodeClient,
   SessionInboxInfo,
   SessionMessageInfo,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 
 const calls = {
   sessionGet: 0,

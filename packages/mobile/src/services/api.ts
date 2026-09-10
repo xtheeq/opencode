@@ -1,4 +1,4 @@
-import { OpenCode } from "@opencode-ai/client/promise";
+import { OpenCode } from "@opencode/client/promise";
 
 export function createClient(url: string, password?: string) {
   const headers: Record<string, string> = {};

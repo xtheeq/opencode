@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import type { ModelRef, SessionPromptInput } from "@opencode-ai/client/promise";
+import type { ModelRef, SessionPromptInput } from "@opencode/client/promise";
 import {
   buildPromptRequest,
   submitComposer,

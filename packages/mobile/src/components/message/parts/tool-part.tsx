@@ -1,4 +1,4 @@
-import type { SessionMessageAssistantTool } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import { GenericTool } from "./generic-tool";
 import { WriteTool } from "./tool-write";
 import { EditTool } from "./tool-edit";

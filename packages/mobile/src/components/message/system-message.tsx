@@ -1,7 +1,7 @@
 import type {
   SessionMessageSystem,
   SessionMessageSynthetic,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 
 type Systemish = SessionMessageSystem | SessionMessageSynthetic;

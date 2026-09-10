@@ -1,4 +1,4 @@
-import type { FormField, FormValue } from "@opencode-ai/client/promise";
+import type { FormField, FormValue } from "@opencode/client/promise";
 
 export type FormAnswerField = Exclude<FormField, { type: "external" }>;
 

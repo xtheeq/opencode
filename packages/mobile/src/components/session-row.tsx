@@ -4,7 +4,7 @@ import { spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
 import { useSessionActive } from "@/hooks/use-store";
 import { useSessionBlocked } from "@/hooks/use-blockers";
-import type { SessionInfo } from "@opencode-ai/client/promise";
+import type { SessionInfo } from "@opencode/client/promise";
 
 function formatTime(ms: number) {
   const date = new Date(ms);

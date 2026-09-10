@@ -1,7 +1,7 @@
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { borderRadius, spacing, useTheme } from "@/theme";
 import { Text } from "@/components/primitives";
-import type { Project } from "@opencode-ai/client/promise";
+import type { Project } from "@opencode/client/promise";
 import { projectDisplayName } from "@/utils/project";
 
 export function ProjectRow({

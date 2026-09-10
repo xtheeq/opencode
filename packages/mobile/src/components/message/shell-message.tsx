@@ -1,4 +1,4 @@
-import type { SessionMessageShell } from "@opencode-ai/client/promise";
+import type { SessionMessageShell } from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 import { stripAnsi } from "@/utils/tool-state";
 

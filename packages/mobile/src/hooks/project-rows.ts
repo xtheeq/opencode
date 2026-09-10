@@ -4,7 +4,7 @@ import type {
   SessionMessageAssistantTool,
   SessionMessageInfo,
   TokenUsageInfo,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 
 // Each message's projected rows are cached by message object identity. immer

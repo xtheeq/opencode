@@ -3,10 +3,7 @@ import { useShallow } from "zustand/react/shallow";
 import { eventStore } from "@/stores/store";
 import { hydrateSession } from "@/stores/sync";
 import { sortProjects } from "@/utils/project";
-import type {
-  SessionInfo,
-  SessionMessageInfo,
-} from "@opencode-ai/client/promise";
+import type { SessionInfo, SessionMessageInfo } from "@opencode/client/promise";
 import { connectionPhase } from "@/utils/connection-phase";
 import type { ConnectionPhase } from "@/types/connection";
 

@@ -24,7 +24,7 @@ import type {
   ShellInfo,
   SkillInfo,
   WebSearchProvider,
-} from "@opencode-ai/client/promise";
+} from "@opencode/client/promise";
 import type { ConnectionStatus } from "@/types/connection";
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";

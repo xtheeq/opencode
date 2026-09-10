@@ -1,4 +1,4 @@
-import type { SessionMessageShell } from "@opencode-ai/client/promise";
+import type { SessionMessageShell } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { ShellMessage } from "../shell-message";
 

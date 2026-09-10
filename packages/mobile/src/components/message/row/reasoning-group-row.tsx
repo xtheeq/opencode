@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import type { SessionMessageAssistant } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistant } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { Text } from "@/components/primitives";
 import { MarkdownPart } from "@/components/markdown";

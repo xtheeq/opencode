@@ -1,4 +1,4 @@
-import type { SessionMessageUser } from "@opencode-ai/client/promise";
+import type { SessionMessageUser } from "@opencode/client/promise";
 import { Text } from "@/components/primitives";
 
 export function UserMessage({ message }: { message: SessionMessageUser }) {

@@ -576,7 +576,7 @@
       },
     },
     "packages/mobile": {
-      "name": "@opencode-ai/mobile",
+      "name": "@opencode/mobile",
       "version": "0.1.0",
       "dependencies": {
         "@expo/ui": "57.0.8",
@@ -2293,7 +2293,7 @@
 
     "@opencode-ai/client": ["@opencode-ai/client@0.0.0-beta-18050", "", { "dependencies": { "@opencode-ai/protocol": "0.0.0-beta-18050", "@opencode-ai/schema": "0.0.0-beta-18050" }, "peerDependencies": { "effect": "4.0.0-rc.111", "solid-js": ">=1.9.0" }, "optionalPeers": ["effect", "solid-js"] }, "sha512-zWZv5X23iyx+/mxwiAi18YY/VMjQofTaH7RyKMBt7KL6FmaKAWf9Q05zbQhrLX8DYJD3MOtbjBeQCGLsPUDU8g=="],
 
-    "@opencode-ai/mobile": ["@opencode-ai/mobile@workspace:packages/mobile"],
+    "@opencode/mobile": ["@opencode/mobile@workspace:packages/mobile"],
 
     "@opencode-ai/protocol": ["@opencode-ai/protocol@0.0.0-beta-18050", "", { "dependencies": { "@opencode-ai/schema": "0.0.0-beta-18050", "effect": "4.0.0-rc.111" } }, "sha512-HDQMnvGp8IU0MdBRbEuydX1WQm09BZ4HJm9iSMQwzweJuQ2HNscgzHJPIH6P02BsbbtfJ8J7sZGPItrz1tWSgw=="],
 
@@ -6937,7 +6937,7 @@
 
     "@openauthjs/openauth/jose": ["jose@5.9.6", "", {}, "sha512-AMlnetc9+CV9asI19zHmrgS/WYsWUwCn2R7RzlbJWD7F9eWYUTGyBmU9o6PxngtLGOiDGPRu+Uc4fhKzbpteZQ=="],
 
-    "@opencode-ai/mobile/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
+    "@opencode/mobile/typescript": ["typescript@6.0.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw=="],
 
     "@opencode/cli/immer": ["immer@11.1.4", "", {}, "sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw=="],
 

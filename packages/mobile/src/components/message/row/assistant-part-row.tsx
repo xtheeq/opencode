@@ -1,4 +1,4 @@
-import type { SessionMessageAssistant } from "@opencode-ai/client/promise";
+import type { SessionMessageAssistant } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { TextPart, ReasoningPart, ToolPart } from "../parts";
 
