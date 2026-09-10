@@ -1,4 +1,8 @@
-import type { SessionMessageInfo, V2Event } from "@opencode-ai/client/promise";
+import type {
+  SessionMessageInfo,
+  V2Event,
+  V2EventRpc,
+} from "@opencode-ai/client/promise";
 import { getClient } from "@/stores/store";
 import { replyOnce } from "@/services/blocker-reply";
 import {
@@ -27,6 +31,10 @@ import {
   sync,
   syncProjectList,
 } from "./sync";
+
+function isRpcEvent(event: V2Event): event is V2EventRpc {
+  return event.type.startsWith("rpc.");
+}
 
 export function handleEvent(event: V2Event) {
   switch (event.type) {
@@ -358,16 +366,6 @@ export function handleEvent(event: V2Event) {
         match.exit = event.data.shell.exit;
         match.output = event.data.output;
         match.time.completed = event.created;
-      });
-      break;
-
-    case "session.message.content.updated":
-      eventStore.setState((s) => {
-        const idx = index(event.data.sessionID);
-        const messages = s.session.message[event.data.sessionID];
-        if (!messages) return;
-        const assistant = findAssistant(messages, idx, event.data.messageID);
-        if (assistant) assistant.content = [...event.data.content];
       });
       break;
 
@@ -981,7 +979,6 @@ export function handleEvent(event: V2Event) {
     case "persistent-pty.added":
     case "persistent-pty.removed":
     case "filesystem.changed":
-    case "plugin.added":
     case "plugin.updated":
     case "pty.created":
     case "pty.updated":
@@ -1002,6 +999,9 @@ export function handleEvent(event: V2Event) {
       break;
 
     default: {
+      // Plugin RPC events carry plugin-defined payloads and are not part of the
+      // mobile session projection.
+      if (isRpcEvent(event)) break;
       // Exhaustiveness guard: a new V2Event type without an explicit case
       // fails typecheck instead of being silently dropped.
       const exhaustive: never = event;
