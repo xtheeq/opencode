@@ -106,7 +106,7 @@ type BedrockSystemBlock = Schema.Schema.Type<typeof BedrockSystemBlock>
 const BedrockToolSpec = Schema.Struct({
   toolSpec: Schema.Struct({
     name: Schema.String,
-    description: Schema.String,
+    description: Schema.optional(Schema.String),
     inputSchema: Schema.Struct({
       json: JsonObject,
     }),
@@ -222,7 +222,7 @@ type BedrockEvent = Schema.Schema.Type<typeof BedrockEvent>
 const lowerToolSpec = (tool: ToolDefinition, inputSchema: JsonSchema): BedrockToolSpec => ({
   toolSpec: {
     name: tool.name,
-    description: tool.description,
+    ...(tool.description.trim().length > 0 ? { description: tool.description } : {}),
     inputSchema: { json: inputSchema },
   },
 })
@@ -282,12 +282,16 @@ const removeEmptyToolInputKeys = (input: unknown): unknown => {
 const lowerToolCall = (part: ToolCallPart): BedrockToolUseBlock => ({
   toolUse: {
     toolUseId: part.id,
-    name: part.name,
+    // Models can emit names that Converse rejects when replayed in history.
+    name: part.name.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 64) || "_",
     input: removeEmptyToolInputKeys(part.input),
   },
 })
 
-const lowerToolResultContent = Effect.fn("BedrockConverse.lowerToolResultContent")(function* (part: ToolResultPart) {
+const lowerToolResultContent = Effect.fn("BedrockConverse.lowerToolResultContent")(function* (
+  part: ToolResultPart,
+  documentNames: Set<string>,
+) {
   if (part.result.type === "text" || part.result.type === "error")
     return [{ text: ProviderShared.toolResultText(part) }]
   if (part.result.type === "json") return [{ json: part.result.value }]
@@ -298,22 +302,28 @@ const lowerToolResultContent = Effect.fn("BedrockConverse.lowerToolResultContent
       content.push({ text: item.text })
       continue
     }
-    const media = yield* BedrockMedia.lower({
-      type: "media",
-      mediaType: item.mime,
-      data: item.uri,
-      filename: item.name,
-    })
-    content.push(media)
+    const media = yield* BedrockMedia.lower(
+      {
+        type: "media",
+        mediaType: item.mime,
+        data: item.uri,
+        filename: item.name,
+      },
+      documentNames,
+    )
+    content.push(...media)
   }
   return content
 })
 
-const lowerToolResult = Effect.fn("BedrockConverse.lowerToolResult")(function* (part: ToolResultPart) {
+const lowerToolResult = Effect.fn("BedrockConverse.lowerToolResult")(function* (
+  part: ToolResultPart,
+  documentNames: Set<string>,
+) {
   return {
     toolResult: {
       toolUseId: part.id,
-      content: yield* lowerToolResultContent(part),
+      content: yield* lowerToolResultContent(part, documentNames),
       status: part.result.type === "error" ? "error" : "success",
     },
   } satisfies BedrockToolResultBlock
@@ -324,6 +334,7 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
   breakpoints: BedrockCache.Breakpoints,
 ) {
   const messages: BedrockMessage[] = []
+  const documentNames = new Set<string>()
   const providerMetadataKey = request.model.route.providerMetadataKey ?? String(request.model.provider)
 
   for (const message of request.messages) {
@@ -347,7 +358,7 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
           continue
         }
         if (part.type === "media") {
-          content.push(yield* BedrockMedia.lower(part))
+          content.push(...(yield* BedrockMedia.lower(part, documentNames)))
           continue
         }
       }
@@ -400,7 +411,7 @@ const lowerMessages = Effect.fn("BedrockConverse.lowerMessages")(function* (
     for (const part of message.content) {
       if (!ProviderShared.supportsContent(part, ["tool-result"]))
         return yield* ProviderShared.unsupportedContent("Bedrock Converse", "tool", ["tool-result"])
-      content.push(yield* lowerToolResult(part))
+      content.push(yield* lowerToolResult(part, documentNames))
       const cachePoint = BedrockCache.block(breakpoints, part.cache)
       if (cachePoint) content.push(cachePoint)
     }
