@@ -943,6 +943,7 @@ export function handleEvent(event: V2Event) {
     case "worktree.resolved":
     case "session.status":
     case "session.idle":
+    case "session.permissions.updated":
     case "tui.prompt.append":
     case "tui.command.execute":
     case "tui.toast.show":

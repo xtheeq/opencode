@@ -2,6 +2,7 @@ import type {
   SessionMessageAssistant,
   SessionMessageAssistantReasoning,
   SessionMessageAssistantTool,
+  SessionMessageIdle,
   SessionMessageInfo,
   TokenUsageInfo,
 } from "@opencode/client/promise";
@@ -15,7 +16,10 @@ import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 // whole visible timeline on every streaming delta.
 const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
 
-type NonAssistantMessage = Exclude<SessionMessageInfo, SessionMessageAssistant>;
+type NonAssistantMessage = Exclude<
+  SessionMessageInfo,
+  SessionMessageAssistant | SessionMessageIdle
+>;
 
 export function projectRows(
   messages: SessionMessageInfo[],
@@ -66,6 +70,7 @@ export function projectRows(
 function projectMessage(message: SessionMessageInfo): SessionRow[] {
   if (message.type !== "assistant") {
     if (message.type === "synthetic" && !message.description?.trim()) return [];
+    if (message.type === "idle") return [];
     return [messageToRow(message)];
   }
 
@@ -117,6 +122,7 @@ function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
     if (message.type !== "assistant") {
       if (message.type === "synthetic" && !message.description?.trim())
         continue;
+      if (message.type === "idle") continue;
       if (message.type === "compaction" && message.status === "completed")
         usage.previousTurnCache = undefined;
       rows.push(messageToRow(message));
