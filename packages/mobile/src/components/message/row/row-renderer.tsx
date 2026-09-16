@@ -17,6 +17,7 @@ export function RowRenderer({ row }: { row: SessionRow }) {
     case "reasoning-group":
       return (
         <ReasoningGroupRow
+          resetKey={`${row.message.id}:${row.firstPartID}`}
           message={row.message}
           parts={row.parts}
           completed={row.completed}

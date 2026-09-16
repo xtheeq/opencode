@@ -59,6 +59,7 @@ export function SwipeMenuShell({
   const {
     animateMenu,
     isMenuOpen,
+    menuMounted,
     mainAnimatedStyle,
     menuContentAnimatedStyle,
     menuDockAnimatedStyle,
@@ -134,10 +135,12 @@ export function SwipeMenuShell({
             }
             style={[styles.menu, menuContentAnimatedStyle]}
           >
-            <BrowseView
-              dockAnimatedStyle={menuDockAnimatedStyle}
-              onClose={closeMenu}
-            />
+            {menuMounted ? (
+              <BrowseView
+                dockAnimatedStyle={menuDockAnimatedStyle}
+                onClose={closeMenu}
+              />
+            ) : null}
           </Animated.View>
         </View>
 

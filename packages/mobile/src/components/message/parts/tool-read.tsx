@@ -59,6 +59,7 @@ export function ReadTool({ part }: { part: SessionMessageAssistantTool }) {
 
   return (
     <BasicTool
+      resetKey={part.id}
       icon={Eye}
       title="Read"
       subtitle={displayPath(fullPath)}

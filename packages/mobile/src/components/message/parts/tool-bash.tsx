@@ -26,6 +26,7 @@ export function BashTool({ part }: { part: SessionMessageAssistantTool }) {
 
   return (
     <BasicTool
+      resetKey={part.id}
       icon={Terminal}
       title="Shell"
       subtitle={command || undefined}

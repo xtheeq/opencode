@@ -5,6 +5,7 @@ import {
   Extrapolation,
   interpolate,
   runOnJS,
+  useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
@@ -65,6 +66,10 @@ function shouldOpenMenu({
  */
 export function useSwipeMenu({ menuWidth, side = "left" }: SwipeMenuOptions) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  // Whether the menu layer should render its content. True from the first frame
+  // of a reveal (drag or open animation) until the close animation reaches rest,
+  // so the heavy session list is not kept mounted and re-rendering while closed.
+  const [menuMounted, setMenuMounted] = useState(false);
   const translateX = useSharedValue(0);
   const gestureStartX = useSharedValue(0);
   const direction = swipeDirection(side, I18nManager.isRTL);
@@ -84,6 +89,15 @@ export function useSwipeMenu({ menuWidth, side = "left" }: SwipeMenuOptions) {
     translateX.value = isMenuOpen ? menuWidth : 0;
     previousMenuWidth.current = menuWidth;
   }, [isMenuOpen, menuWidth, translateX]);
+
+  // Mirror the reveal position into React so the content mounts on the first
+  // frame of a drag/open and unmounts once the close animation settles at rest.
+  useAnimatedReaction(
+    () => translateX.value > 0,
+    (visible, previous) => {
+      if (visible !== previous) runOnJS(setMenuMounted)(visible);
+    },
+  );
 
   const swipeGesture = useMemo(
     () =>
@@ -191,6 +205,7 @@ export function useSwipeMenu({ menuWidth, side = "left" }: SwipeMenuOptions) {
   return {
     animateMenu,
     isMenuOpen,
+    menuMounted,
     mainAnimatedStyle,
     menuContentAnimatedStyle,
     menuDockAnimatedStyle,

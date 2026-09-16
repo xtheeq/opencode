@@ -24,6 +24,7 @@ export function GenericTool({ part }: { part: SessionMessageAssistantTool }) {
 
   return (
     <BasicTool
+      resetKey={part.id}
       icon={Wrench}
       title={`Called \`${part.name}\``}
       subtitle={toolLabel(input)}

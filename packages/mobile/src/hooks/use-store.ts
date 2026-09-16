@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { eventStore } from "@/stores/store";
+import { activeAssistant, eventStore } from "@/stores/store";
 import { hydrateSession } from "@/stores/sync";
 import { sortProjects } from "@/utils/project";
 import type { SessionInfo, SessionMessageInfo } from "@opencode/client/promise";
@@ -68,6 +68,15 @@ export function useSessionMessagesRaw(sessionID: string) {
 
 export function useSessionMessagesLoadingOlder(sessionID: string) {
   return eventStore((s) => s._messageLoadingOlder[sessionID] ?? false);
+}
+
+// The message currently streaming into the session, or undefined when idle.
+// Selects the message object itself, so unrelated message updates keep the same
+// reference and do not re-render subscribers.
+export function useActiveAssistantMessage(sessionID: string) {
+  return eventStore((s) =>
+    activeAssistant(s.session.message[sessionID] ?? EMPTY_MESSAGES),
+  );
 }
 
 export function useSessionMessages(sessionID: string) {

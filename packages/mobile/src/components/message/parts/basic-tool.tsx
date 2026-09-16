@@ -1,4 +1,10 @@
-import { Children, useState, type ComponentType, type ReactNode } from "react";
+import {
+  Children,
+  useEffect,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
@@ -15,6 +21,7 @@ export type IconComponent = ComponentType<{
 export type ToolStatus = "streaming" | "running" | "completed" | "error";
 
 export function BasicTool({
+  resetKey,
   icon: Icon,
   title,
   subtitle,
@@ -25,6 +32,7 @@ export function BasicTool({
   error,
   children,
 }: {
+  resetKey?: string;
   icon: IconComponent;
   title: string;
   subtitle?: string;
@@ -37,6 +45,13 @@ export function BasicTool({
 }) {
   const { colors } = useTheme();
   const [open, setOpen] = useState(defaultOpen);
+
+  // LegendList recycles this instance across tool rows. Reset the expanded
+  // state when the row's identity changes instead of remounting the whole
+  // subtree (which re-runs native text/SVG/outline work on the UI thread).
+  useEffect(() => {
+    setOpen(defaultOpen);
+  }, [resetKey, defaultOpen]);
   const pending = status === "streaming" || status === "running";
   const failed = status === "error" || error != null;
   const hasChildren = Children.count(children) > 0;

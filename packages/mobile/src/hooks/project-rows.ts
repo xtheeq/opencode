@@ -16,6 +16,14 @@ import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 // whole visible timeline on every streaming delta.
 const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
 
+function cachedProjectMessage(message: SessionMessageInfo): SessionRow[] {
+  const cached = projectionCache.get(message);
+  if (cached) return cached;
+  const projected = projectMessage(message);
+  projectionCache.set(message, projected);
+  return projected;
+}
+
 type NonAssistantMessage = Exclude<
   SessionMessageInfo,
   SessionMessageAssistant | SessionMessageIdle
@@ -52,16 +60,55 @@ export function projectRows(
 
   const rows: SessionRow[] = [];
   for (const message of ordered) {
-    const cached = projectionCache.get(message);
-    if (cached) {
-      rows.push(...cached);
-      continue;
-    }
-    const projected = projectMessage(message);
-    projectionCache.set(message, projected);
-    rows.push(...projected);
+    rows.push(...cachedProjectMessage(message));
   }
   return rows;
+}
+
+// Rows for the single message currently streaming. Shares the per-message cache
+// with projectRows, so this returns the same row objects the full projection did.
+export function projectActiveRows(active: SessionMessageAssistant): SessionRow[] {
+  return cachedProjectMessage(active);
+}
+
+const committedCache = new Map<string, SessionRow[]>();
+
+// Splits the projected rows into a committed prefix and the streaming tail. The
+// active message's rows only move to the footer when they are the last rows in
+// the projection, so ordering is never changed (a queued input keeps the active
+// message in `data`). The committed array keeps a stable reference while only
+// the active message changes, so LegendList's data prop does not change identity
+// on every streaming delta and its subtree can bail out of re-rendering.
+export function projectCommittedRows(
+  sessionID: string,
+  messages: SessionMessageInfo[],
+  active: SessionMessageAssistant | undefined,
+): { committed: SessionRow[]; streamed: boolean } {
+  const rows = projectRows(messages);
+  if (!active) return { committed: rows, streamed: false };
+
+  const activeRows = cachedProjectMessage(active);
+  const offset = rows.length - activeRows.length;
+  const isTail =
+    offset >= 0 && activeRows.every((row, i) => rows[offset + i] === row);
+  if (!isTail) return { committed: rows, streamed: false };
+
+  const cached = committedCache.get(sessionID);
+  if (
+    cached &&
+    cached.length === offset &&
+    cached.every((row, i) => row === rows[i])
+  ) {
+    return { committed: cached, streamed: true };
+  }
+
+  const committed = rows.slice(0, offset);
+  committedCache.set(sessionID, committed);
+  return { committed, streamed: true };
+}
+
+export function clearCommittedRows(sessionID: string) {
+  committedCache.delete(sessionID);
 }
 
 // Each message's projection is self-contained: reasoning/exploration parts

@@ -1,6 +1,6 @@
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   TouchableOpacity,
@@ -33,16 +33,25 @@ function formatDuration(completed: number, created: number): string {
 }
 
 export function ReasoningGroupRow({
+  resetKey,
   message,
   parts,
   completed,
 }: {
+  resetKey?: string;
   message: SessionMessageAssistant;
   parts: ReasoningPart[];
   completed: boolean;
 }) {
   const { colors } = useTheme();
   const [expanded, setExpanded] = useState(!completed);
+
+  // Recycled cells reuse this instance for a different reasoning group, so
+  // reset the expanded state with the row instead of remounting it. The
+  // completion transition (active group finishing) intentionally keeps it.
+  useEffect(() => {
+    setExpanded(!completed);
+  }, [resetKey]);
 
   const text = sanitize(parts.map((p) => p.text).join("\n"));
   const title = extractTitle(text);
