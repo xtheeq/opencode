@@ -17,7 +17,12 @@ export function formRequestOptions(form: FormWithLocation) {
 }
 
 export async function replyPermission(input: PermissionReplyValue) {
-  await getClient().permission.reply(input);
+  await getClient().permission.reply({
+    sessionID: input.sessionID,
+    requestID: input.requestID,
+    decision: input.reply,
+    ...(input.message ? { message: input.message } : {}),
+  });
 }
 
 // Dedup across the reducer and backfill sweep; forget a failure so it can retry.
@@ -61,14 +66,14 @@ export function sweepAutoApproved(sessionID: string) {
 }
 
 export async function replyForm(form: FormWithLocation, answer: FormAnswer) {
-  await getClient().form.reply(
+  await getClient().session.form.reply(
     { sessionID: form.sessionID, formID: form.id, answer },
     formRequestOptions(form),
   );
 }
 
 export async function cancelForm(form: FormWithLocation) {
-  await getClient().form.cancel(
+  await getClient().session.form.cancel(
     { sessionID: form.sessionID, formID: form.id },
     formRequestOptions(form),
   );
