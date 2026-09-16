@@ -147,7 +147,7 @@ export function useComposer(sessionID: string) {
     await getClient()
       .session.command({
         sessionID,
-        command: item.trigger ?? item.title ?? "",
+        name: item.trigger ?? item.title ?? "",
         text: "",
       })
       .then(() => composerReset(sessionID))
