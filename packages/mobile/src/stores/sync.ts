@@ -2,7 +2,6 @@ import type {
   AgentInfo,
   CommandInfo,
   IntegrationInfo,
-  LocationGetOutput,
   LocationRef,
   McpResource,
   McpResourceCatalog,
@@ -11,7 +10,7 @@ import type {
   ProviderInfo,
   ReferenceInfo,
   SessionMessageInfo,
-  ShellInfo,
+  ShellInfo1,
   SkillInfo,
   WebSearchProvider,
 } from "@opencode/client/promise";
@@ -87,27 +86,27 @@ type CatalogField =
   | "websearch";
 
 type CatalogResponse =
-  | { field: "agent"; location: LocationGetOutput; data: AgentInfo[] }
-  | { field: "command"; location: LocationGetOutput; data: CommandInfo[] }
+  | { field: "agent"; location: LocationRef; data: AgentInfo[] }
+  | { field: "command"; location: LocationRef; data: CommandInfo[] }
   | {
       field: "integration";
-      location: LocationGetOutput;
+      location: LocationRef;
       data: IntegrationInfo[];
     }
-  | { field: "mcp.server"; location: LocationGetOutput; data: McpServer[] }
+  | { field: "mcp.server"; location: LocationRef; data: McpServer[] }
   | {
       field: "mcp.resource";
-      location: LocationGetOutput;
+      location: LocationRef;
       data: McpResourceCatalog;
     }
-  | { field: "model"; location: LocationGetOutput; data: ModelInfo[] }
-  | { field: "provider"; location: LocationGetOutput; data: ProviderInfo[] }
-  | { field: "reference"; location: LocationGetOutput; data: ReferenceInfo[] }
-  | { field: "shell"; location: LocationGetOutput; data: ShellInfo[] }
-  | { field: "skill"; location: LocationGetOutput; data: SkillInfo[] }
+  | { field: "model"; location: LocationRef; data: ModelInfo[] }
+  | { field: "provider"; location: LocationRef; data: ProviderInfo[] }
+  | { field: "reference"; location: LocationRef; data: ReferenceInfo[] }
+  | { field: "shell"; location: LocationRef; data: ShellInfo1[] }
+  | { field: "skill"; location: LocationRef; data: SkillInfo[] }
   | {
       field: "websearch";
-      location: LocationGetOutput;
+      location: LocationRef;
       data: WebSearchProvider[];
     };
 
@@ -284,7 +283,7 @@ async function doHydrate(sessionID: string) {
     ]);
     const [permissions, forms] = await Promise.allSettled([
       getClient().permission.list({ sessionID }),
-      getClient().form.list({ sessionID }),
+      getClient().session.form.list({ sessionID }),
     ]);
     eventStore.setState((s) => {
       const started = new Set(
@@ -364,18 +363,14 @@ export async function loadOlderMessages(sessionID: string) {
 export async function syncGlobalBlockers(location: LocationRef) {
   const key = `session.blocker:global:${locationKey(location)}`;
   return sync.run(key, async () => {
-    const response = await getClient().form.request.list({
+    const response = await getClient().form.list({
       location: locationQuery(location),
     });
-    const ref = {
-      directory: response.location.directory,
-      workspaceID: response.location.workspaceID,
-    };
     const blockers: Blocker[] = response.data
       .filter((request) => request.sessionID === "global")
       .map((request) => ({
         kind: "form",
-        request: { ...request, location: ref },
+        request: { ...request, location: response.location },
       }));
     eventStore.setState((s) => {
       s.session.blocker["global"] = blockers;
@@ -393,10 +388,7 @@ export async function syncLocation() {
     eventStore.setState((s) => {
       if (!s.location[key]) s.location[key] = {};
       s.location[key].info = location;
-      s._defaultLocation = {
-        directory: location.directory,
-        workspaceID: location.workspaceID,
-      };
+      s._defaultLocation = { directory: location.directory };
     });
   });
   const loc = eventStore.getState()._defaultLocation;

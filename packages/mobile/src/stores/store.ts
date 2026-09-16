@@ -21,7 +21,7 @@ import type {
   SessionMessageAssistantTool,
   SessionInfo,
   SessionInboxInfo,
-  ShellInfo,
+  ShellInfo1,
   SkillInfo,
   WebSearchProvider,
 } from "@opencode/client/promise";
@@ -71,7 +71,7 @@ export type LocationData = {
   provider?: ProviderInfo[];
   reference?: ReferenceInfo[];
   websearch?: WebSearchProvider[];
-  shell?: Record<string, ShellInfo>;
+  shell?: Record<string, ShellInfo1>;
   skill?: SkillInfo[];
 };
 
