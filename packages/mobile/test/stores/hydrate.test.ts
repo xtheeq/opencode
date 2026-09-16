@@ -30,6 +30,9 @@ const fakeClient = {
         return [];
       },
     },
+    form: {
+      list: async () => [],
+    },
   },
   message: {
     list: async () => {
@@ -42,9 +45,6 @@ const fakeClient = {
       calls.permissionList += 1;
       return [];
     },
-  },
-  form: {
-    list: async () => [],
   },
 };
 
@@ -103,7 +103,7 @@ function pendingUser(id: string): SessionInboxInfo {
   return {
     id,
     sessionID: "ses_1",
-    timeCreated: 0,
+    time: { created: 0 },
     type: "user",
     payload: { text: `text-${id}` },
     delivery: "queue",

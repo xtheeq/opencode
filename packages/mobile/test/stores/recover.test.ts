@@ -14,6 +14,7 @@ const fakeClient = {
       time: { created: 0, updated: 0 },
     }),
     inbox: { list: async () => [] },
+    form: { list: async () => [] },
     list: async () => ({ data: [] }),
   },
   message: {
@@ -23,8 +24,7 @@ const fakeClient = {
     list: async () => [],
   },
   form: {
-    list: async () => [],
-    request: { list: async () => ({ location: loc, data: [] }) },
+    list: async () => ({ location: loc, data: [] }),
   },
   location: {
     get: async () => loc,

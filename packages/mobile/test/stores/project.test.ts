@@ -31,19 +31,16 @@ const list = (input?: CatalogInput) => ({ location: echo(input), data: [] });
 
 const fakeClient = {
   form: {
-    request: {
-      list: async (input?: CatalogInput) => ({
-        location: echo(input),
-        data: [],
-      }),
-    },
+    list: async (input?: CatalogInput) => ({
+      location: echo(input),
+      data: [],
+    }),
   },
   location: {
     get: async ({ location }: CatalogInput) => {
       const directory = location?.directory || "/server-default";
       return {
         directory,
-        workspaceID: directory === "/workspace" ? "ws_1" : undefined,
         project: { id: "prj_1", directory, canonical: "/workspace" },
       };
     },
@@ -85,15 +82,10 @@ describe("selectProject", () => {
     await selectProject("/workspace");
 
     const store = eventStore.getState();
-    expect(store._defaultLocation).toEqual({
-      directory: "/workspace",
-      workspaceID: "ws_1",
-    });
-    expect(savedLocations).toEqual([
-      { directory: "/workspace", workspaceID: "ws_1" },
-    ]);
+    expect(store._defaultLocation).toEqual({ directory: "/workspace" });
+    expect(savedLocations).toEqual([{ directory: "/workspace" }]);
 
-    const key = locationKey({ directory: "/workspace", workspaceID: "ws_1" });
+    const key = locationKey({ directory: "/workspace" });
     expect(store.location[key]?.info?.project.id).toBe("prj_1");
     expect(store.location[key]?.command).toEqual([]);
     expect(store.location[key]?.agent).toEqual([]);
@@ -103,13 +95,8 @@ describe("selectProject", () => {
     await selectProject("/other");
 
     const store = eventStore.getState();
-    expect(store._defaultLocation).toEqual({
-      directory: "/other",
-      workspaceID: undefined,
-    });
-    expect(savedLocations).toEqual([
-      { directory: "/other", workspaceID: undefined },
-    ]);
+    expect(store._defaultLocation).toEqual({ directory: "/other" });
+    expect(savedLocations).toEqual([{ directory: "/other" }]);
   });
 });
 
@@ -118,13 +105,8 @@ describe("activateDefaultLocation", () => {
     await activateDefaultLocation();
 
     const store = eventStore.getState();
-    expect(store._defaultLocation).toEqual({
-      directory: "/server-default",
-      workspaceID: undefined,
-    });
-    expect(savedLocations).toEqual([
-      { directory: "/server-default", workspaceID: undefined },
-    ]);
+    expect(store._defaultLocation).toEqual({ directory: "/server-default" });
+    expect(savedLocations).toEqual([{ directory: "/server-default" }]);
   });
 
   test("overrides a previously selected project", async () => {
@@ -132,13 +114,9 @@ describe("activateDefaultLocation", () => {
     await activateDefaultLocation();
 
     const store = eventStore.getState();
-    expect(store._defaultLocation).toEqual({
-      directory: "/server-default",
-      workspaceID: undefined,
-    });
+    expect(store._defaultLocation).toEqual({ directory: "/server-default" });
     expect(savedLocations[savedLocations.length - 1]).toEqual({
       directory: "/server-default",
-      workspaceID: undefined,
     });
   });
 });
