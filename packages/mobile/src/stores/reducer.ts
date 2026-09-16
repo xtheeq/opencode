@@ -58,7 +58,8 @@ export function handleEvent(event: V2Event) {
       });
       break;
 
-    case "catalog.updated": {
+    case "model.updated":
+    case "provider.updated": {
       const loc = event.location ?? eventStore.getState()._defaultLocation;
       refreshLocation("model", loc);
       refreshLocation("provider", loc);
@@ -120,7 +121,7 @@ export function handleEvent(event: V2Event) {
           });
         }
         getClient()
-          .session.message({
+          .session.message.get({
             sessionID: event.data.sessionID,
             messageID: messageIDFromEvent(event.id),
           })
@@ -180,7 +181,7 @@ export function handleEvent(event: V2Event) {
         addPending(s, {
           id: event.data.inboxID,
           sessionID: event.data.sessionID,
-          timeCreated: event.created,
+          time: { created: event.created },
           ...event.data.item,
         });
         const item = event.data.item;
@@ -943,7 +944,7 @@ export function handleEvent(event: V2Event) {
     case "worktree.resolved":
     case "session.status":
     case "session.idle":
-    case "session.permissions.updated":
+    case "session.permissions":
     case "tui.prompt.append":
     case "tui.command.execute":
     case "tui.toast.show":
