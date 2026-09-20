@@ -7,6 +7,7 @@ function createColors(colors: {
   icon: ThemeColors["icon"];
   action: ThemeColors["action"];
   status: ThemeColors["status"];
+  syntax: ThemeColors["syntax"];
 }): ThemeColors {
   return {
     ...colors,
@@ -20,6 +21,7 @@ export const lightColors = createColors({
     elevated: "#eeeeee",
     subtle: "#f2f2f2",
     inset: "#f2f2f2",
+    highlight: "#fde68a",
     inverse: "#242424",
     contrast: "#2e2e2e",
     accent: "#3b5cf6",
@@ -79,6 +81,22 @@ export const lightColors = createColors({
     info: "#2c47c8",
     infoBackground: "#ecf1fe",
   },
+  syntax: {
+    comment: "#808080",
+    keyword: "#b82d35",
+    function: "#3b5cf6",
+    variable: "#5c5c5c",
+    string: "#198b43",
+    number: "#623be2",
+    constant: "#623be2",
+    type: "#8e7231",
+    operator: "#5c5c5c",
+    punctuation: "#161616",
+    property: "#623be2",
+    tag: "#198b43",
+    attribute: "#3b5cf6",
+    embedded: "#161616",
+  },
 });
 
 export const darkColors = createColors({
@@ -88,6 +106,7 @@ export const darkColors = createColors({
     elevated: "#3a3a3a",
     subtle: "#161616",
     inset: "#161616",
+    highlight: "#7a5c1f",
     inverse: "#fafafa",
     contrast: "#5c5c5c",
     accent: "#3b5cf6",
@@ -146,5 +165,21 @@ export const darkColors = createColors({
     errorBackground: "#461516",
     info: "#a2bcff",
     infoBackground: "#1b2852",
+  },
+  syntax: {
+    comment: "#808080",
+    keyword: "#f17471",
+    function: "#a2bcff",
+    variable: "#aeaeae",
+    string: "#6bd586",
+    number: "#a2bcff",
+    constant: "#a2bcff",
+    type: "#f2cf76",
+    operator: "#aeaeae",
+    punctuation: "#fafafa",
+    property: "#a2bcff",
+    tag: "#6bd586",
+    attribute: "#a2bcff",
+    embedded: "#fafafa",
   },
 });

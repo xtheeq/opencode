@@ -13,6 +13,7 @@ const MD4C_FLAGS = {
   superscript: true,
   subscript: false,
   underline: false,
+  hardSoftBreaks: true,
 };
 
 export function MarkdownPart({

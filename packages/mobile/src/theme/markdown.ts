@@ -8,12 +8,12 @@ const HEADING_LINE_HEIGHT = 1.25;
 const CODE_FONT_SIZE_OFFSET = 2;
 
 const HEADING_SCALE = {
-  h1: 1.25,
-  h2: 1.125,
-  h3: 1,
-  h4: 1,
-  h5: 0.9375,
-  h6: 0.875,
+  h1: 1.75,
+  h2: 1.5,
+  h3: 1.25,
+  h4: 1.125,
+  h5: 1,
+  h6: 0.9375,
 } as const;
 
 const HEADING_WEIGHT = {
@@ -122,8 +122,9 @@ export function markdownTheme(
       markerColor: colors.text.secondary,
       markerFontWeight: "400",
       markerMinWidth: 0,
-      gapWidth: spacing.xs,
-      marginLeft: spacing.md,
+      gapWidth: spacing.sm,
+      marginLeft: spacing.lg,
+      itemSpacing: spacing.xs,
     },
     codeBlock: {
       color: colors.text.primary,
@@ -132,17 +133,17 @@ export function markdownTheme(
       lineHeight: codeLineHeight,
       marginTop: spacing.sm,
       marginBottom: spacing.sm,
-      backgroundColor: colors.background.surface,
+      backgroundColor: colors.background.inset,
       borderColor: colors.border.default,
       borderWidth: HAIRLINE,
       borderRadius: borderRadius.md,
-      padding: spacing.sm,
+      padding: spacing.md,
+      syntaxColors: colors.syntax,
     },
     code: {
       color: colors.text.primary,
-      fontSize: codeFontSize,
-      backgroundColor: colors.background.surface,
-      borderColor: colors.background.surface,
+      backgroundColor: colors.background.inset,
+      borderColor: colors.background.inset,
     },
     link: {
       color: colors.text.accent,
@@ -150,11 +151,9 @@ export function markdownTheme(
       backgroundColor: "transparent",
     },
     strong: {
-      color: colors.text.primary,
       fontWeight: "bold",
     },
     em: {
-      color: colors.text.primary,
       fontStyle: "italic",
     },
     strikethrough: { color: colors.text.secondary },
@@ -181,9 +180,9 @@ export function markdownTheme(
     },
     table: {
       color: colors.text.primary,
-      fontSize: codeFontSize,
+      fontSize: baseFontSize,
       fontWeight: "400",
-      lineHeight: codeFontSize * LINE_HEIGHT,
+      lineHeight: bodyLineHeight,
       marginTop: spacing.sm,
       marginBottom: spacing.sm,
       borderColor: colors.border.default,
@@ -194,7 +193,7 @@ export function markdownTheme(
       rowEvenBackgroundColor: colors.background.surface,
       rowOddBackgroundColor: "transparent",
       cellPaddingHorizontal: spacing.sm,
-      cellPaddingVertical: spacing.xs,
+      cellPaddingVertical: spacing.sm,
     },
     spoiler: {
       color: colors.background.surface,
@@ -211,10 +210,9 @@ export function markdownTheme(
     },
     inlineMath: { color: colors.text.primary },
     superscript: {},
-    subscript: {},
     highlight: {
       color: colors.text.primary,
-      backgroundColor: colors.background.surface,
+      backgroundColor: colors.background.highlight,
     },
   };
 }

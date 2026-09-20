@@ -1,5 +1,22 @@
 import type { TextStyle } from "react-native";
 
+export interface ThemeSyntaxColors {
+  comment: string;
+  keyword: string;
+  function: string;
+  variable: string;
+  string: string;
+  number: string;
+  constant: string;
+  type: string;
+  operator: string;
+  punctuation: string;
+  property: string;
+  tag: string;
+  attribute: string;
+  embedded: string;
+}
+
 export interface ThemeColors {
   text: {
     primary: string;
@@ -20,6 +37,7 @@ export interface ThemeColors {
     elevated: string;
     subtle: string;
     inset: string;
+    highlight: string;
     inverse: string;
     contrast: string;
     accent: string;
@@ -66,6 +84,7 @@ export interface ThemeColors {
     info: string;
     infoBackground: string;
   };
+  syntax: ThemeSyntaxColors;
 }
 
 export interface ThemeElevation {
