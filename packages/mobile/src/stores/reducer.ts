@@ -930,6 +930,7 @@ export function handleEvent(event: V2Event) {
     // and have no fork UI; registering one would fold it into the parent's
     // blocker family as if it were a subagent.
     case "models-dev.refreshed":
+    case "location.shutdown":
     case "credential.updated":
     case "credential.switched":
     case "persistent-pty.added":
