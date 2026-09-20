@@ -1,6 +1,6 @@
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
-import { useState } from "react";
+import { useRecyclingState } from "@legendapp/list/react-native";
 import {
   View,
   TouchableOpacity,
@@ -42,7 +42,10 @@ export function ReasoningGroupRow({
   completed: boolean;
 }) {
   const { colors } = useTheme();
-  const [expanded, setExpanded] = useState(!completed);
+  // Reasoning groups share a recycling pool, so plain useState would leak the
+  // previous group's expanded state into a recycled cell. useRecyclingState
+  // re-seeds from `completed` whenever the cell is assigned a different group.
+  const [expanded, setExpanded] = useRecyclingState<boolean>(() => !completed);
 
   const text = sanitize(parts.map((p) => p.text).join("\n"));
   const title = extractTitle(text);
