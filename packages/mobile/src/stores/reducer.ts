@@ -769,26 +769,29 @@ export function handleEvent(event: V2Event) {
         ).filter((item) => item.type !== "compaction");
         const messages = s.session.message[event.data.sessionID];
         if (!messages) return;
+        const completed = {
+          status: "completed" as const,
+          reason: event.data.reason,
+          model: event.data.model,
+          providerState: event.data.providerState,
+          providerContext: event.data.providerContext,
+          summary: event.data.text,
+          recent: event.data.recent,
+          cost: event.data.cost,
+          tokens: event.data.tokens,
+        };
         const position = messages.findLastIndex(
           (item) => item.type === "compaction" && item.status === "running",
         );
         const current = messages[position];
         if (current?.type === "compaction") {
-          Object.assign(current, {
-            status: "completed",
-            reason: event.data.reason,
-            summary: event.data.text,
-            recent: event.data.recent,
-          });
+          Object.assign(current, completed);
           return;
         }
         append(messages, {
           id: messageIDFromEvent(event.id),
           type: "compaction",
-          status: "completed",
-          reason: event.data.reason,
-          summary: event.data.text,
-          recent: event.data.recent,
+          ...completed,
           time: { created: event.created },
         });
       });
@@ -817,6 +820,8 @@ export function handleEvent(event: V2Event) {
           },
           metadata:
             current?.type === "compaction" ? current.metadata : event.metadata,
+          cost: event.data.cost,
+          tokens: event.data.tokens,
           time:
             current?.type === "compaction"
               ? current.time
