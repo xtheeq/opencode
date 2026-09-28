@@ -1,152 +1,45 @@
 import type {
   SessionMessageAssistant,
-  SessionMessageIdle,
   SessionMessageInfo,
   TokenUsageInfo,
 } from "@opencode/client/promise";
-import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
+import { groupEntries, type GroupNode } from "../session/rows/tree";
+import {
+  findTerminalAssistant,
+  foldTurns,
+  isTerminalAssistant,
+  type Turn,
+} from "../session/rows/turn";
+import {
+  rowKey,
+  type AssistantContentPart,
+  type CacheUsage,
+  type PartRef,
+  type SessionRow,
+} from "../types/rows";
 
-// Each message's projected rows are cached by message object identity. immer
-// preserves identity for unchanged messages, so a re-projection only rebuilds
-// rows for messages that actually changed, and unchanged rows keep their object
-// references across renders. LegendList then skips re-rendering untouched rows
-// (dataProp[i] === previousData[i]) instead of re-invoking renderItem for the
-// whole visible timeline on every streaming delta.
-const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
+// A message's structural signature depends only on the shape of its content
+// (part order, ids, tool names/status, and empty/non-empty visibility) plus its
+// terminal flags, never on text. The session signature is the ordered list of
+// per-message signatures, so a text delta leaves it unchanged and the previous
+// rows are returned untouched.
+const structureByMessage = new WeakMap<SessionMessageInfo, string>();
 
-// A message's row structure depends only on the shape of its content (part
-// order, ids, and empty/non-empty visibility) plus its terminal flags, never on
-// the text itself. When a streaming delta changes a message object but not its
-// structure, the previous rows are reused, so the active message's tool and
-// reasoning rows keep their identity and content is read live by the row view.
-type StructureEntry = { structure: string; rows: SessionRow[] };
-const STRUCTURE_CACHE_LIMIT = 512;
-const structureCache = new Map<string, StructureEntry>();
-
-function readStructure(id: string) {
-  const entry = structureCache.get(id);
-  if (entry) {
-    structureCache.delete(id);
-    structureCache.set(id, entry);
-  }
-  return entry;
-}
-
-function writeStructure(id: string, entry: StructureEntry) {
-  structureCache.delete(id);
-  structureCache.set(id, entry);
-  if (structureCache.size > STRUCTURE_CACHE_LIMIT) {
-    const oldest = structureCache.keys().next().value;
-    if (oldest !== undefined) structureCache.delete(oldest);
-  }
-}
-
-// Returning the identical rows array when nothing structural changed keeps the
-// LegendList data reference stable across content deltas.
-let lastOrderKey = "";
-let lastRows: SessionRow[] = [];
-
-// Diagnostic counters for the projection baseline.
-export type ProjectionStats = {
-  runs: number;
-  projectedMessages: number;
-  cachedMessages: number;
-  reusedMessages: number;
-};
-
-export const projectionStats: ProjectionStats = {
-  runs: 0,
-  projectedMessages: 0,
-  cachedMessages: 0,
-  reusedMessages: 0,
-};
-
-export function resetProjectionStats() {
-  projectionStats.runs = 0;
-  projectionStats.projectedMessages = 0;
-  projectionStats.cachedMessages = 0;
-  projectionStats.reusedMessages = 0;
-}
-
-type NonAssistantMessage = Exclude<
-  SessionMessageInfo,
-  SessionMessageAssistant | SessionMessageIdle
->;
-
-export function projectRows(
-  messages: SessionMessageInfo[],
-  options?: {
-    turnTokens?: boolean;
-    inputs?: Set<string>;
-  },
-): SessionRow[] {
-  projectionStats.runs += 1;
-  const inputs = options?.inputs ?? new Set<string>();
-  const turnTokens = options?.turnTokens ?? false;
-
-  const isInput = (message: SessionMessageInfo) => inputs.has(message.id);
-
-  const pendingCompactions = messages.filter(
-    (message) => message.type === "compaction" && message.status === "running",
-  );
-
-  const pending = new Set([
-    ...pendingCompactions.map((message) => message.id),
-    ...inputs,
-  ]);
-
-  const ordered = [
-    ...messages.filter((message) => !pending.has(message.id)),
-    ...pendingCompactions,
-    ...messages.filter(isInput),
-  ];
-
-  if (turnTokens) return projectWithUsage(ordered);
-
-  const reuseArray = inputs.size === 0;
-  const orderKey = reuseArray ? ordered.map((message) => message.id).join("\n") : "";
-  const rows: SessionRow[] = [];
-  let changed = false;
-
-  for (const message of ordered) {
-    const cached = projectionCache.get(message);
-    if (cached) {
-      projectionStats.cachedMessages += 1;
-      rows.push(...cached);
-      continue;
-    }
-    const structure = messageStructure(message);
-    const prior = readStructure(message.id);
-    if (prior?.structure === structure) {
-      projectionStats.reusedMessages += 1;
-      projectionCache.set(message, prior.rows);
-      rows.push(...prior.rows);
-      continue;
-    }
-    changed = true;
-    projectionStats.projectedMessages += 1;
-    const projected = projectMessage(message);
-    writeStructure(message.id, { structure, rows: projected });
-    projectionCache.set(message, projected);
-    rows.push(...projected);
-  }
-
-  if (reuseArray && !changed && orderKey === lastOrderKey) return lastRows;
-  if (reuseArray) {
-    lastOrderKey = orderKey;
-    lastRows = rows;
-  }
-  return rows;
-}
-
-// Content shape of a message, excluding text/state values. Two messages with the
-// same structure project to the same rows.
 function messageStructure(message: SessionMessageInfo): string {
+  const cached = structureByMessage.get(message);
+  if (cached !== undefined) return cached;
+  const structure = computeStructure(message);
+  structureByMessage.set(message, structure);
+  return structure;
+}
+
+function computeStructure(message: SessionMessageInfo): string {
   if (message.type === "assistant") {
     let text = 0;
     let reasoning = 0;
     const parts = message.content.map((part) => {
-      if (part.type === "tool") return `t:${part.id}:${part.name}`;
+      if (part.type === "tool")
+        return `t:${part.id}:${part.name}:${part.state.status}`;
       const ordinal = part.type === "text" ? text++ : reasoning++;
       return `${part.type}:${ordinal}:${part.text.trim() ? 1 : 0}`;
     });
@@ -162,157 +55,263 @@ function messageStructure(message: SessionMessageInfo): string {
   return message.type;
 }
 
-// Each message's projection is self-contained: reasoning/exploration parts
-// group only with adjacent same-type parts of the same message, so projected
-// rows never depend on neighboring messages and cache entries stay valid.
-function projectMessage(message: SessionMessageInfo): SessionRow[] {
-  if (message.type !== "assistant") {
-    if (message.type === "synthetic" && !message.description?.trim()) return [];
-    if (message.type === "idle") return [];
-    return [messageToRow(message)];
+function sessionStructure(messages: SessionMessageInfo[]): string {
+  let result = "";
+  for (const message of messages)
+    result += `${message.id}:${messageStructure(message)}\n`;
+  return result;
+}
+
+let lastSignature = "";
+let lastRows: SessionRow[] = [];
+
+// Diagnostic counters for the projection baseline.
+export type ProjectionStats = {
+  runs: number;
+  projections: number;
+  cached: number;
+};
+
+export const projectionStats: ProjectionStats = {
+  runs: 0,
+  projections: 0,
+  cached: 0,
+};
+
+export function resetProjectionStats() {
+  projectionStats.runs = 0;
+  projectionStats.projections = 0;
+  projectionStats.cached = 0;
+}
+
+type TurnEntry =
+  | { kind: "part"; ref: PartRef; part: AssistantContentPart }
+  | { kind: "row"; row: SessionRow };
+
+export function projectRows(
+  messages: SessionMessageInfo[],
+  options?: {
+    turnTokens?: boolean;
+    inputs?: Set<string>;
+  },
+): SessionRow[] {
+  projectionStats.runs += 1;
+  const inputs = options?.inputs ?? new Set<string>();
+  const turnTokens = options?.turnTokens ?? false;
+
+  const pendingCompactions = messages.filter(
+    (message) => message.type === "compaction" && message.status === "running",
+  );
+  const pending = new Set([
+    ...pendingCompactions.map((message) => message.id),
+    ...inputs,
+  ]);
+  const ordered = [
+    ...messages.filter((message) => !pending.has(message.id)),
+    ...pendingCompactions,
+    ...messages.filter((message) => inputs.has(message.id)),
+  ];
+
+  if (turnTokens) {
+    projectionStats.projections += 1;
+    return projectWithUsage(ordered);
   }
 
-  const rows: SessionRow[] = [];
-  const ordinals = { text: 0, reasoning: 0 };
-
-  message.content.forEach((part) => {
-    const partID =
-      part.type === "tool" ? part.id : `${part.type}:${ordinals[part.type]++}`;
-
-    if (
-      (part.type === "text" || part.type === "reasoning") &&
-      !part.text.trim()
-    )
-      return;
-
-    if (part.type === "reasoning") {
-      appendReasoning(rows, message.id, partID);
-    } else if (part.type === "tool" && isExploration(part.name)) {
-      appendExploration(rows, message.id, partID);
-    } else {
-      completePrevious(rows);
-      rows.push({
-        type: "assistant-part",
-        messageID: message.id,
-        partID,
-        kind: part.type,
-      });
-    }
-  });
-
-  const terminal =
-    (message.finish && !["tool-calls", "unknown"].includes(message.finish)) ||
-    message.error;
-
-  if (terminal || message.retry) {
-    completePrevious(rows);
-    rows.push({ type: "assistant-footer", messageID: message.id });
+  const signature = sessionStructure(ordered);
+  if (signature === lastSignature) {
+    projectionStats.cached += 1;
+    return lastRows;
   }
-
+  projectionStats.projections += 1;
+  const rows = reuseRows(lastRows, projectOrdered(ordered));
+  lastSignature = signature;
+  lastRows = rows;
   return rows;
 }
 
-// Turn-token rows fold state across messages, so they bypass the per-message
-// cache. Grouping semantics match projectMessage (message-scoped groups).
+function projectOrdered(messages: SessionMessageInfo[]): SessionRow[] {
+  const rows: SessionRow[] = [];
+  const { leading, turns } = foldTurns(messages);
+  for (const message of leading) {
+    const row = noticeRow(message);
+    if (row) rows.push(row);
+  }
+  for (const turn of turns) rows.push(...projectTurn(turn));
+  return rows;
+}
+
+function projectTurn(turn: Turn): SessionRow[] {
+  const rows: SessionRow[] = [];
+  if (turn.userMessageID)
+    rows.push({ type: "user-message", messageID: turn.userMessageID });
+  if (turn.shellMessageID)
+    rows.push({ type: "shell-message", messageID: turn.shellMessageID });
+
+  const entries: TurnEntry[] = [];
+  for (const message of turn.messages) {
+    if (message.type === "assistant") {
+      entries.push(...assistantEntries(message));
+      continue;
+    }
+    const row = noticeRow(message);
+    if (row) entries.push({ kind: "row", row });
+  }
+
+  const nodes = groupEntries(entries, entryPath);
+  const ended = turn.messages.some(
+    (message) =>
+      message.type === "assistant" &&
+      (isTerminalAssistant(message) || Boolean(message.retry)),
+  );
+  nodes.forEach((node, index) => {
+    if (node.type === "entry") {
+      rows.push(entryRow(node.entry));
+      return;
+    }
+    rows.push({
+      type: "activity-group",
+      parts: collectRefs(node),
+      completed: index < nodes.length - 1 || ended,
+    });
+  });
+
+  const terminal = findTerminalAssistant(turn);
+  if (terminal) rows.push({ type: "assistant-footer", messageID: terminal.id });
+  return rows;
+}
+
+function assistantEntries(message: SessionMessageAssistant): TurnEntry[] {
+  const entries: TurnEntry[] = [];
+  const ordinals = { text: 0, reasoning: 0 };
+  for (const part of message.content) {
+    const partID =
+      part.type === "tool" ? part.id : `${part.type}:${ordinals[part.type]++}`;
+    if ((part.type === "text" || part.type === "reasoning") && !part.text.trim())
+      continue;
+    entries.push({ kind: "part", ref: { messageID: message.id, partID }, part });
+  }
+  return entries;
+}
+
+// Text and standalone tools (questions, errors) break an activity run; every
+// other reasoning/tool part folds into the surrounding activity group.
+function entryPath(entry: TurnEntry): readonly "activity"[] {
+  if (entry.kind === "row") return [];
+  const part = entry.part;
+  if (part.type !== "tool") return part.type === "text" ? [] : ["activity"];
+  if (part.name === "question") return [];
+  if (part.state.status === "error") return [];
+  return ["activity"];
+}
+
+function entryRow(entry: TurnEntry): SessionRow {
+  if (entry.kind === "row") return entry.row;
+  return {
+    type: "assistant-part",
+    messageID: entry.ref.messageID,
+    partID: entry.ref.partID,
+    kind: entry.part.type,
+  };
+}
+
+type ActivityGroupNode = Extract<
+  GroupNode<TurnEntry, "activity">,
+  { type: "group" }
+>;
+
+function collectRefs(node: ActivityGroupNode): PartRef[] {
+  return node.children.flatMap((child) => {
+    if (child.type === "entry") {
+      return child.entry.kind === "part" ? [child.entry.ref] : [];
+    }
+    return collectRefs(child);
+  });
+}
+
+function noticeRow(message: SessionMessageInfo): SessionRow | undefined {
+  if (message.type === "synthetic")
+    return message.description?.trim()
+      ? { type: "system-message", messageID: message.id }
+      : undefined;
+  if (message.type === "user")
+    return { type: "user-message", messageID: message.id };
+  if (message.type === "shell")
+    return { type: "shell-message", messageID: message.id };
+  if (message.type === "compaction")
+    return { type: "compaction-message", messageID: message.id };
+  if (message.type === "assistant" || message.type === "idle") return undefined;
+  return { type: "system-message", messageID: message.id };
+}
+
+// Reuses a previous row object when the new row has the same key and structure,
+// so a rebuild triggered by one tool's status change does not re-render every
+// other row.
+function reuseRows(previous: SessionRow[], next: SessionRow[]): SessionRow[] {
+  if (previous.length === 0) return next;
+  const byKey = new Map<string, SessionRow>();
+  for (const row of previous) byKey.set(rowKey(row), row);
+  return next.map((row) => {
+    const prior = byKey.get(rowKey(row));
+    return prior && rowSignature(prior) === rowSignature(row) ? prior : row;
+  });
+}
+
+function rowSignature(row: SessionRow): string {
+  switch (row.type) {
+    case "user-message":
+      return `user|${row.messageID}`;
+    case "assistant-part":
+      return `part|${row.messageID}|${row.partID}|${row.kind}`;
+    case "activity-group":
+      return `activity|${row.completed}|${row.parts
+        .map((ref) => `${ref.messageID}:${ref.partID}`)
+        .join(",")}`;
+    case "assistant-footer":
+      return `footer|${row.messageID}`;
+    case "system-message":
+      return `system|${row.messageID}`;
+    case "shell-message":
+      return `shell|${row.messageID}`;
+    case "compaction-message":
+      return `compaction|${row.messageID}`;
+    case "turn-usage":
+      return `usage|${row.messageIDs.join(",")}|${row.previousCache ? JSON.stringify(row.previousCache) : ""}`;
+  }
+}
+
+// Turn-token rows fold state across messages and are only used for diagnostics.
 function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
+  const rows = projectOrdered(ordered);
   const usage: {
     steps: SessionMessageAssistant[];
     previousTurnCache: CacheUsage | undefined;
   } = { steps: [], previousTurnCache: undefined };
 
-  const rows: SessionRow[] = [];
   for (const message of ordered) {
-    if (message.type !== "assistant") {
-      if (message.type === "synthetic" && !message.description?.trim())
-        continue;
-      if (message.type === "idle") continue;
-      if (message.type === "compaction" && message.status === "completed")
-        usage.previousTurnCache = undefined;
-      rows.push(messageToRow(message));
-      continue;
-    }
-
+    if (message.type === "compaction" && message.status === "completed")
+      usage.previousTurnCache = undefined;
+    if (message.type !== "assistant") continue;
     usage.steps.push(message);
-    projectionStats.projectedMessages += 1;
-    rows.push(...projectMessage(message));
+    if (!isTerminalAssistant(message)) continue;
 
-    const terminal =
-      (message.finish && !["tool-calls", "unknown"].includes(message.finish)) ||
-      message.error;
-
-    if (terminal) {
-      const stepsWithUsage = usage.steps.filter(hasTokenUsage);
-      const last = stepsWithUsage.at(-1);
-      if (last) {
-        rows.push({
-          type: "turn-usage",
-          messageIDs: stepsWithUsage.map((step) => step.id),
-          ...(usage.previousTurnCache === undefined
-            ? {}
-            : { previousCache: usage.previousTurnCache }),
-        });
-        usage.previousTurnCache = {
-          read: last.tokens.cache.read,
-          model: last.model,
-        };
-      }
-      usage.steps.length = 0;
+    const stepsWithUsage = usage.steps.filter(hasTokenUsage);
+    const last = stepsWithUsage.at(-1);
+    if (last) {
+      rows.push({
+        type: "turn-usage",
+        messageIDs: stepsWithUsage.map((step) => step.id),
+        ...(usage.previousTurnCache === undefined
+          ? {}
+          : { previousCache: usage.previousTurnCache }),
+      });
+      usage.previousTurnCache = {
+        read: last.tokens.cache.read,
+        model: last.model,
+      };
     }
+    usage.steps.length = 0;
   }
   return rows;
-}
-
-function messageToRow(message: NonAssistantMessage): SessionRow {
-  switch (message.type) {
-    case "user":
-      return { type: "user-message", messageID: message.id };
-    case "shell":
-      return { type: "shell-message", messageID: message.id };
-    case "compaction":
-      return { type: "compaction-message", messageID: message.id };
-    default:
-      return { type: "system-message", messageID: message.id };
-  }
-}
-
-function completePrevious(rows: SessionRow[]) {
-  const prev = rows[rows.length - 1];
-  if (prev?.type === "reasoning-group") {
-    prev.completed = true;
-  }
-}
-
-function appendReasoning(
-  rows: SessionRow[],
-  messageID: string,
-  partID: string,
-) {
-  const prev = rows[rows.length - 1];
-  if (prev?.type === "reasoning-group") {
-    prev.parts.push({ messageID, partID });
-    return;
-  }
-  completePrevious(rows);
-  rows.push({
-    type: "reasoning-group",
-    messageID,
-    parts: [{ messageID, partID }],
-    completed: false,
-  });
-}
-
-function appendExploration(
-  rows: SessionRow[],
-  messageID: string,
-  partID: string,
-) {
-  const prev = rows[rows.length - 1];
-  if (prev?.type === "exploration-group") {
-    prev.parts.push({ messageID, partID });
-    return;
-  }
-  completePrevious(rows);
-  rows.push({ type: "exploration-group", parts: [{ messageID, partID }] });
 }
 
 function hasTokenUsage(

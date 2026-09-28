@@ -63,17 +63,13 @@ test("keeps the rows array identity across a text delta", () => {
   expect(second).toBe(first);
 });
 
-test("keeps the streaming message's non-text rows stable across a text delta", () => {
+test("keeps the streaming message's activity rows stable across a text delta", () => {
   const first = projectRows([assistantWithText("a2", "one")]);
   const second = projectRows([assistantWithText("a2", "two")]);
 
-  const firstReasoning = first.find((row) => row.type === "reasoning-group");
-  const secondReasoning = second.find((row) => row.type === "reasoning-group");
-  expect(secondReasoning).toBe(firstReasoning);
-
-  const firstExploration = first.find((row) => row.type === "exploration-group");
-  const secondExploration = second.find((row) => row.type === "exploration-group");
-  expect(secondExploration).toBe(firstExploration);
+  const firstActivity = first.find((row) => row.type === "activity-group");
+  const secondActivity = second.find((row) => row.type === "activity-group");
+  expect(secondActivity).toBe(firstActivity);
 });
 
 test("keeps non-streaming rows stable across a text delta", () => {
@@ -87,19 +83,24 @@ test("reprojects when the part structure changes", () => {
   const first = projectRows([assistantWithText("a4", "one")]);
   const second = projectRows([assistantWithExtraTool("a4", "one")]);
   expect(second).not.toBe(first);
-  expect(second.map((row) => row.type)).not.toEqual(
-    first.map((row) => row.type),
-  );
+
+  const firstActivity = first.find((row) => row.type === "activity-group");
+  const secondActivity = second.find((row) => row.type === "activity-group");
+  if (
+    firstActivity?.type !== "activity-group" ||
+    secondActivity?.type !== "activity-group"
+  )
+    throw new Error("expected activity groups");
+  expect(secondActivity.parts.length).toBe(firstActivity.parts.length + 1);
 });
 
-test("counts one run and structure reuse per text delta", () => {
+test("counts one run and a cached signature per text delta", () => {
   const message = userMessage();
   projectRows([message, assistantWithText("a5", "one")]);
 
   const mark = { ...projectionStats };
   projectRows([message, assistantWithText("a5", "two")]);
   expect(projectionStats.runs - mark.runs).toBe(1);
-  expect(projectionStats.projectedMessages - mark.projectedMessages).toBe(0);
-  expect(projectionStats.cachedMessages - mark.cachedMessages).toBe(1);
-  expect(projectionStats.reusedMessages - mark.reusedMessages).toBe(1);
+  expect(projectionStats.projections - mark.projections).toBe(0);
+  expect(projectionStats.cached - mark.cached).toBe(1);
 });

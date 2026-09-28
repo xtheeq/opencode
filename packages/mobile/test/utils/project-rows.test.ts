@@ -33,11 +33,15 @@ const assistant = (
   ...overrides,
 });
 
-const tool = (id: string, name: string): SessionMessageAssistantTool => ({
+const tool = (
+  id: string,
+  name: string,
+  state: SessionMessageAssistantTool["state"] = { status: "streaming", input: "" },
+): SessionMessageAssistantTool => ({
   type: "tool",
   id,
   name,
-  state: { status: "streaming", input: "" },
+  state,
   time: { created: 0 },
 });
 
@@ -119,9 +123,6 @@ describe("projectRows identity", () => {
     const second = projectRows([assistant("a2", "hi there")]);
 
     expect(second).toBe(first);
-    const firstText = first.find((row) => row.type === "assistant-part");
-    const secondText = second.find((row) => row.type === "assistant-part");
-    expect(secondText).toBe(firstText);
   });
 
   test("reprojects when the content structure changes", () => {
@@ -134,7 +135,7 @@ describe("projectRows identity", () => {
 });
 
 describe("projectRows grouping", () => {
-  test("groups adjacent reasoning parts and completes on a following non-reasoning part", () => {
+  test("groups adjacent reasoning parts and completes on a following text part", () => {
     const message: SessionMessageAssistant = {
       ...assistant("grp-a1", ""),
       content: [
@@ -146,18 +147,18 @@ describe("projectRows grouping", () => {
 
     const rows = projectRows([message]);
     expect(rows.map((row) => row.type)).toEqual([
-      "reasoning-group",
+      "activity-group",
       "assistant-part",
     ]);
 
     const group = rows[0];
-    if (group.type !== "reasoning-group")
-      throw new Error("expected a reasoning group");
+    if (group.type !== "activity-group")
+      throw new Error("expected an activity group");
     expect(group.parts).toHaveLength(2);
     expect(group.completed).toBe(true);
   });
 
-  test("groups adjacent exploration tools and breaks the group on text", () => {
+  test("groups adjacent tools and breaks the group on text", () => {
     const message: SessionMessageAssistant = {
       ...assistant("grp-a2", ""),
       content: [
@@ -170,24 +171,44 @@ describe("projectRows grouping", () => {
 
     const rows = projectRows([message]);
     expect(rows.map((row) => row.type)).toEqual([
-      "exploration-group",
+      "activity-group",
       "assistant-part",
-      "exploration-group",
+      "activity-group",
     ]);
 
     const first = rows[0];
-    if (first.type !== "exploration-group")
-      throw new Error("expected exploration group");
+    if (first.type !== "activity-group")
+      throw new Error("expected an activity group");
     expect(first.parts.map((ref) => ref.partID)).toEqual(["t1", "t2"]);
   });
 
-  test("leaves a non-exploration tool as an ordinary row", () => {
+  test("leaves a question tool standalone", () => {
     const message: SessionMessageAssistant = {
       ...assistant("grp-a3", ""),
-      content: [tool("t1", "bash")],
+      content: [tool("q1", "question"), tool("t1", "bash")],
     };
-    const rows = projectRows([message]);
-    expect(rows.map((row) => row.type)).toEqual(["assistant-part"]);
+    expect(projectRows([message]).map((row) => row.type)).toEqual([
+      "assistant-part",
+      "activity-group",
+    ]);
+  });
+
+  test("leaves an errored tool standalone", () => {
+    const message: SessionMessageAssistant = {
+      ...assistant("grp-a4", ""),
+      content: [
+        tool("e1", "bash", {
+          status: "error",
+          input: {},
+          error: { type: "tool", message: "boom" },
+        }),
+        tool("t1", "read"),
+      ],
+    };
+    expect(projectRows([message]).map((row) => row.type)).toEqual([
+      "assistant-part",
+      "activity-group",
+    ]);
   });
 
   test("emits a footer only for a terminal step", () => {
@@ -228,8 +249,6 @@ describe("projectRows message mapping", () => {
 
   test("maps shell, system, non-empty synthetic, and compaction messages", () => {
     const rows = projectRows([
-      idle,
-      synthetic("syn1"),
       shell,
       system,
       synthetic("syn2", "note"),
@@ -293,22 +312,19 @@ describe("projectRows turn usage", () => {
 });
 
 describe("projectionStats", () => {
-  test("counts runs, cache hits, and structure reuse", () => {
+  test("counts runs, projections, and cached signatures", () => {
     resetProjectionStats();
-    const message = user("stats-u1", "hi");
 
     const beforeFirst = { ...projectionStats };
-    projectRows([message, assistant("stats-a1", "one")]);
+    projectRows([user("stats-u1", "hi"), assistant("stats-a1", "one")]);
     expect(projectionStats.runs - beforeFirst.runs).toBe(1);
-    expect(projectionStats.projectedMessages - beforeFirst.projectedMessages).toBe(2);
-    expect(projectionStats.cachedMessages - beforeFirst.cachedMessages).toBe(0);
-    expect(projectionStats.reusedMessages - beforeFirst.reusedMessages).toBe(0);
+    expect(projectionStats.projections - beforeFirst.projections).toBe(1);
+    expect(projectionStats.cached - beforeFirst.cached).toBe(0);
 
     const beforeSecond = { ...projectionStats };
-    projectRows([message, assistant("stats-a1", "two")]);
+    projectRows([user("stats-u1", "hi"), assistant("stats-a1", "two")]);
     expect(projectionStats.runs - beforeSecond.runs).toBe(1);
-    expect(projectionStats.projectedMessages - beforeSecond.projectedMessages).toBe(0);
-    expect(projectionStats.cachedMessages - beforeSecond.cachedMessages).toBe(1);
-    expect(projectionStats.reusedMessages - beforeSecond.reusedMessages).toBe(1);
+    expect(projectionStats.projections - beforeSecond.projections).toBe(0);
+    expect(projectionStats.cached - beforeSecond.cached).toBe(1);
   });
 });

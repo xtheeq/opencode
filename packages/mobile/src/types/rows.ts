@@ -1,13 +1,7 @@
 import type {
-  SessionMessageAgentSelected,
   SessionMessageAssistantReasoning,
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
-  SessionMessageLocationSwitched,
-  SessionMessageModelSelected,
-  SessionMessageSkill,
-  SessionMessageSynthetic,
-  SessionMessageSystem,
 } from "@opencode/client/promise";
 
 export type CacheUsage = {
@@ -15,28 +9,10 @@ export type CacheUsage = {
   model: { id: string; providerID: string; variant?: string };
 };
 
-export const EXPLORATION_TOOLS = new Set(["read", "glob", "grep"]);
-
-export function isExploration(name: string) {
-  return EXPLORATION_TOOLS.has(name.toLowerCase());
-}
-
 export type AssistantContentPart =
   | SessionMessageAssistantText
   | SessionMessageAssistantReasoning
   | SessionMessageAssistantTool;
-
-export type ReasoningPart = SessionMessageAssistantReasoning;
-
-export type ToolPart = SessionMessageAssistantTool;
-
-export type Systemish =
-  | SessionMessageAgentSelected
-  | SessionMessageLocationSwitched
-  | SessionMessageModelSelected
-  | SessionMessageSynthetic
-  | SessionMessageSystem
-  | SessionMessageSkill;
 
 // A content part addressed by reference. Text/reasoning parts use their ordinal
 // (`text:0`, `reasoning:1`); tools use their own id.
@@ -54,12 +30,10 @@ export type SessionRow =
       kind: AssistantContentPart["type"];
     }
   | {
-      type: "reasoning-group";
-      messageID: string;
+      type: "activity-group";
       parts: PartRef[];
       completed: boolean;
     }
-  | { type: "exploration-group"; parts: PartRef[] }
   | { type: "assistant-footer"; messageID: string }
   | {
       type: "turn-usage";
@@ -76,10 +50,8 @@ export function rowKey(row: SessionRow): string {
       return `user:${row.messageID}`;
     case "assistant-part":
       return `part:${row.messageID}:${row.partID}`;
-    case "reasoning-group":
-      return `reasoning:${row.messageID}:${row.parts[0]?.partID}`;
-    case "exploration-group":
-      return `exploration:${row.parts[0]?.messageID}:${row.parts[0]?.partID}`;
+    case "activity-group":
+      return `activity:${row.parts[0]?.messageID}:${row.parts[0]?.partID}`;
     case "assistant-footer":
       return `footer:${row.messageID}`;
     case "system-message":
