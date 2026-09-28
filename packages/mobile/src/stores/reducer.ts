@@ -372,6 +372,10 @@ export function handleEvent(event: V2Event) {
           existing.retry = undefined;
           existing.error = undefined;
           existing.finish = undefined;
+          existing.rawFinish = undefined;
+          existing.providerState = undefined;
+          existing.time.created = event.data.started;
+          existing.time.streamed = undefined;
           existing.time.completed = undefined;
           if (event.data.snapshot)
             existing.snapshot = {
@@ -395,7 +399,7 @@ export function handleEvent(event: V2Event) {
           snapshot: event.data.snapshot
             ? { start: event.data.snapshot }
             : undefined,
-          time: { created: event.created },
+          time: { created: event.data.started },
         });
       });
       break;
@@ -423,6 +427,8 @@ export function handleEvent(event: V2Event) {
         if (!currentAssistant) return;
         currentAssistant.time.completed = event.created;
         currentAssistant.finish = event.data.finish;
+        currentAssistant.rawFinish = event.data.rawFinish;
+        currentAssistant.providerState = event.data.providerState;
         currentAssistant.cost = event.data.cost;
         currentAssistant.tokens = event.data.tokens;
         if (event.data.snapshot)
@@ -443,7 +449,9 @@ export function handleEvent(event: V2Event) {
         );
         if (!currentAssistant) return;
         currentAssistant.time.completed = event.created;
-        currentAssistant.finish = "error";
+        currentAssistant.finish = event.data.finish ?? "error";
+        currentAssistant.rawFinish = event.data.rawFinish;
+        currentAssistant.providerState = event.data.providerState;
         currentAssistant.error = event.data.error;
         currentAssistant.retry = undefined;
         if (event.data.cost !== undefined && event.data.tokens !== undefined) {
@@ -594,10 +602,12 @@ export function handleEvent(event: V2Event) {
             match.state.status !== "running")
         )
           return;
+        const input =
+          typeof match.state.input === "string" ? {} : match.state.input;
         match.state = {
           status: "error",
           error: event.data.error,
-          input: {},
+          input,
           metadata: event.data.metadata,
           content: event.data.content,
         };
