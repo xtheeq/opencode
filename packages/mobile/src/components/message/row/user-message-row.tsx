@@ -1,10 +1,18 @@
-import type { SessionMessageUser } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { UserMessage } from "../user-message";
 import { spacing, borderRadius as br, useTheme } from "@/theme";
+import { useSessionMessage } from "@/hooks/use-row-content";
 
-export function UserMessageRow({ message }: { message: SessionMessageUser }) {
+export function UserMessageRow({
+  sessionID,
+  messageID,
+}: {
+  sessionID: string;
+  messageID: string;
+}) {
   const { colors } = useTheme();
+  const message = useSessionMessage(sessionID, messageID);
+  if (message?.type !== "user") return null;
   return (
     <BubbleContainer
       alignment="flex-end"

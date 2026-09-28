@@ -1,10 +1,18 @@
-import type { SessionMessageAssistant } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { TextPart, ReasoningPart, ToolPart } from "../parts";
+import { useSessionPart } from "@/hooks/use-row-content";
 
-type ContentPart = SessionMessageAssistant["content"][number];
-
-export function AssistantPartRow({ part }: { part: ContentPart }) {
+export function AssistantPartRow({
+  sessionID,
+  messageID,
+  partID,
+}: {
+  sessionID: string;
+  messageID: string;
+  partID: string;
+}) {
+  const part = useSessionPart(sessionID, messageID, partID);
+  if (!part) return null;
   return (
     <BubbleContainer alignment="flex-start" fullWidth>
       {part.type === "text" && <TextPart part={part} />}

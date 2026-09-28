@@ -1,7 +1,5 @@
 import type {
   SessionMessageAssistant,
-  SessionMessageAssistantReasoning,
-  SessionMessageAssistantTool,
   SessionMessageIdle,
   SessionMessageInfo,
   TokenUsageInfo,
@@ -16,22 +14,58 @@ import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 // whole visible timeline on every streaming delta.
 const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
 
+// A message's row structure depends only on the shape of its content (part
+// order, ids, and empty/non-empty visibility) plus its terminal flags, never on
+// the text itself. When a streaming delta changes a message object but not its
+// structure, the previous rows are reused, so the active message's tool and
+// reasoning rows keep their identity and content is read live by the row view.
+type StructureEntry = { structure: string; rows: SessionRow[] };
+const STRUCTURE_CACHE_LIMIT = 512;
+const structureCache = new Map<string, StructureEntry>();
+
+function readStructure(id: string) {
+  const entry = structureCache.get(id);
+  if (entry) {
+    structureCache.delete(id);
+    structureCache.set(id, entry);
+  }
+  return entry;
+}
+
+function writeStructure(id: string, entry: StructureEntry) {
+  structureCache.delete(id);
+  structureCache.set(id, entry);
+  if (structureCache.size > STRUCTURE_CACHE_LIMIT) {
+    const oldest = structureCache.keys().next().value;
+    if (oldest !== undefined) structureCache.delete(oldest);
+  }
+}
+
+// Returning the identical rows array when nothing structural changed keeps the
+// LegendList data reference stable across content deltas.
+let lastOrderKey = "";
+let lastRows: SessionRow[] = [];
+
+// Diagnostic counters for the projection baseline.
 export type ProjectionStats = {
   runs: number;
   projectedMessages: number;
   cachedMessages: number;
+  reusedMessages: number;
 };
 
 export const projectionStats: ProjectionStats = {
   runs: 0,
   projectedMessages: 0,
   cachedMessages: 0,
+  reusedMessages: 0,
 };
 
 export function resetProjectionStats() {
   projectionStats.runs = 0;
   projectionStats.projectedMessages = 0;
   projectionStats.cachedMessages = 0;
+  projectionStats.reusedMessages = 0;
 }
 
 type NonAssistantMessage = Exclude<
@@ -69,7 +103,11 @@ export function projectRows(
 
   if (turnTokens) return projectWithUsage(ordered);
 
+  const reuseArray = inputs.size === 0;
+  const orderKey = reuseArray ? ordered.map((message) => message.id).join("\n") : "";
   const rows: SessionRow[] = [];
+  let changed = false;
+
   for (const message of ordered) {
     const cached = projectionCache.get(message);
     if (cached) {
@@ -77,12 +115,51 @@ export function projectRows(
       rows.push(...cached);
       continue;
     }
+    const structure = messageStructure(message);
+    const prior = readStructure(message.id);
+    if (prior?.structure === structure) {
+      projectionStats.reusedMessages += 1;
+      projectionCache.set(message, prior.rows);
+      rows.push(...prior.rows);
+      continue;
+    }
+    changed = true;
     projectionStats.projectedMessages += 1;
     const projected = projectMessage(message);
+    writeStructure(message.id, { structure, rows: projected });
     projectionCache.set(message, projected);
     rows.push(...projected);
   }
+
+  if (reuseArray && !changed && orderKey === lastOrderKey) return lastRows;
+  if (reuseArray) {
+    lastOrderKey = orderKey;
+    lastRows = rows;
+  }
   return rows;
+}
+
+// Content shape of a message, excluding text/state values. Two messages with the
+// same structure project to the same rows.
+function messageStructure(message: SessionMessageInfo): string {
+  if (message.type === "assistant") {
+    let text = 0;
+    let reasoning = 0;
+    const parts = message.content.map((part) => {
+      if (part.type === "tool") return `t:${part.id}:${part.name}`;
+      const ordinal = part.type === "text" ? text++ : reasoning++;
+      return `${part.type}:${ordinal}:${part.text.trim() ? 1 : 0}`;
+    });
+    return [
+      message.finish ?? "",
+      message.error ? 1 : 0,
+      message.retry ? 1 : 0,
+      parts.join(","),
+    ].join("|");
+  }
+  if (message.type === "synthetic")
+    return `synthetic:${message.description?.trim() ? 1 : 0}`;
+  return message.type;
 }
 
 // Each message's projection is self-contained: reasoning/exploration parts
@@ -109,12 +186,17 @@ function projectMessage(message: SessionMessageInfo): SessionRow[] {
       return;
 
     if (part.type === "reasoning") {
-      appendReasoning(rows, message, part, partID);
+      appendReasoning(rows, message.id, partID);
     } else if (part.type === "tool" && isExploration(part.name)) {
-      appendExploration(rows, part);
+      appendExploration(rows, message.id, partID);
     } else {
       completePrevious(rows);
-      rows.push({ type: "assistant-part", message, part, partID });
+      rows.push({
+        type: "assistant-part",
+        messageID: message.id,
+        partID,
+        kind: part.type,
+      });
     }
   });
 
@@ -124,7 +206,7 @@ function projectMessage(message: SessionMessageInfo): SessionRow[] {
 
   if (terminal || message.retry) {
     completePrevious(rows);
-    rows.push({ type: "assistant-footer", message });
+    rows.push({ type: "assistant-footer", messageID: message.id });
   }
 
   return rows;
@@ -183,13 +265,13 @@ function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
 function messageToRow(message: NonAssistantMessage): SessionRow {
   switch (message.type) {
     case "user":
-      return { type: "user-message", message };
+      return { type: "user-message", messageID: message.id };
     case "shell":
-      return { type: "shell-message", message };
+      return { type: "shell-message", messageID: message.id };
     case "compaction":
-      return { type: "compaction-message", message };
+      return { type: "compaction-message", messageID: message.id };
     default:
-      return { type: "system-message", message };
+      return { type: "system-message", messageID: message.id };
   }
 }
 
@@ -202,36 +284,35 @@ function completePrevious(rows: SessionRow[]) {
 
 function appendReasoning(
   rows: SessionRow[],
-  message: SessionMessageAssistant,
-  part: SessionMessageAssistantReasoning,
+  messageID: string,
   partID: string,
 ) {
   const prev = rows[rows.length - 1];
   if (prev?.type === "reasoning-group") {
-    prev.parts.push(part);
+    prev.parts.push({ messageID, partID });
     return;
   }
   completePrevious(rows);
   rows.push({
     type: "reasoning-group",
-    message,
-    parts: [part],
-    firstPartID: partID,
+    messageID,
+    parts: [{ messageID, partID }],
     completed: false,
   });
 }
 
 function appendExploration(
   rows: SessionRow[],
-  part: SessionMessageAssistantTool,
+  messageID: string,
+  partID: string,
 ) {
   const prev = rows[rows.length - 1];
   if (prev?.type === "exploration-group") {
-    prev.parts.push(part);
+    prev.parts.push({ messageID, partID });
     return;
   }
   completePrevious(rows);
-  rows.push({ type: "exploration-group", parts: [part] });
+  rows.push({ type: "exploration-group", parts: [{ messageID, partID }] });
 }
 
 function hasTokenUsage(

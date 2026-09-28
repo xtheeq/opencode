@@ -7,12 +7,15 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from "react-native";
-import type { SessionMessageAssistant } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { Text } from "@/components/primitives";
 import { MarkdownPart } from "@/components/markdown";
 import { spacing, typography, useTheme } from "@/theme";
-import type { ReasoningPart } from "@/types/rows";
+import type { PartRef } from "@/types/rows";
+import {
+  useSessionMessage,
+  useSessionParts,
+} from "@/hooks/use-row-content";
 
 function extractTitle(text: string): string | undefined {
   const bold = text.match(/^\s*\*\*(.+?)\*\*/);
@@ -33,12 +36,14 @@ function formatDuration(completed: number, created: number): string {
 }
 
 export function ReasoningGroupRow({
-  message,
+  sessionID,
+  messageID,
   parts,
   completed,
 }: {
-  message: SessionMessageAssistant;
-  parts: ReasoningPart[];
+  sessionID: string;
+  messageID: string;
+  parts: PartRef[];
   completed: boolean;
 }) {
   const { colors } = useTheme();
@@ -46,11 +51,15 @@ export function ReasoningGroupRow({
   // previous group's expanded state into a recycled cell. useRecyclingState
   // re-seeds from `completed` whenever the cell is assigned a different group.
   const [expanded, setExpanded] = useRecyclingState<boolean>(() => !completed);
+  const message = useSessionMessage(sessionID, messageID);
+  const resolved = useSessionParts(sessionID, parts);
 
-  const text = sanitize(parts.map((p) => p.text).join("\n"));
+  const text = sanitize(
+    resolved.flatMap((part) => (part.type === "reasoning" ? [part.text] : [])).join("\n"),
+  );
   const title = extractTitle(text);
   const duration =
-    completed && message.time.completed
+    completed && message?.type === "assistant" && message.time.completed
       ? formatDuration(message.time.completed, message.time.created)
       : undefined;
 

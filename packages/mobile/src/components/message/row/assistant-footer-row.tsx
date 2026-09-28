@@ -1,5 +1,6 @@
 import { Text } from "@/components/primitives";
 import type { SessionMessageAssistant } from "@opencode/client/promise";
+import { useSessionMessage } from "@/hooks/use-row-content";
 
 function formatDuration(created: number, completed?: number) {
   if (!completed) return undefined;
@@ -14,10 +15,15 @@ function isInterrupted(error: SessionMessageAssistant["error"]): boolean {
 }
 
 export function AssistantFooterRow({
-  message,
+  sessionID,
+  messageID,
 }: {
-  message: SessionMessageAssistant;
+  sessionID: string;
+  messageID: string;
 }) {
+  const message = useSessionMessage(sessionID, messageID);
+  if (message?.type !== "assistant") return null;
+
   const duration = formatDuration(message.time.created, message.time.completed);
   const interrupted = isInterrupted(message.error);
 

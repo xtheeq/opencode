@@ -8,30 +8,47 @@ import { SystemMessageRow } from "./system-message-row";
 import { ShellMessageRow } from "./shell-message-row";
 import { CompactionMessageRow } from "./compaction-message-row";
 
-export function RowRenderer({ row }: { row: SessionRow }) {
+export function RowRenderer({
+  sessionID,
+  row,
+}: {
+  sessionID: string;
+  row: SessionRow;
+}) {
   switch (row.type) {
     case "user-message":
-      return <UserMessageRow message={row.message} />;
+      return <UserMessageRow sessionID={sessionID} messageID={row.messageID} />;
     case "assistant-part":
-      return <AssistantPartRow part={row.part} />;
+      return (
+        <AssistantPartRow
+          sessionID={sessionID}
+          messageID={row.messageID}
+          partID={row.partID}
+        />
+      );
     case "reasoning-group":
       return (
         <ReasoningGroupRow
-          message={row.message}
+          sessionID={sessionID}
+          messageID={row.messageID}
           parts={row.parts}
           completed={row.completed}
         />
       );
     case "exploration-group":
-      return <ExplorationGroupRow parts={row.parts} />;
+      return <ExplorationGroupRow sessionID={sessionID} parts={row.parts} />;
     case "assistant-footer":
-      return <AssistantFooterRow message={row.message} />;
+      return (
+        <AssistantFooterRow sessionID={sessionID} messageID={row.messageID} />
+      );
     case "system-message":
-      return <SystemMessageRow message={row.message} />;
+      return <SystemMessageRow sessionID={sessionID} messageID={row.messageID} />;
     case "shell-message":
-      return <ShellMessageRow message={row.message} />;
+      return <ShellMessageRow sessionID={sessionID} messageID={row.messageID} />;
     case "compaction-message":
-      return <CompactionMessageRow message={row.message} />;
+      return (
+        <CompactionMessageRow sessionID={sessionID} messageID={row.messageID} />
+      );
     case "turn-usage":
       return null;
   }

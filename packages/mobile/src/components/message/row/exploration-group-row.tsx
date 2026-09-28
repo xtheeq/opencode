@@ -1,17 +1,24 @@
-import type { SessionMessageAssistantTool } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { ToolPart } from "../parts";
+import type { PartRef, ToolPart as ToolPartContent } from "@/types/rows";
+import { useSessionParts } from "@/hooks/use-row-content";
 
 export function ExplorationGroupRow({
+  sessionID,
   parts,
 }: {
-  parts: SessionMessageAssistantTool[];
+  sessionID: string;
+  parts: PartRef[];
 }) {
-  if (parts.length === 0) return null;
+  const resolved = useSessionParts(sessionID, parts);
+  const tools = resolved.filter(
+    (part): part is ToolPartContent => part.type === "tool",
+  );
+  if (tools.length === 0) return null;
 
   return (
     <BubbleContainer alignment="flex-start" fullWidth>
-      {parts.map((part) => (
+      {tools.map((part) => (
         <ToolPart key={part.id} part={part} />
       ))}
     </BubbleContainer>

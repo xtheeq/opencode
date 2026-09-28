@@ -1,17 +1,13 @@
 import type {
   SessionMessageAgentSelected,
-  SessionMessageAssistant,
   SessionMessageAssistantReasoning,
   SessionMessageAssistantText,
   SessionMessageAssistantTool,
-  SessionMessageCompaction,
   SessionMessageLocationSwitched,
   SessionMessageModelSelected,
-  SessionMessageShell,
   SessionMessageSkill,
   SessionMessageSynthetic,
   SessionMessageSystem,
-  SessionMessageUser,
 } from "@opencode/client/promise";
 
 export type CacheUsage = {
@@ -42,53 +38,56 @@ export type Systemish =
   | SessionMessageSystem
   | SessionMessageSkill;
 
-// Rows are self-contained projections: each carries the resolved message (and
-// part) it renders, so RowRenderer needs no lookup map and unchanged messages
-// keep the same row object identity across renders.
+// A content part addressed by reference. Text/reasoning parts use their ordinal
+// (`text:0`, `reasoning:1`); tools use their own id.
+export type PartRef = { messageID: string; partID: string };
+
+// Rows are structural: they carry only message/part references and grouping.
+// Content is resolved from the store by the row component, so a content delta
+// never changes a row object and LegendList can skip re-rendering it.
 export type SessionRow =
-  | { type: "user-message"; message: SessionMessageUser }
+  | { type: "user-message"; messageID: string }
   | {
       type: "assistant-part";
-      message: SessionMessageAssistant;
-      part: AssistantContentPart;
+      messageID: string;
       partID: string;
+      kind: AssistantContentPart["type"];
     }
   | {
       type: "reasoning-group";
-      message: SessionMessageAssistant;
-      parts: ReasoningPart[];
-      firstPartID: string;
+      messageID: string;
+      parts: PartRef[];
       completed: boolean;
     }
-  | { type: "exploration-group"; parts: ToolPart[] }
-  | { type: "assistant-footer"; message: SessionMessageAssistant }
+  | { type: "exploration-group"; parts: PartRef[] }
+  | { type: "assistant-footer"; messageID: string }
   | {
       type: "turn-usage";
       messageIDs: string[];
       previousCache?: CacheUsage;
     }
-  | { type: "system-message"; message: Systemish }
-  | { type: "shell-message"; message: SessionMessageShell }
-  | { type: "compaction-message"; message: SessionMessageCompaction };
+  | { type: "system-message"; messageID: string }
+  | { type: "shell-message"; messageID: string }
+  | { type: "compaction-message"; messageID: string };
 
 export function rowKey(row: SessionRow): string {
   switch (row.type) {
     case "user-message":
-      return `user:${row.message.id}`;
+      return `user:${row.messageID}`;
     case "assistant-part":
-      return `part:${row.message.id}:${row.partID}`;
+      return `part:${row.messageID}:${row.partID}`;
     case "reasoning-group":
-      return `reasoning:${row.message.id}:${row.firstPartID}`;
+      return `reasoning:${row.messageID}:${row.parts[0]?.partID}`;
     case "exploration-group":
-      return `exploration:${row.parts[0].id}`;
+      return `exploration:${row.parts[0]?.messageID}:${row.parts[0]?.partID}`;
     case "assistant-footer":
-      return `footer:${row.message.id}`;
+      return `footer:${row.messageID}`;
     case "system-message":
-      return `system:${row.message.id}`;
+      return `system:${row.messageID}`;
     case "shell-message":
-      return `shell:${row.message.id}`;
+      return `shell:${row.messageID}`;
     case "compaction-message":
-      return `compaction:${row.message.id}`;
+      return `compaction:${row.messageID}`;
     case "turn-usage":
       return `usage:${row.messageIDs[0]}`;
   }

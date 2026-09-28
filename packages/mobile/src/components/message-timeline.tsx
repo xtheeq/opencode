@@ -16,7 +16,7 @@ import { loadOlderMessages } from "@/stores/sync";
 
 function rowType(row: SessionRow): string {
   return row.type === "assistant-part"
-    ? `${row.type}-${row.part.type}`
+    ? `${row.type}-${row.kind}`
     : row.type;
 }
 
@@ -56,7 +56,9 @@ export function MessageTimeline({
         data={rows}
         keyExtractor={rowKey}
         getItemType={rowType}
-        renderItem={({ item }) => <RowRenderer row={item} />}
+        renderItem={({ item }) => (
+          <RowRenderer sessionID={sessionID} row={item} />
+        )}
         recycleItems
         drawDistance={1000}
         style={{ backgroundColor: colors.background.default, flex: 1 }}

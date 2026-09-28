@@ -17,9 +17,19 @@ const read: SessionMessageAssistantTool = {
   state: { status: "streaming", input: "" },
   time: { created: 0 },
 };
+const bash: SessionMessageAssistantTool = {
+  type: "tool",
+  id: "t2",
+  name: "bash",
+  state: { status: "streaming", input: "" },
+  time: { created: 0 },
+};
 
-const assistantWithText = (text: string): SessionMessageAssistant => ({
-  id: "a1",
+const assistantWithText = (
+  id: string,
+  text: string,
+): SessionMessageAssistant => ({
+  id,
   type: "assistant",
   agent: "build",
   model: { id: "gpt", providerID: "openai" },
@@ -27,26 +37,35 @@ const assistantWithText = (text: string): SessionMessageAssistant => ({
   time: { created: 0 },
 });
 
-const before = (): SessionMessageUser => ({
+const assistantWithExtraTool = (
+  id: string,
+  text: string,
+): SessionMessageAssistant => ({
+  id,
+  type: "assistant",
+  agent: "build",
+  model: { id: "gpt", providerID: "openai" },
+  content: [reasoning, read, bash, { type: "text", text }],
+  time: { created: 0 },
+});
+
+const userMessage = (): SessionMessageUser => ({
   id: "u1",
   type: "user",
   text: "go",
   time: { created: 0 },
 });
 
-// These encode the target behavior and currently fail. Once the behavior is
-// implemented, Bun reports the passing `test.failing` as a failure — convert
-// them to plain `test` then.
-test.failing("keeps the rows array identity across a text delta", () => {
-  const message = before();
-  const first = projectRows([message, assistantWithText("one")]);
-  const second = projectRows([message, assistantWithText("two")]);
+test("keeps the rows array identity across a text delta", () => {
+  const message = userMessage();
+  const first = projectRows([message, assistantWithText("a1", "one")]);
+  const second = projectRows([message, assistantWithText("a1", "two")]);
   expect(second).toBe(first);
 });
 
-test.failing("keeps the streaming message's non-text rows stable across a text delta", () => {
-  const first = projectRows([assistantWithText("one")]);
-  const second = projectRows([assistantWithText("two")]);
+test("keeps the streaming message's non-text rows stable across a text delta", () => {
+  const first = projectRows([assistantWithText("a2", "one")]);
+  const second = projectRows([assistantWithText("a2", "two")]);
 
   const firstReasoning = first.find((row) => row.type === "reasoning-group");
   const secondReasoning = second.find((row) => row.type === "reasoning-group");
@@ -57,26 +76,30 @@ test.failing("keeps the streaming message's non-text rows stable across a text d
   expect(secondExploration).toBe(firstExploration);
 });
 
-test("reprojects every row of the streaming message on a text delta", () => {
-  const first = projectRows([assistantWithText("one")]);
-  const second = projectRows([assistantWithText("two")]);
-  expect(second[0]).not.toBe(first[0]);
-});
-
 test("keeps non-streaming rows stable across a text delta", () => {
-  const message = before();
-  const first = projectRows([message, assistantWithText("one")]);
-  const second = projectRows([message, assistantWithText("two")]);
+  const message = userMessage();
+  const first = projectRows([message, assistantWithText("a3", "one")]);
+  const second = projectRows([message, assistantWithText("a3", "two")]);
   expect(second[0]).toBe(first[0]);
 });
 
-test("counts one projection run and one miss per text delta", () => {
-  const message = before();
-  projectRows([message, assistantWithText("one")]);
+test("reprojects when the part structure changes", () => {
+  const first = projectRows([assistantWithText("a4", "one")]);
+  const second = projectRows([assistantWithExtraTool("a4", "one")]);
+  expect(second).not.toBe(first);
+  expect(second.map((row) => row.type)).not.toEqual(
+    first.map((row) => row.type),
+  );
+});
+
+test("counts one run and structure reuse per text delta", () => {
+  const message = userMessage();
+  projectRows([message, assistantWithText("a5", "one")]);
 
   const mark = { ...projectionStats };
-  projectRows([message, assistantWithText("two")]);
+  projectRows([message, assistantWithText("a5", "two")]);
   expect(projectionStats.runs - mark.runs).toBe(1);
-  expect(projectionStats.projectedMessages - mark.projectedMessages).toBe(1);
+  expect(projectionStats.projectedMessages - mark.projectedMessages).toBe(0);
   expect(projectionStats.cachedMessages - mark.cachedMessages).toBe(1);
+  expect(projectionStats.reusedMessages - mark.reusedMessages).toBe(1);
 });

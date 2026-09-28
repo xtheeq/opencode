@@ -1,25 +1,30 @@
-import type { SessionMessageInfo } from "@opencode/client/promise";
 import { BubbleContainer } from "../bubble-container";
 import { SystemMessage } from "../system-message";
 import { SwitchMessage } from "../switch-message";
 import { SkillMessage } from "../skill-message";
+import { useSessionMessage } from "@/hooks/use-row-content";
 
-export function SystemMessageRow({ message }: { message: SessionMessageInfo }) {
-  const content = () => {
-    switch (message.type) {
-      case "system":
-      case "synthetic":
-        return <SystemMessage message={message} />;
-      case "agent-switched":
-      case "model-switched":
-      case "location-switched":
-        return <SwitchMessage message={message} />;
-      case "skill":
-        return <SkillMessage message={message} />;
-      default:
-        return null;
-    }
-  };
+export function SystemMessageRow({
+  sessionID,
+  messageID,
+}: {
+  sessionID: string;
+  messageID: string;
+}) {
+  const message = useSessionMessage(sessionID, messageID);
+  if (!message) return null;
 
-  return <BubbleContainer alignment="center">{content()}</BubbleContainer>;
+  return (
+    <BubbleContainer alignment="center">
+      {message.type === "system" || message.type === "synthetic" ? (
+        <SystemMessage message={message} />
+      ) : message.type === "agent-switched" ||
+        message.type === "model-switched" ||
+        message.type === "location-switched" ? (
+        <SwitchMessage message={message} />
+      ) : message.type === "skill" ? (
+        <SkillMessage message={message} />
+      ) : null}
+    </BubbleContainer>
+  );
 }
