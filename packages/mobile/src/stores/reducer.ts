@@ -159,9 +159,24 @@ export function handleEvent(event: V2Event) {
       eventStore.setState((s) => {
         const info = s.session.info[event.data.sessionID];
         if (!info) return;
+        const previous = {
+          location: { ...info.location },
+          projectID: info.projectID,
+          subpath: info.subpath,
+        };
         info.location = event.data.location;
         if (event.data.projectID) info.projectID = event.data.projectID;
         info.subpath = event.data.subpath;
+        const messages = (s.session.message[event.data.sessionID] ??= []);
+        append(messages, {
+          id: messageIDFromEvent(event.id),
+          type: "location-switched",
+          location: event.data.location,
+          projectID: event.data.projectID,
+          subpath: event.data.subpath,
+          previous,
+          time: { created: event.created },
+        });
       });
       break;
 
