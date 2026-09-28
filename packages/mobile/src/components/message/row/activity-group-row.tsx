@@ -47,9 +47,11 @@ export function ActivityGroupRow({
   completed: boolean;
 }) {
   const { colors } = useTheme();
-  // Activity groups share a recycling pool, so useRecyclingState re-seeds the
-  // expanded state whenever the cell is assigned a different group.
-  const [expanded, setExpanded] = useRecyclingState<boolean>(() => !completed);
+  // Collapsed by default: a summary line while the turn streams and one
+  // collapsed row once it ends, so live reasoning/tool content is not mounted
+  // until the user taps to expand. useRecyclingState re-seeds the expanded
+  // state whenever the cell is assigned a different group.
+  const [expanded, setExpanded] = useRecyclingState<boolean>(() => false);
   const resolved = useSessionParts(sessionID, parts);
 
   if (resolved.length === 0) return null;
