@@ -950,6 +950,20 @@ export function handleEvent(event: V2Event) {
       syncProjectList().catch(() => undefined);
       break;
 
+    case "credential.updated":
+    case "credential.switched":
+      for (const key of Object.keys(eventStore.getState().location)) {
+        const [directory, workspaceID] = JSON.parse(key) as [
+          string,
+          string | null,
+        ];
+        const location = { directory, workspaceID: workspaceID ?? undefined };
+        refreshLocation("integration", location);
+        refreshLocation("model", location);
+        refreshLocation("provider", location);
+      }
+      break;
+
     // Explicitly out of scope for mobile: no store mutation or refetch needed.
     case "session.forked":
     // Forks are child sessions mobile never lists (root-only session list)
@@ -957,8 +971,6 @@ export function handleEvent(event: V2Event) {
     // blocker family as if it were a subagent.
     case "models-dev.refreshed":
     case "location.shutdown":
-    case "credential.updated":
-    case "credential.switched":
     case "persistent-pty.added":
     case "persistent-pty.removed":
     case "filesystem.changed":
