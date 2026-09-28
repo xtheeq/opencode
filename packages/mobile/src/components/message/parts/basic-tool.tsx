@@ -1,5 +1,6 @@
-import { Children, useState, type ComponentType, type ReactNode } from "react";
+import { Children, type ComponentType, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
+import { useRecyclingState } from "@legendapp/list/react-native";
 import ChevronDown from "lucide-react-native/icons/chevron-down";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
 import CircleAlert from "lucide-react-native/icons/circle-alert";
@@ -36,7 +37,7 @@ export function BasicTool({
   children?: ReactNode;
 }) {
   const { colors } = useTheme();
-  const [open, setOpen] = useState(defaultOpen);
+  const [open, setOpen] = useRecyclingState(() => defaultOpen);
   const pending = status === "streaming" || status === "running";
   const failed = status === "error" || error != null;
   const hasChildren = Children.count(children) > 0;

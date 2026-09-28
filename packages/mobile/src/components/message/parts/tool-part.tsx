@@ -6,24 +6,24 @@ import { BashTool } from "./tool-bash";
 import { PatchTool } from "./tool-patch";
 import { ReadTool } from "./tool-read";
 
-// Key by part id so recycled cells reset expand/collapse state; LegendList
-// omits row keys (recycleItems), so state would otherwise persist across parts.
+// Expand/collapse state resets on recycle via useRecyclingState in BasicTool;
+// without a part-id key the subtree is reused when LegendList reassigns a cell.
 export function ToolPart({ part }: { part: SessionMessageAssistantTool }) {
   switch (part.name) {
     case "write":
     case "create":
-      return <WriteTool key={part.id} part={part} />;
+      return <WriteTool part={part} />;
     case "edit":
-      return <EditTool key={part.id} part={part} />;
+      return <EditTool part={part} />;
     case "bash":
     case "shell":
-      return <BashTool key={part.id} part={part} />;
+      return <BashTool part={part} />;
     case "patch":
     case "apply_patch":
-      return <PatchTool key={part.id} part={part} />;
+      return <PatchTool part={part} />;
     case "read":
-      return <ReadTool key={part.id} part={part} />;
+      return <ReadTool part={part} />;
     default:
-      return <GenericTool key={part.id} part={part} />;
+      return <GenericTool part={part} />;
   }
 }
