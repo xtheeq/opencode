@@ -296,20 +296,15 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.instructions.updated": {
-      const instructionsMeta = event.metadata?.instructions;
-      if (
-        typeof instructionsMeta === "object" &&
-        instructionsMeta !== null &&
-        "initial" in instructionsMeta &&
-        instructionsMeta.initial === true
-      )
-        break;
+      const text = event.data.text;
+      if (text === undefined) break;
       eventStore.setState((s) => {
         const messages = (s.session.message[event.data.sessionID] ??= []);
         append(messages, {
           id: messageIDFromEvent(event.id),
           type: "system",
-          text: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
+          text,
+          description: `Instructions updated: ${Object.keys(event.data.delta).join(", ")}`,
           metadata: event.metadata,
           time: { created: event.created },
         });
