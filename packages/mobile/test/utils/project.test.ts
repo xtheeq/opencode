@@ -13,7 +13,7 @@ const project = (overrides: Partial<Project> = {}): Project =>
   ({
     id: "prj_1",
     canonical: "/workspace/repo",
-    time: { created: 0, updated: 100 },
+    time: { created: 0, updated: 100, active: 0 },
     sandboxes: [],
     ...overrides,
   }) as Project;
@@ -56,9 +56,9 @@ describe("projectDisplayName", () => {
 describe("sortProjects", () => {
   test("orders by updated time descending", () => {
     const sorted = sortProjects([
-      project({ id: "a", time: { created: 0, updated: 10 } }),
-      project({ id: "b", time: { created: 0, updated: 30 } }),
-      project({ id: "c", time: { created: 0, updated: 20 } }),
+      project({ id: "a", time: { created: 0, updated: 10, active: 0 } }),
+      project({ id: "b", time: { created: 0, updated: 30, active: 0 } }),
+      project({ id: "c", time: { created: 0, updated: 20, active: 0 } }),
     ]);
 
     expect(sorted.map((item) => item.id)).toEqual(["b", "c", "a"]);
@@ -66,9 +66,21 @@ describe("sortProjects", () => {
 
   test("tiebreaks equal times by name then id", () => {
     const sorted = sortProjects([
-      project({ id: "b", name: "zeta", time: { created: 0, updated: 10 } }),
-      project({ id: "a", name: "alpha", time: { created: 0, updated: 10 } }),
-      project({ id: "c", name: "alpha", time: { created: 0, updated: 10 } }),
+      project({
+        id: "b",
+        name: "zeta",
+        time: { created: 0, updated: 10, active: 0 },
+      }),
+      project({
+        id: "a",
+        name: "alpha",
+        time: { created: 0, updated: 10, active: 0 },
+      }),
+      project({
+        id: "c",
+        name: "alpha",
+        time: { created: 0, updated: 10, active: 0 },
+      }),
     ]);
 
     expect(sorted.map((item) => item.id)).toEqual(["a", "c", "b"]);

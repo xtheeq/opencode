@@ -943,6 +943,7 @@ export function handleEvent(event: V2Event) {
     case "pty.deleted":
     case "worktree.updated":
     case "worktree.resolved":
+    case "session.metadata.updated":
     case "session.status":
     case "session.idle":
     case "session.permissions":
