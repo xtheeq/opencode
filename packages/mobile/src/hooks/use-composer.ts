@@ -139,7 +139,7 @@ export function useComposer(sessionID: string) {
 
   const stop = async () => {
     if (sessionID && !isNewSessionKey(sessionID))
-      await getClient().session.interrupt({ sessionID });
+      await getClient().session.interrupt({ sessionID, resume: true });
   };
 
   const runCommand = async (item: Suggestion) => {
