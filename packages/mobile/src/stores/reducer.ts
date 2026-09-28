@@ -716,10 +716,11 @@ export function handleEvent(event: V2Event) {
 
     case "session.revert.committed":
       eventStore.setState((s) => {
-        if (s.session.info[event.data.sessionID])
-          s.session.info[event.data.sessionID].revert = undefined;
-      });
-      eventStore.setState((s) => {
+        const info = s.session.info[event.data.sessionID];
+        if (info) info.revert = undefined;
+        s.session.pending[event.data.sessionID] = (
+          s.session.pending[event.data.sessionID] ?? []
+        ).filter((item) => item.id < event.data.to);
         s.session.input[event.data.sessionID] = (
           s.session.input[event.data.sessionID] ?? []
         ).filter((id) => id < event.data.to);
