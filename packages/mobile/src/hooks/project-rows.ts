@@ -1,4 +1,5 @@
 import type {
+  SessionInboxInfo,
   SessionMessageAssistant,
   SessionMessageInfo,
   TokenUsageInfo,
@@ -82,6 +83,35 @@ export function resetProjectionStats() {
   projectionStats.runs = 0;
   projectionStats.projections = 0;
   projectionStats.cached = 0;
+}
+
+// Queued prompts stay out of the transcript, pending steers move to its end,
+// and everything at or after a staged revert boundary is hidden until it
+// commits.
+export function visibleTimelineMessages(
+  messages: SessionMessageInfo[],
+  pending: SessionInboxInfo[],
+  revertMessageID?: string,
+): SessionMessageInfo[] {
+  const queued = new Set<string>();
+  const steers = new Set<string>();
+  for (const item of pending) {
+    if (item.type !== "user") continue;
+    if (item.delivery === "queue") queued.add(item.id);
+    else if (item.delivery === "steer") steers.add(item.id);
+  }
+  if (queued.size === 0 && steers.size === 0 && !revertMessageID)
+    return messages;
+  const visible = messages.filter(
+    (message) =>
+      !queued.has(message.id) &&
+      (!revertMessageID || message.id < revertMessageID),
+  );
+  if (steers.size === 0) return visible;
+  return [
+    ...visible.filter((message) => !steers.has(message.id)),
+    ...visible.filter((message) => steers.has(message.id)),
+  ];
 }
 
 type TurnEntry =

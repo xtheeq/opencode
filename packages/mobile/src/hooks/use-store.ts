@@ -6,8 +6,10 @@ import { sortProjects } from "@/utils/project";
 import type { SessionInfo, SessionMessageInfo } from "@opencode/client/promise";
 import { connectionPhase } from "@/utils/connection-phase";
 import type { ConnectionPhase } from "@/types/connection";
+import { visibleTimelineMessages } from "@/hooks/project-rows";
 
 const EMPTY_MESSAGES: never[] = [];
+const EMPTY_PENDING: never[] = [];
 
 export function useClient() {
   return eventStore((s) => s._client);
@@ -75,13 +77,19 @@ export function useSessionMessages(sessionID: string) {
     useShallow((s) => ({
       hydration: s._hydration[sessionID],
       messages: s.session.message[sessionID] ?? EMPTY_MESSAGES,
+      pending: s.session.pending[sessionID] ?? EMPTY_PENDING,
+      revertMessageID: s.session.info[sessionID]?.revert?.messageID,
     })),
   );
   useEffect(() => {
     if (state.hydration !== "loaded") void hydrateSession(sessionID);
   }, [sessionID, state.hydration]);
   return {
-    messages: state.messages,
+    messages: visibleTimelineMessages(
+      state.messages,
+      state.pending,
+      state.revertMessageID,
+    ),
     loaded: state.hydration === "loaded",
     loading: state.hydration === "loading",
   };

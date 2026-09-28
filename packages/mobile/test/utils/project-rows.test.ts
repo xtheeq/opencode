@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type {
+  SessionInboxUser,
   SessionMessageAssistant,
   SessionMessageAssistantTool,
   SessionMessageCompaction,
@@ -9,7 +10,12 @@ import type {
   SessionMessageSystem,
   SessionMessageUser,
 } from "@opencode/client/promise";
-import { projectionStats, projectRows, resetProjectionStats } from "@/hooks/project-rows";
+import {
+  projectionStats,
+  projectRows,
+  resetProjectionStats,
+  visibleTimelineMessages,
+} from "@/hooks/project-rows";
 import { rowKey } from "@/types/rows";
 
 const user = (id: string, text: string): SessionMessageUser => ({
@@ -308,6 +314,63 @@ describe("projectRows turn usage", () => {
     const usage = rows.find((row) => row.type === "turn-usage");
     if (usage?.type !== "turn-usage") throw new Error("expected a turn-usage row");
     expect(usage.messageIDs).toEqual(["usage-a1", "usage-a2"]);
+  });
+});
+
+describe("visibleTimelineMessages", () => {
+  const inboxUser = (
+    id: string,
+    delivery: "steer" | "queue",
+  ): SessionInboxUser => ({
+    id,
+    sessionID: "ses_1",
+    type: "user",
+    delivery,
+    payload: { text: id },
+    time: { created: 0 },
+  });
+
+  test("returns the same array when nothing is pending or reverted", () => {
+    const messages = [user("msg_1", "one"), assistant("msg_2", "hi")];
+    expect(visibleTimelineMessages(messages, [])).toBe(messages);
+  });
+
+  test("hides queued prompts", () => {
+    const messages = [
+      user("msg_1", "one"),
+      user("msg_2", "two"),
+      assistant("msg_3", "hi"),
+    ];
+    const visible = visibleTimelineMessages(messages, [
+      inboxUser("msg_2", "queue"),
+    ]);
+    expect(visible.map((message) => message.id)).toEqual(["msg_1", "msg_3"]);
+  });
+
+  test("pins pending steers to the end", () => {
+    const messages = [
+      user("msg_1", "one"),
+      user("msg_2", "two"),
+      assistant("msg_3", "hi"),
+    ];
+    const visible = visibleTimelineMessages(messages, [
+      inboxUser("msg_1", "steer"),
+    ]);
+    expect(visible.map((message) => message.id)).toEqual([
+      "msg_2",
+      "msg_3",
+      "msg_1",
+    ]);
+  });
+
+  test("hides messages at or after a staged revert boundary", () => {
+    const messages = [
+      user("msg_1", "one"),
+      user("msg_2", "two"),
+      assistant("msg_3", "hi"),
+    ];
+    const visible = visibleTimelineMessages(messages, [], "msg_3");
+    expect(visible.map((message) => message.id)).toEqual(["msg_1", "msg_2"]);
   });
 });
 
