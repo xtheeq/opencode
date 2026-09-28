@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import type {
   SessionMessageAssistant,
+  SessionMessageAssistantTool,
+  SessionMessageCompaction,
+  SessionMessageIdle,
+  SessionMessageShell,
+  SessionMessageSynthetic,
+  SessionMessageSystem,
   SessionMessageUser,
 } from "@opencode/client/promise";
-import { projectRows } from "@/hooks/project-rows";
+import { projectionStats, projectRows, resetProjectionStats } from "@/hooks/project-rows";
 import { rowKey } from "@/types/rows";
 
 const user = (id: string, text: string): SessionMessageUser => ({
@@ -13,14 +19,89 @@ const user = (id: string, text: string): SessionMessageUser => ({
   time: { created: 0 },
 });
 
-const assistant = (id: string, text: string): SessionMessageAssistant => ({
+const assistant = (
+  id: string,
+  text: string,
+  overrides: Partial<SessionMessageAssistant> = {},
+): SessionMessageAssistant => ({
   id,
   type: "assistant",
   agent: "build",
   model: { id: "gpt", providerID: "openai" },
   content: [{ type: "text", text }],
   time: { created: 0 },
+  ...overrides,
 });
+
+const tool = (id: string, name: string): SessionMessageAssistantTool => ({
+  type: "tool",
+  id,
+  name,
+  state: { status: "streaming", input: "" },
+  time: { created: 0 },
+});
+
+const shell: SessionMessageShell = {
+  id: "sh1",
+  type: "shell",
+  shellID: "s1",
+  command: "ls",
+  status: "exited",
+  exit: 0,
+  time: { created: 0 },
+};
+
+const system: SessionMessageSystem = {
+  id: "sys1",
+  type: "system",
+  text: "system",
+  time: { created: 0 },
+};
+
+const synthetic = (id: string, description?: string): SessionMessageSynthetic => ({
+  id,
+  type: "synthetic",
+  text: "note",
+  description,
+  time: { created: 0 },
+});
+
+const idle: SessionMessageIdle = {
+  id: "id1",
+  type: "idle",
+  outcome: "succeeded",
+  time: { created: 0 },
+};
+
+const compaction = (status: SessionMessageCompaction["status"]): SessionMessageCompaction =>
+  status === "running"
+    ? {
+        id: "c1",
+        type: "compaction",
+        status,
+        reason: "auto",
+        summary: "",
+        recent: "",
+        time: { created: 0 },
+      }
+    : status === "completed"
+      ? {
+          id: "c1",
+          type: "compaction",
+          status,
+          reason: "auto",
+          summary: "",
+          recent: "",
+          time: { created: 0 },
+        }
+      : {
+          id: "c1",
+          type: "compaction",
+          status,
+          reason: "auto",
+          error: { type: "compaction.failed", message: "failed" },
+          time: { created: 0 },
+        };
 
 describe("projectRows identity", () => {
   test("reuses rows for unchanged messages across a streaming delta", () => {
@@ -69,5 +150,142 @@ describe("projectRows grouping", () => {
       throw new Error("expected a reasoning group");
     expect(group.parts).toHaveLength(2);
     expect(group.completed).toBe(true);
+  });
+
+  test("groups adjacent exploration tools and breaks the group on text", () => {
+    const message: SessionMessageAssistant = {
+      ...assistant("a1", ""),
+      content: [
+        tool("t1", "read"),
+        tool("t2", "grep"),
+        { type: "text", text: "answer" },
+        tool("t3", "glob"),
+      ],
+    };
+
+    const rows = projectRows([message]);
+    expect(rows.map((row) => row.type)).toEqual([
+      "exploration-group",
+      "assistant-part",
+      "exploration-group",
+    ]);
+
+    const first = rows[0];
+    if (first.type !== "exploration-group") throw new Error("expected exploration group");
+    expect(first.parts.map((part) => part.id)).toEqual(["t1", "t2"]);
+  });
+
+  test("leaves a non-exploration tool as an ordinary row", () => {
+    const message: SessionMessageAssistant = {
+      ...assistant("a1", ""),
+      content: [tool("t1", "bash")],
+    };
+    const rows = projectRows([message]);
+    expect(rows.map((row) => row.type)).toEqual(["assistant-part"]);
+  });
+
+  test("emits a footer only for a terminal step", () => {
+    expect(
+      projectRows([assistant("a1", "done", { finish: "stop" })]).map((row) => row.type),
+    ).toEqual(["assistant-part", "assistant-footer"]);
+    expect(
+      projectRows([assistant("a1", "calling", { finish: "tool-calls" })]).map((row) => row.type),
+    ).toEqual(["assistant-part"]);
+    expect(
+      projectRows([assistant("a1", "", { finish: "unknown" })]).map((row) => row.type),
+    ).toEqual([]);
+  });
+
+  test("emits a footer for an errored step", () => {
+    const rows = projectRows([
+      assistant("a1", "partial", { error: { type: "api", message: "boom" } }),
+    ]);
+    expect(rows.map((row) => row.type)).toEqual(["assistant-part", "assistant-footer"]);
+  });
+});
+
+describe("projectRows message mapping", () => {
+  test("drops idle and empty synthetic messages", () => {
+    expect(projectRows([idle, synthetic("syn1")])).toEqual([]);
+  });
+
+  test("maps shell, system, non-empty synthetic, and compaction messages", () => {
+    const rows = projectRows([
+      idle,
+      synthetic("syn1"),
+      shell,
+      system,
+      synthetic("syn2", "note"),
+      compaction("running"),
+    ]);
+    expect(rows.map((row) => row.type)).toEqual([
+      "shell-message",
+      "system-message",
+      "system-message",
+      "compaction-message",
+    ]);
+  });
+
+  test("reorders pending compactions and input messages to the end", () => {
+    const rows = projectRows([compaction("running"), user("u1", "hello"), assistant("a1", "hi")], {
+      inputs: new Set(["u1"]),
+    });
+    expect(rows.map((row) => row.type)).toEqual([
+      "assistant-part",
+      "compaction-message",
+      "user-message",
+    ]);
+    const last = rows.at(-1);
+    if (last?.type !== "user-message") throw new Error("expected the input user message last");
+    expect(last.message.id).toBe("u1");
+  });
+});
+
+describe("projectRows row keys", () => {
+  test("keeps every projected row key unique", () => {
+    const message: SessionMessageAssistant = {
+      ...assistant("a1", ""),
+      content: [
+        { type: "reasoning", text: "thinking" },
+        tool("t1", "read"),
+        tool("t2", "grep"),
+        { type: "text", text: "answer" },
+      ],
+    };
+    const rows = projectRows([user("u1", "go"), message, shell, system]);
+    const keys = rows.map(rowKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+describe("projectRows turn usage", () => {
+  test("folds a turn's steps into one turn-usage row", () => {
+    const tokens = { input: 1, output: 2, reasoning: 0, cache: { read: 0, write: 0 } };
+    const first = assistant("a1", "", { finish: "tool-calls", tokens });
+    const second = assistant("a2", "done", { finish: "stop", tokens });
+
+    const rows = projectRows([user("u1", "go"), first, second], { turnTokens: true });
+    const usage = rows.find((row) => row.type === "turn-usage");
+    if (usage?.type !== "turn-usage") throw new Error("expected a turn-usage row");
+    expect(usage.messageIDs).toEqual(["a1", "a2"]);
+  });
+});
+
+describe("projectionStats", () => {
+  test("counts runs and cache hits/misses", () => {
+    resetProjectionStats();
+    const message = user("stats-u1", "hi");
+
+    const beforeFirst = { ...projectionStats };
+    projectRows([message, assistant("stats-a1", "one")]);
+    expect(projectionStats.runs - beforeFirst.runs).toBe(1);
+    expect(projectionStats.projectedMessages - beforeFirst.projectedMessages).toBe(2);
+    expect(projectionStats.cachedMessages - beforeFirst.cachedMessages).toBe(0);
+
+    const beforeSecond = { ...projectionStats };
+    projectRows([message, assistant("stats-a1", "two")]);
+    expect(projectionStats.runs - beforeSecond.runs).toBe(1);
+    expect(projectionStats.projectedMessages - beforeSecond.projectedMessages).toBe(1);
+    expect(projectionStats.cachedMessages - beforeSecond.cachedMessages).toBe(1);
   });
 });

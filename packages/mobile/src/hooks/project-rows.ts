@@ -16,6 +16,24 @@ import { isExploration, type CacheUsage, type SessionRow } from "../types/rows";
 // whole visible timeline on every streaming delta.
 const projectionCache = new WeakMap<SessionMessageInfo, SessionRow[]>();
 
+export type ProjectionStats = {
+  runs: number;
+  projectedMessages: number;
+  cachedMessages: number;
+};
+
+export const projectionStats: ProjectionStats = {
+  runs: 0,
+  projectedMessages: 0,
+  cachedMessages: 0,
+};
+
+export function resetProjectionStats() {
+  projectionStats.runs = 0;
+  projectionStats.projectedMessages = 0;
+  projectionStats.cachedMessages = 0;
+}
+
 type NonAssistantMessage = Exclude<
   SessionMessageInfo,
   SessionMessageAssistant | SessionMessageIdle
@@ -28,6 +46,7 @@ export function projectRows(
     inputs?: Set<string>;
   },
 ): SessionRow[] {
+  projectionStats.runs += 1;
   const inputs = options?.inputs ?? new Set<string>();
   const turnTokens = options?.turnTokens ?? false;
 
@@ -54,9 +73,11 @@ export function projectRows(
   for (const message of ordered) {
     const cached = projectionCache.get(message);
     if (cached) {
+      projectionStats.cachedMessages += 1;
       rows.push(...cached);
       continue;
     }
+    projectionStats.projectedMessages += 1;
     const projected = projectMessage(message);
     projectionCache.set(message, projected);
     rows.push(...projected);
@@ -130,6 +151,7 @@ function projectWithUsage(ordered: SessionMessageInfo[]): SessionRow[] {
     }
 
     usage.steps.push(message);
+    projectionStats.projectedMessages += 1;
     rows.push(...projectMessage(message));
 
     const terminal =
