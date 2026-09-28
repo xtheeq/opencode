@@ -7,6 +7,7 @@ import { DesktopPaths } from "../paths"
 import { DesktopStorage } from "../storage"
 import { getStore } from "../storage/store"
 import { WINDOW_IDS_KEY } from "../storage/keys"
+import { windowDataFile } from "../../shared/ipc-transport"
 import { windowArguments } from "./bootstrap"
 import {
   getBackgroundColor,
@@ -74,6 +75,12 @@ export function getLastFocusedWindow() {
   const focused = BrowserWindow.getFocusedWindow()
   if (focused) return focused
   const win = registry.lastFocused()
+  if (!win || win.isDestroyed()) return null
+  return win
+}
+
+export function getWindowByID(id: string) {
+  const win = registry.get(id)
   if (!win || win.isDestroyed()) return null
   return win
 }
@@ -189,12 +196,4 @@ export const makeMainWindows = Effect.fn("Window.make")(function* () {
   return { create, restore }
 })
 
-// Mirrors windowStorage() in packages/app/src/runtime/persistence/storage.ts; it is the state
-// namespace the renderer persists this window's tabs under.
-function windowDataFile(id: string) {
-  return `opencode.window.${safeWindowID(id)}.dat`
-}
 
-function safeWindowID(id: string) {
-  return id.replace(/[^a-zA-Z0-9._-]/g, "-")
-}
