@@ -5,6 +5,7 @@ import type {
 } from "@opencode/client/promise";
 import { getClient } from "@/stores/store";
 import { replyOnce } from "@/services/blocker-reply";
+import { dismissCueKey, raiseCue } from "@/stores/cues";
 import {
   activeAssistant,
   addBlocker,
@@ -34,6 +35,8 @@ import {
 function isRpcEvent(event: V2Event): event is V2EventRpc {
   return event.type.startsWith("rpc.");
 }
+
+const retryCueKey = (sessionID: string) => `session.retry:${sessionID}`;
 
 export function handleEvent(event: V2Event) {
   switch (event.type) {
@@ -371,6 +374,7 @@ export function handleEvent(event: V2Event) {
       break;
 
     case "session.step.started":
+      dismissCueKey(retryCueKey(event.data.sessionID));
       eventStore.setState((s) => {
         const messages = (s.session.message[event.data.sessionID] ??= []);
         const existing = messages.findLast(
@@ -469,6 +473,7 @@ export function handleEvent(event: V2Event) {
           currentAssistant.tokens = event.data.tokens;
         }
       });
+      dismissCueKey(retryCueKey(event.data.sessionID));
       break;
 
     case "session.text.started":
@@ -684,6 +689,27 @@ export function handleEvent(event: V2Event) {
           error: event.data.error,
         };
       });
+      raiseCue({
+        key: retryCueKey(event.data.sessionID),
+        kind: "warning",
+        title: `Retrying (attempt ${event.data.attempt})`,
+        description: event.data.error.message,
+        sticky: true,
+        actions: [
+          {
+            label: "Stop",
+            onPress: () => {
+              dismissCueKey(retryCueKey(event.data.sessionID));
+              void getClient()
+                .session.interrupt({
+                  sessionID: event.data.sessionID,
+                  resume: true,
+                })
+                .catch(() => undefined);
+            },
+          },
+        ],
+      });
       break;
 
     case "session.execution.started":
@@ -718,6 +744,7 @@ export function handleEvent(event: V2Event) {
         const currentAssistant = activeAssistant(messages);
         if (currentAssistant) currentAssistant.retry = undefined;
       });
+      dismissCueKey(retryCueKey(event.data.sessionID));
       break;
 
     case "session.revert.staged":
